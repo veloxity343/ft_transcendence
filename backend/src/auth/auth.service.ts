@@ -17,4 +17,4 @@ export class AuthService{
 	}
 }
 
-// const service = new AuthService()         //instantiating the service to be usable by the controller, but useless since this is injectable
+// const service = new AuthService() //instantiating the service to be usable by the controller, but useless since this is injectable

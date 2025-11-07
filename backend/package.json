@@ -1,20 +1,30 @@
 {
-  "name": "backend",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "directories": {
-    "test": "test"
-  },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "devDependencies": {
-    "@types/node": "^24.10.0",
-    "ts-node": "^10.9.2",
+    "@nestjs/cli": "^11.0.10",
+    "@nestjs/config": "^4.0.2",
+    "@nestjs/jwt": "^11.0.1",
+    "@nestjs/schematics": "^11.0.9",
+    "@prisma/client": "^6.18.0",
+    "@prisma/config": "^6.18.0",
+    "@types/express": "^5.0.5",
+    "@types/node": "^24.9.1",
+    "prisma": "^6.18.0",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.8",
+    "@nestjs/core": "^11.1.8",
+    "@nestjs/platform-express": "^11.1.8",
+    "@nestjs/platform-socket.io": "^11.1.8",
+    "@nestjs/schedule": "^6.0.1",
+    "@nestjs/swagger": "^11.2.1",
+    "@nestjs/websockets": "^11.1.8",
+    "async-mutex": "^0.5.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "socket.io": "^4.8.1",
+    "swagger-ui-express": "^5.0.1"
   }
 }
