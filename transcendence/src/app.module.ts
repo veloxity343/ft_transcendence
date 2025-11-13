@@ -5,6 +5,7 @@ import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtGuard } from './auth/guards';
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { JwtGuard } from './auth/guards';
     }),
     PrismaModule,
     AuthModule,
+    UserModule,
   ],
   providers: [
     {
