@@ -290,7 +290,8 @@ export class UserService {
         where: { id: targetId },
       });
 
-      if (updatedTarget.adding.includes(userId)) {
+      // Fix: Add null check
+      if (updatedTarget && updatedTarget.adding.includes(userId)) {
         // Mutual friend request - make them friends
         await this.finalizeFriendship(userId, targetId, tx);
       }
@@ -304,6 +305,11 @@ export class UserService {
       tx.user.findUnique({ where: { id: userId } }),
       tx.user.findUnique({ where: { id: targetId } }),
     ]);
+
+    // Fix: Add null checks
+    if (!user || !target) {
+      throw new NotFoundException('User not found during finalization');
+    }
 
     // Remove from adding/added lists
     const userAdding = user.adding.filter(id => id !== targetId);
@@ -358,6 +364,11 @@ export class UserService {
         tx.user.findUnique({ where: { id: userId } }),
         tx.user.findUnique({ where: { id: targetId } }),
       ]);
+
+      // Fix: Add null checks
+      if (!user || !target) {
+        throw new NotFoundException('User not found');
+      }
 
       await Promise.all([
         tx.user.update({
@@ -474,6 +485,11 @@ export class UserService {
         tx.user.findUnique({ where: { id: userId } }),
         tx.user.findUnique({ where: { id: targetId } }),
       ]);
+
+      // Fix: Add null checks
+      if (!user || !target) {
+        throw new NotFoundException('User not found');
+      }
 
       // Remove friendship if exists
       const userFriends = user.friends.filter(id => id !== targetId);
