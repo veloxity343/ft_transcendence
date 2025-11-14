@@ -5,8 +5,7 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -15,7 +14,117 @@ datasource db {
 }
 
 model User {
-  id    Int     @id @default(autoincrement())
-  email String  @unique
-  name  String?
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  username  String   @unique
+  hash      String   // password hash
+  avatar    String   @default("default-avatar.png")
+  
+  // 42 OAuth
+  id42      Int?     @unique
+  
+  // 2FA
+  twoFA         Boolean @default(false)
+  twoFAsecret   String?
+  
+  // JWT
+  hashedRtoken  String?
+  
+  // Game stats
+  score         Int @default(1200)
+  rank          Int @default(0)
+  gamesWon      Int @default(0)
+  gamesLost     Int @default(0)
+  gamesPlayed   Int @default(0)
+  winRate       Float @default(0)
+  playTime      Int @default(0)
+  gameHistory   Int[]
+  
+  // Relationships
+  friends       Int[]
+  adding        Int[]  // pending sent invites
+  added         Int[]  // pending received invites
+  blocks        Int[]
+  blocking      Int[]
+  blocked       Int[]
+  
+  // Chat relationships
+  ownedChannels     Channel[] @relation("ChannelOwners")
+  adminChannels     Channel[] @relation("ChannelAdmins")
+  memberChannels    Channel[] @relation("ChannelMembers")
+  invitedChannels   Channel[] @relation("ChannelInvited")
+  blockedChannels   Channel[] @relation("ChannelBlocked")
+  
+  messages      Message[]
+  mutes         Mute[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Channel {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  dm          Boolean  @default(false)
+  private     Boolean  @default(false)
+  isPassword  Boolean  @default(false)
+  password    String?
+  picture     String?
+  
+  owners      User[]   @relation("ChannelOwners")
+  admins      User[]   @relation("ChannelAdmins")
+  members     User[]   @relation("ChannelMembers")
+  inviteds    User[]   @relation("ChannelInvited")
+  blocked     User[]   @relation("ChannelBlocked")
+  
+  messages    Message[]
+  mutes       Mute[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  msg       String
+  history   String[]
+  unsent    Boolean  @default(false)
+  
+  userId    Int
+  owner     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  cid       Int
+  channel   Channel  @relation(fields: [cid], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Mute {
+  id        Int      @id @default(autoincrement())
+  finishAt  DateTime
+  checkAt   DateTime @default(now())
+  finished  Boolean  @default(false)
+  
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  cid       Int
+  channel   Channel  @relation(fields: [cid], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+}
+
+model Game {
+  id        Int      @id
+  player1   Int
+  player2   Int
+  score1    Int
+  score2    Int
+  duration  Int      @default(0)
+  
+  startTime DateTime
+  endTime   DateTime
+  
+  createdAt DateTime @default(now())
 }
