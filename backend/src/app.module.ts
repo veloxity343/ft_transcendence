@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { JwtGuard } from './auth/guards';
 import { UserModule } from './user/user.module';
 import { EventsModule } from './events/events.module';
+import { GameModule } from './game/game.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { EventsModule } from './events/events.module';
     AuthModule,
     UserModule,
     EventsModule,
+    GameModule,
   ],
   providers: [
     {
