@@ -1,8 +1,32 @@
 import { FastifyInstance } from 'fastify';
 import { ConnectionManager, UserStatus } from './connection.manager';
+import { GameService } from '../services/game.service';
+import { UserService } from '../services/user.service';
+import { ChatService } from '../services/chat.service';
+import { setupGameWebSocket } from './game.websocket';
+import { setupChatWebSocket } from './chat.websocket';
 
 export async function websocketHandler(fastify: FastifyInstance) {
   const connectionManager = new ConnectionManager();
+  const userService = new UserService(fastify.prisma);
+  const chatService = new ChatService(connectionManager);
+  const gameService = new GameService(
+    fastify.prisma,
+    userService,
+    connectionManager,
+  );
+
+  // Setup game WebSocket handlers
+  const gameWebSocket = await setupGameWebSocket(
+    fastify,
+    gameService
+  );
+
+  // Setup chat WebSocket handlers
+  const chatWebSocket = await setupChatWebSocket(
+    fastify,
+    chatService
+  );
 
   fastify.get('/ws', { websocket: true }, (connection, request) => {
     // The connection object IS the WebSocket
@@ -19,9 +43,11 @@ export async function websocketHandler(fastify: FastifyInstance) {
 
     // Verify JWT
     let userId: number;
+    let userEmail: string;
     try {
       const decoded = fastify.jwt.verify(token) as any;
       userId = decoded.sub;
+      userEmail = decoded.email;
     } catch (err) {
       ws.close(1008, 'Invalid token');
       return;
@@ -30,6 +56,24 @@ export async function websocketHandler(fastify: FastifyInstance) {
     // Add connection immediately
     connectionManager.addConnection(userId, ws);
     fastify.log.info(`User ${userId} connected to WebSocket`);
+
+    // Get user info for chat
+    let username = '';
+    let avatar = '';
+    
+    userService.getUser(userId).then(user => {
+      username = user.username;
+      avatar = user.avatar;
+      
+      // Auto-join global chat
+      try {
+        chatService.joinRoom(userId, 'global');
+      } catch (error) {
+        // Already in room, that's fine
+      }
+    }).catch(err => {
+      fastify.log.error({ err }, 'Failed to get user info');
+    });
 
     // Send connection confirmation
     ws.send(JSON.stringify({
@@ -45,6 +89,19 @@ export async function websocketHandler(fastify: FastifyInstance) {
       try {
         const message = JSON.parse(data.toString());
         
+        // Route game-related messages to game handler
+        if (message.event && message.event.startsWith('game:')) {
+          await gameWebSocket.handleGameMessage(userId, message, ws);
+          return;
+        }
+
+        // Route chat-related messages to chat handler
+        if (message.event && message.event.startsWith('chat:')) {
+          await chatWebSocket.handleChatMessage(userId, username, avatar, message, ws);
+          return;
+        }
+
+        // Handle other WebSocket events
         switch (message.event) {
           case 'update-status':
             connectionManager.setStatus(userId, message.data.status);
@@ -80,6 +137,13 @@ export async function websocketHandler(fastify: FastifyInstance) {
 
     // Handle disconnect
     ws.on('close', () => {
+      // Handle game disconnection
+      gameService.handleDisconnect(userId);
+      
+      // Handle chat disconnection
+      chatService.leaveAllRooms(userId);
+      
+      // Remove connection
       connectionManager.removeConnection(userId);
       fastify.log.info(`User ${userId} disconnected from WebSocket`);
       connectionManager.broadcast('user-statuses-updated', connectionManager.getAllStatuses());
@@ -90,13 +154,15 @@ export async function websocketHandler(fastify: FastifyInstance) {
     });
   });
 
-  // Make connection manager available to other parts of the app
+  // Make services available to other parts of the app
   fastify.decorate('connectionManager', connectionManager);
+  fastify.decorate('chatService', chatService);
 }
 
 // Extend Fastify types
 declare module 'fastify' {
   interface FastifyInstance {
     connectionManager: ConnectionManager;
+    chatService: ChatService;
   }
 }

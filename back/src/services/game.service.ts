@@ -1,10 +1,9 @@
 import { PrismaClient } from '@prisma/client';
-import { WebSocket } from '@fastify/websocket';
 import { GameRoom, GameState, PlayerInfo } from '../game/interfaces/game-room.interface';
 import { GameStatus, PaddleDirection } from '../game/types/game.types';
 import { UserService } from './user.service';
 import { ConnectionManager, UserStatus } from '../websocket/connection.manager';
-import { parseJsonArray, stringifyJsonArray, addToJsonArray } from '../utils/array-helpers';
+import { parseJsonArray, stringifyJsonArray } from '../utils/array-helpers';
 
 export class GameService {
   private rooms = new Map<number, GameRoom>();
@@ -489,6 +488,27 @@ export class GameService {
     }
 
     this.rooms.delete(gameId);
+  }
+
+  // ==================== SPECTATING ====================
+
+  async spectateGame(gameId: number): Promise<GameState | null> {
+    const room = this.rooms.get(gameId);
+
+    if (!room || room.status !== GameStatus.IN_PROGRESS) {
+      return null;
+    }
+
+    return {
+      gameId: room.id,
+      player1Score: room.player1Score,
+      player2Score: room.player2Score,
+      paddleLeft: room.paddleLeft,
+      paddleRight: room.paddleRight,
+      ballX: room.ballX,
+      ballY: room.ballY,
+      status: room.status,
+    };
   }
 
   // ==================== UTILITY ====================
