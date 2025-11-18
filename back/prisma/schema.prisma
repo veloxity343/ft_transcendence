@@ -1,0 +1,63 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  username  String   @unique
+  hash      String
+  avatar    String   @default("default-avatar.png")
+  
+  // 42 OAuth
+  id42      Int?     @unique
+  
+  // 2FA
+  twoFA         Boolean @default(false)
+  twoFAsecret   String?
+  
+  // JWT
+  hashedRtoken  String?
+  
+  // Game stats
+  score         Int @default(1200)
+  rank          Int @default(0)
+  gamesWon      Int @default(0)
+  gamesLost     Int @default(0)
+  gamesPlayed   Int @default(0)
+  winRate       Float @default(0)
+  playTime      Int @default(0)
+  gameHistory   String @default("[]") // JSON string for SQLite
+  
+  // Relationships (stored as JSON strings for SQLite)
+  friends       String @default("[]")
+  adding        String @default("[]")
+  added         String @default("[]")
+  blocks        String @default("[]")
+  blocking      String @default("[]")
+  blocked       String @default("[]")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Game {
+  id        Int      @id
+  player1   Int
+  player2   Int
+  score1    Int
+  score2    Int
+  duration  Int      @default(0)
+  
+  startTime DateTime
+  endTime   DateTime
+  createdAt DateTime @default(now())
+}
