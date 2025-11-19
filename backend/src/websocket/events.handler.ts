@@ -3,8 +3,10 @@ import { ConnectionManager, UserStatus } from './connection.manager';
 import { GameService } from '../services/game.service';
 import { UserService } from '../services/user.service';
 import { ChatService } from '../services/chat.service';
+import { TournamentService } from '../services/tournament.service';
 import { setupGameWebSocket } from './game.websocket';
 import { setupChatWebSocket } from './chat.websocket';
+import { setupTournamentWebSocket } from './tournament.websocket';
 
 export async function websocketHandler(fastify: FastifyInstance) {
   const connectionManager = new ConnectionManager();
@@ -13,6 +15,14 @@ export async function websocketHandler(fastify: FastifyInstance) {
   const gameService = new GameService(
     fastify.prisma,
     userService,
+    connectionManager,
+  );
+  
+  // Initialize tournament service
+  const tournamentService = new TournamentService(
+    fastify.prisma,
+    userService,
+    gameService,
     connectionManager,
   );
 
@@ -26,6 +36,12 @@ export async function websocketHandler(fastify: FastifyInstance) {
   const chatWebSocket = await setupChatWebSocket(
     fastify,
     chatService
+  );
+
+  // Setup tournament WebSocket handlers
+  const tournamentWebSocket = await setupTournamentWebSocket(
+    fastify,
+    tournamentService
   );
 
   fastify.get('/ws', { websocket: true }, (connection, request) => {
@@ -101,6 +117,12 @@ export async function websocketHandler(fastify: FastifyInstance) {
           return;
         }
 
+        // Route tournament-related messages to tournament handler
+        if (message.event && message.event.startsWith('tournament:')) {
+          await tournamentWebSocket.handleTournamentMessage(userId, username, message, ws);
+          return;
+        }
+
         // Handle other WebSocket events
         switch (message.event) {
           case 'update-status':
@@ -162,6 +184,9 @@ export async function websocketHandler(fastify: FastifyInstance) {
   if (!fastify.hasDecorator('chatService')) {
     fastify.decorate('chatService', chatService);
   }
+  if (!fastify.hasDecorator('tournamentService')) {
+    fastify.decorate('tournamentService', tournamentService);
+  }
 }
 
 // Extend Fastify types
@@ -169,5 +194,6 @@ declare module 'fastify' {
   interface FastifyInstance {
     connectionManager: ConnectionManager;
     chatService: ChatService;
+    tournamentService: TournamentService;
   }
 }
