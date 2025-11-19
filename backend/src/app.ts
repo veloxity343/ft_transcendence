@@ -7,7 +7,7 @@ import multipart from '@fastify/multipart';
 import staticFiles from '@fastify/static';
 import websocket from '@fastify/websocket';
 import { config } from './config/config';
-import userRoutes from './routes/user';
+import userRoutes from './routes/user.route';
 import { websocketHandler } from './websocket/events.handler';
 
 export interface AppOptions extends FastifyServerOptions, Partial<AutoloadPluginOptions> {}

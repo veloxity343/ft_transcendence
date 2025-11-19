@@ -155,8 +155,13 @@ export async function websocketHandler(fastify: FastifyInstance) {
   });
 
   // Make services available to other parts of the app
-  fastify.decorate('connectionManager', connectionManager);
-  fastify.decorate('chatService', chatService);
+  // Only decorate if not already decorated (for hot-reload support)
+  if (!fastify.hasDecorator('connectionManager')) {
+    fastify.decorate('connectionManager', connectionManager);
+  }
+  if (!fastify.hasDecorator('chatService')) {
+    fastify.decorate('chatService', chatService);
+  }
 }
 
 // Extend Fastify types

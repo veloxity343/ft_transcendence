@@ -1,3 +1,4 @@
+import { WebSocket } from '@fastify/websocket';
 import { GameStatus, PaddleDirection } from '../types/game.types';
 
 export interface GameRoom {
@@ -29,7 +30,6 @@ export interface GameRoom {
   startTime?: Date;
   lastUpdateTime: Date;
 
-  // Game loop interval ID
   intervalId?: NodeJS.Timeout;
 }
 

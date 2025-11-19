@@ -1,9 +1,3 @@
-export enum GameMode {
-  MATCHMAKING = 'matchmaking',
-  PRIVATE = 'private',
-  SPECTATE = 'spectate',
-}
-
 export enum GameStatus {
   WAITING = 'waiting',
   STARTING = 'starting',

@@ -1,15 +1,12 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -17,7 +14,7 @@ model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
   username  String   @unique
-  hash      String   // password hash
+  hash      String
   avatar    String   @default("default-avatar.png")
   
   // 42 OAuth
@@ -38,81 +35,18 @@ model User {
   gamesPlayed   Int @default(0)
   winRate       Float @default(0)
   playTime      Int @default(0)
-  gameHistory   Int[]
+  gameHistory   String @default("[]") // JSON string for SQLite
   
-  // Relationships
-  friends       Int[]
-  adding        Int[]  // pending sent invites
-  added         Int[]  // pending received invites
-  blocks        Int[]
-  blocking      Int[]
-  blocked       Int[]
-  
-  // Chat relationships
-  ownedChannels     Channel[] @relation("ChannelOwners")
-  adminChannels     Channel[] @relation("ChannelAdmins")
-  memberChannels    Channel[] @relation("ChannelMembers")
-  invitedChannels   Channel[] @relation("ChannelInvited")
-  blockedChannels   Channel[] @relation("ChannelBlocked")
-  
-  messages      Message[]
-  mutes         Mute[]
+  // Relationships (stored as JSON strings for SQLite)
+  friends       String @default("[]")
+  adding        String @default("[]")
+  added         String @default("[]")
+  blocks        String @default("[]")
+  blocking      String @default("[]")
+  blocked       String @default("[]")
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-}
-
-model Channel {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  dm          Boolean  @default(false)
-  private     Boolean  @default(false)
-  isPassword  Boolean  @default(false)
-  password    String?
-  picture     String?
-  
-  owners      User[]   @relation("ChannelOwners")
-  admins      User[]   @relation("ChannelAdmins")
-  members     User[]   @relation("ChannelMembers")
-  inviteds    User[]   @relation("ChannelInvited")
-  blocked     User[]   @relation("ChannelBlocked")
-  
-  messages    Message[]
-  mutes       Mute[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model Message {
-  id        Int      @id @default(autoincrement())
-  msg       String
-  history   String[]
-  unsent    Boolean  @default(false)
-  
-  userId    Int
-  owner     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  cid       Int
-  channel   Channel  @relation(fields: [cid], references: [id], onDelete: Cascade)
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Mute {
-  id        Int      @id @default(autoincrement())
-  finishAt  DateTime
-  checkAt   DateTime @default(now())
-  finished  Boolean  @default(false)
-  
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  cid       Int
-  channel   Channel  @relation(fields: [cid], references: [id], onDelete: Cascade)
-  
-  createdAt DateTime @default(now())
 }
 
 model Game {
@@ -125,6 +59,5 @@ model Game {
   
   startTime DateTime
   endTime   DateTime
-  
   createdAt DateTime @default(now())
 }
