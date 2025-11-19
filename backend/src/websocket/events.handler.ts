@@ -9,22 +9,11 @@ import { setupChatWebSocket } from './chat.websocket';
 import { setupTournamentWebSocket } from './tournament.websocket';
 
 export async function websocketHandler(fastify: FastifyInstance) {
-  const connectionManager = new ConnectionManager();
+  const connectionManager = fastify.connectionManager;
+  const chatService = fastify.chatService;
+  const gameService = fastify.gameService;
+  const tournamentService = fastify.tournamentService;
   const userService = new UserService(fastify.prisma);
-  const chatService = new ChatService(connectionManager);
-  const gameService = new GameService(
-    fastify.prisma,
-    userService,
-    connectionManager,
-  );
-  
-  // Initialize tournament service
-  const tournamentService = new TournamentService(
-    fastify.prisma,
-    userService,
-    gameService,
-    connectionManager,
-  );
 
   // Setup game WebSocket handlers
   const gameWebSocket = await setupGameWebSocket(
@@ -175,25 +164,14 @@ export async function websocketHandler(fastify: FastifyInstance) {
       fastify.log.error({ err }, 'WebSocket error');
     });
   });
-
-  // Make services available to other parts of the app
-  // Only decorate if not already decorated (for hot-reload support)
-  if (!fastify.hasDecorator('connectionManager')) {
-    fastify.decorate('connectionManager', connectionManager);
-  }
-  if (!fastify.hasDecorator('chatService')) {
-    fastify.decorate('chatService', chatService);
-  }
-  if (!fastify.hasDecorator('tournamentService')) {
-    fastify.decorate('tournamentService', tournamentService);
-  }
 }
 
-// Extend Fastify types
+// Extend Fastify types to include our services
 declare module 'fastify' {
   interface FastifyInstance {
     connectionManager: ConnectionManager;
     chatService: ChatService;
+    gameService: GameService;
     tournamentService: TournamentService;
   }
 }

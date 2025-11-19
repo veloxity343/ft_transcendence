@@ -20,8 +20,6 @@ export async function setupChatWebSocket(
   fastify: FastifyInstance,
   chatService: ChatService
 ) {
-  // Make ChatService available to routes if needed
-  fastify.decorate('chatService', chatService);
 
   return {
     handleChatMessage: async (
@@ -214,11 +212,4 @@ export async function setupChatWebSocket(
       }
     },
   };
-}
-
-// Extend Fastify types
-declare module 'fastify' {
-  interface FastifyInstance {
-    chatService: ChatService;
-  }
 }

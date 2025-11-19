@@ -7,6 +7,8 @@ import { authenticate, getUserId } from '../middleware/auth.middleware';
 const userRoutes: FastifyPluginAsync = async (fastify) => {
   const userService = new UserService(fastify.prisma);
 
+  // ==================== STATIC ROUTES (must come before parameterized routes) ====================
+  
   // Get current user
   fastify.get('/me', {
     onRequest: [authenticate],
@@ -21,21 +23,7 @@ const userRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  // Get user by ID
-  fastify.get('/:id', {
-    onRequest: [authenticate],
-  }, async (request, reply) => {
-    const { id } = request.params as { id: string };
-    
-    try {
-      const user = await userService.getUser(parseInt(id));
-      reply.send(user);
-    } catch (error: any) {
-      reply.code(404).send({ error: error.message });
-    }
-  });
-
-  // Search users
+  // Search users (must be before /:id route)
   fastify.get('/search', {
     onRequest: [authenticate],
   }, async (request, reply) => {
@@ -49,7 +37,7 @@ const userRoutes: FastifyPluginAsync = async (fastify) => {
     reply.send(users);
   });
 
-  // Get leaderboard
+  // Get leaderboard (must be before /:id route)
   fastify.get('/leaderboard', {
     onRequest: [authenticate],
   }, async (request, reply) => {
@@ -59,6 +47,96 @@ const userRoutes: FastifyPluginAsync = async (fastify) => {
     reply.send(leaderboard);
   });
 
+  // ==================== FRIEND ROUTES ====================
+  
+  // Get friends list
+  fastify.get('/friends/list', {
+    onRequest: [authenticate],
+  }, async (request, reply) => {
+    const userId = getUserId(request);
+    
+    const friends = await userService.getFriends(userId);
+    reply.send(friends);
+  });
+
+  // Add friend
+  fastify.post('/friends/add', {
+    onRequest: [authenticate],
+  }, async (request, reply) => {
+    const userId = getUserId(request);
+    const dto = await validateDto(UserRelationshipDto, request.body, reply);
+    if (!dto) return;
+
+    try {
+      const result = await userService.addFriend(userId, dto.targetUserId);
+      reply.send(result);
+    } catch (error: any) {
+      reply.code(400).send({ error: error.message });
+    }
+  });
+
+  // Remove friend
+  fastify.post('/friends/remove', {
+    onRequest: [authenticate],
+  }, async (request, reply) => {
+    const userId = getUserId(request);
+    const dto = await validateDto(UserRelationshipDto, request.body, reply);
+    if (!dto) return;
+
+    try {
+      const result = await userService.removeFriend(userId, dto.targetUserId);
+      reply.send(result);
+    } catch (error: any) {
+      reply.code(400).send({ error: error.message });
+    }
+  });
+
+  // ==================== BLOCK ROUTES ====================
+  
+  // Get blocked users list
+  fastify.get('/blocks/list', {
+    onRequest: [authenticate],
+  }, async (request, reply) => {
+    const userId = getUserId(request);
+    
+    const blocked = await userService.getBlockedUsers(userId);
+    reply.send(blocked);
+  });
+
+  // Block user
+  fastify.post('/blocks/block', {
+    onRequest: [authenticate],
+  }, async (request, reply) => {
+    const userId = getUserId(request);
+    const dto = await validateDto(UserRelationshipDto, request.body, reply);
+    if (!dto) return;
+
+    try {
+      const result = await userService.blockUser(userId, dto.targetUserId);
+      reply.send(result);
+    } catch (error: any) {
+      reply.code(400).send({ error: error.message });
+    }
+  });
+
+  // Unblock user
+  fastify.post('/blocks/unblock', {
+    onRequest: [authenticate],
+  }, async (request, reply) => {
+    const userId = getUserId(request);
+    const dto = await validateDto(UserRelationshipDto, request.body, reply);
+    if (!dto) return;
+
+    try {
+      const result = await userService.unblockUser(userId, dto.targetUserId);
+      reply.send(result);
+    } catch (error: any) {
+      reply.code(400).send({ error: error.message });
+    }
+  });
+
+  // ==================== UPDATE ROUTES ====================
+  
   // Update username
   fastify.post('/update-username', {
     onRequest: [authenticate],
@@ -107,85 +185,22 @@ const userRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  // Friend routes
-  fastify.get('/friends/list', {
+  // ==================== PARAMETERIZED ROUTES (must come LAST) ====================
+  
+  // Get user by ID (must be registered AFTER all other GET routes)
+  fastify.get('/:id', {
     onRequest: [authenticate],
   }, async (request, reply) => {
-    const userId = getUserId(request);
+    const { id } = request.params as { id: string };
     
-    const friends = await userService.getFriends(userId);
-    reply.send(friends);
-  });
-
-  fastify.post('/friends/add', {
-    onRequest: [authenticate],
-  }, async (request, reply) => {
-    const userId = getUserId(request);
-    const dto = await validateDto(UserRelationshipDto, request.body, reply);
-    if (!dto) return;
-
     try {
-      const result = await userService.addFriend(userId, dto.targetUserId);
-      reply.send(result);
+      const user = await userService.getUser(parseInt(id));
+      reply.send(user);
     } catch (error: any) {
-      reply.code(400).send({ error: error.message });
-    }
-  });
-
-  fastify.post('/friends/remove', {
-    onRequest: [authenticate],
-  }, async (request, reply) => {
-    const userId = getUserId(request);
-    const dto = await validateDto(UserRelationshipDto, request.body, reply);
-    if (!dto) return;
-
-    try {
-      const result = await userService.removeFriend(userId, dto.targetUserId);
-      reply.send(result);
-    } catch (error: any) {
-      reply.code(400).send({ error: error.message });
-    }
-  });
-
-  // Block routes
-  fastify.get('/blocks/list', {
-    onRequest: [authenticate],
-  }, async (request, reply) => {
-    const userId = getUserId(request);
-    
-    const blocked = await userService.getBlockedUsers(userId);
-    reply.send(blocked);
-  });
-
-  fastify.post('/blocks/block', {
-    onRequest: [authenticate],
-  }, async (request, reply) => {
-    const userId = getUserId(request);
-    const dto = await validateDto(UserRelationshipDto, request.body, reply);
-    if (!dto) return;
-
-    try {
-      const result = await userService.blockUser(userId, dto.targetUserId);
-      reply.send(result);
-    } catch (error: any) {
-      reply.code(400).send({ error: error.message });
-    }
-  });
-
-  fastify.post('/blocks/unblock', {
-    onRequest: [authenticate],
-  }, async (request, reply) => {
-    const userId = getUserId(request);
-    const dto = await validateDto(UserRelationshipDto, request.body, reply);
-    if (!dto) return;
-
-    try {
-      const result = await userService.unblockUser(userId, dto.targetUserId);
-      reply.send(result);
-    } catch (error: any) {
-      reply.code(400).send({ error: error.message });
+      reply.code(404).send({ error: error.message });
     }
   });
 };
 
 export default userRoutes;
+export const autoPrefix = '/users';

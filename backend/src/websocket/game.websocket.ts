@@ -6,8 +6,6 @@ export async function setupGameWebSocket(
   fastify: FastifyInstance,
   gameService: GameService,
 ) {
-  // Make GameService available to routes
-  fastify.decorate('gameService', gameService);
 
   // Helper to emit to user
   const emitToUser = (userId: number, event: string, data: any) => {
@@ -210,11 +208,4 @@ export async function setupGameWebSocket(
       }
     },
   };
-}
-
-// Extend Fastify types
-declare module 'fastify' {
-  interface FastifyInstance {
-    gameService: GameService;
-  }
 }

@@ -29,10 +29,8 @@ export async function setupTournamentWebSocket(
   fastify: FastifyInstance,
   tournamentService: TournamentService
 ) {
-  // Decorate if not already decorated
-  if (!fastify.hasDecorator('tournamentService')) {
-    fastify.decorate('tournamentService', tournamentService);
-  }
+  // Service is already decorated in app.ts, no need to decorate again
+  // Just use the passed tournamentService instance
 
   return {
     handleTournamentMessage: async (
@@ -296,11 +294,4 @@ export async function setupTournamentWebSocket(
       }
     },
   };
-}
-
-// Extend Fastify types
-declare module 'fastify' {
-  interface FastifyInstance {
-    tournamentService: TournamentService;
-  }
 }
