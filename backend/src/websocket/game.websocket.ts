@@ -1,10 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import { WebSocket } from '@fastify/websocket';
 import { GameService } from '../services/game.service';
+import { AIOpponentService } from '../services/ai.service';
 
 export async function setupGameWebSocket(
   fastify: FastifyInstance,
   gameService: GameService,
+  aiOpponentService: AIOpponentService,
 ) {
 
   // Helper to emit to user
@@ -25,6 +27,35 @@ export async function setupGameWebSocket(
               socket.send(JSON.stringify({
                 event: 'game:joined',
                 data: playerInfo,
+              }));
+            } catch (error: any) {
+              socket.send(JSON.stringify({
+                event: 'game:error',
+                data: { message: error.message },
+              }));
+            }
+            break;
+          }
+
+          case 'game:create-ai': {
+            try {
+              const { difficulty } = message.data || {};
+              
+              if (difficulty && !['easy', 'medium', 'hard'].includes(difficulty)) {
+                throw new Error('Invalid difficulty. Must be easy, medium, or hard');
+              }
+
+              const gameInfo = await aiOpponentService.createAIGame(
+                userId,
+                difficulty || 'medium'
+              );
+
+              socket.send(JSON.stringify({
+                event: 'game:ai-created',
+                data: {
+                  ...gameInfo,
+                  difficulty: difficulty || 'medium',
+                },
               }));
             } catch (error: any) {
               socket.send(JSON.stringify({

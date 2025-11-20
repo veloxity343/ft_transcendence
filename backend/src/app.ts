@@ -13,6 +13,7 @@ import { ChatService } from './services/chat.service';
 import { TournamentService } from './services/tournament.service';
 import { ConnectionManager } from './websocket/connection.manager';
 import { websocketHandler } from './websocket/events.handler';
+import { AIOpponentService } from './services/ai.service';
 
 export interface AppOptions extends FastifyServerOptions, Partial<AutoloadPluginOptions> {}
 
@@ -55,7 +56,6 @@ const app: FastifyPluginAsync<AppOptions> = async (fastify, opts): Promise<void>
     options: opts,
   });
 
-  // ==================== INITIALIZE SERVICES ====================
   // Initialize services BEFORE routes so they're available to both HTTP and WebSocket handlers
   const connectionManager = new ConnectionManager();
   const userService = new UserService(fastify.prisma);
@@ -71,16 +71,22 @@ const app: FastifyPluginAsync<AppOptions> = async (fastify, opts): Promise<void>
     gameService,
     connectionManager,
   );
+  const aiOpponentService = new AIOpponentService(
+  fastify.prisma,
+  gameService,
+  userService,
+  connectionManager,
+  );
 
   // Decorate fastify instance with services
   fastify.decorate('connectionManager', connectionManager);
   fastify.decorate('chatService', chatService);
   fastify.decorate('gameService', gameService);
   fastify.decorate('tournamentService', tournamentService);
+  fastify.decorate('aiOpponentService', aiOpponentService);
 
   fastify.log.info('All services initialized successfully');
 
-  // ==================== LOAD ROUTES ====================
   // AutoLoad will automatically register all routes in the routes directory
   // with their respective prefixes (defined by autoPrefix export)
   await fastify.register(AutoLoad, {
