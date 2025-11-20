@@ -1,0 +1,77 @@
+services:
+  # Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: transcendence-backend
+    environment:
+      - DATABASE_URL=file:/app/data/transcendence.db
+      - TRUST_PROXY=true
+      - ENVIRONMENT=PRODUCTION
+      - FRONT_URL=https://localhost
+      - SITE_URL=https://localhost
+      - JWT_SECRET=${JWT_SECRET}
+      - FORTYTWO_ID=${FORTYTWO_ID}
+      - FORTYTWO_SECRET=${FORTYTWO_SECRET}
+      - FORTYTWO_CALLBACK=${FORTYTWO_CALLBACK}
+    volumes:
+      - ./backend/data:/app/data
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      - init-db
+    networks:
+      - transcendence-network
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+  init-db:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: transcendence-init-db
+    environment:
+      - DATABASE_URL=file:/app/data/transcendence.db
+    volumes:
+      - ./backend/data:/app/data
+    command: npx prisma migrate deploy
+    networks:
+      - transcendence-network
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: transcendence-frontend
+    environment:
+      - VITE_API_URL=https://localhost/api
+      - VITE_WS_URL=wss://localhost/ws
+    networks:
+      - transcendence-network
+    expose:
+      - "5173"
+    restart: unless-stopped
+
+  # SSL
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: transcendence-nginx
+    ports:
+      - "80:80"     # HTTP
+      - "443:443"   # HTTPS
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - transcendence-network
+    restart: unless-stopped
+
+networks:
+  transcendence-network:
+    driver: bridge
+
+# Note: No volumes section needed - SQLite file is in bind mount

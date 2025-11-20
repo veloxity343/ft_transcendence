@@ -66,3 +66,18 @@ Thumbs.db
 # Uploads (if you add file uploads later)
 /uploads/
 /image_dir/
+
+# SSL / TLS certificates and keys
+*.key
+*.pem
+*.crt
+*.csr
+*.pfx
+*.p12
+*.der
+
+# Nginx SSL files
+ssl/
+certs/
+certificates/
+keys/

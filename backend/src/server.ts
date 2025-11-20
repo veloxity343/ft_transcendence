@@ -7,6 +7,7 @@ async function start() {
     logger: {
       level: config.environment === 'DEVELOPMENT' ? 'info' : 'warn',
     },
+    trustProxy: config.trustProxy,
   });
 
   // Register our app

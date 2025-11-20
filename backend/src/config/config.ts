@@ -8,6 +8,8 @@ export const config = {
   frontUrl: process.env.FRONT_URL || 'http://localhost:5173',
   siteUrl: process.env.SITE_URL || 'http://localhost',
   frontPort: process.env.FRONT_PORT || '5173',
+
+  trustProxy: process.env.TRUST_PROXY === 'true',
   
   database: {
     url: process.env.DATABASE_URL!,

@@ -14,7 +14,8 @@ import {
 } from '../game/types/tournament.types';
 
 export class TournamentService {
-  private tournaments = new Map<number, Tournament>();
+  // In-memory cache for active tournaments (for real-time updates)
+  private activeCache = new Map<number, Tournament>();
   private activeTournamentGames = new Map<number, number>(); // gameId -> tournamentId
 
   constructor(
@@ -23,8 +24,77 @@ export class TournamentService {
     private gameService: GameService,
     private connectionManager: ConnectionManager,
   ) {
-    // Listen for game endings to progress tournaments
     this.setupGameEndListener();
+    this.loadActiveTournaments();
+  }
+
+  // ==================== INITIALIZATION ====================
+
+  private async loadActiveTournaments() {
+    // Load active tournaments from database into cache on startup
+    const activeTournaments = await this.prisma.tournament.findMany({
+      where: {
+        status: {
+          in: ['registration', 'starting', 'in_progress'],
+        },
+      },
+      include: {
+        players: true,
+        matches: true,
+      },
+    });
+
+    for (const dbTournament of activeTournaments) {
+      const tournament = this.dbToTournament(dbTournament);
+      this.activeCache.set(tournament.id, tournament);
+    }
+
+    console.log(`Loaded ${activeTournaments.length} active tournaments from database`);
+  }
+
+  // ==================== DATABASE CONVERSION ====================
+
+  private dbToTournament(dbTournament: any): Tournament {
+    const players: TournamentPlayer[] = dbTournament.players?.map((p: any) => ({
+      userId: p.userId,
+      username: p.username,
+      avatar: p.avatar,
+      seed: p.seed,
+      eliminatedInRound: p.eliminatedInRound,
+    })) || [];
+
+    const matches: TournamentMatch[] = dbTournament.matches?.map((m: any) => ({
+      matchId: m.matchId,
+      round: m.round,
+      matchNumber: m.matchNumber,
+      player1Id: m.player1Id,
+      player1Name: m.player1Name,
+      player2Id: m.player2Id,
+      player2Name: m.player2Name,
+      winnerId: m.winnerId,
+      gameId: m.gameId,
+      status: m.status as 'pending' | 'ready' | 'in_progress' | 'completed',
+      scheduledTime: m.scheduledTime,
+    })) || [];
+
+    return {
+      id: dbTournament.id,
+      name: dbTournament.name,
+      creatorId: dbTournament.creatorId,
+      maxPlayers: dbTournament.maxPlayers,
+      currentPlayers: dbTournament.currentPlayers,
+      players,
+      matches,
+      currentRound: dbTournament.currentRound,
+      totalRounds: dbTournament.totalRounds,
+      bracketType: dbTournament.bracketType as BracketType,
+      status: dbTournament.status as TournamentStatus,
+      winnerId: dbTournament.winnerId || undefined,
+      winnerName: dbTournament.winnerName || undefined,
+      createdAt: dbTournament.createdAt,
+      startedAt: dbTournament.startedAt || undefined,
+      finishedAt: dbTournament.finishedAt || undefined,
+    };
   }
 
   // ==================== TOURNAMENT CREATION ====================
@@ -42,32 +112,37 @@ export class TournamentService {
       }
     }
 
-    const tournamentId = await this.generateTournamentId();
     const totalRounds = Math.log2(maxPlayers);
 
-    const tournament: Tournament = {
-      id: tournamentId,
-      name,
-      creatorId,
-      maxPlayers,
-      currentPlayers: 0,
-      players: [],
-      matches: [],
-      currentRound: 0,
-      totalRounds,
-      bracketType,
-      status: TournamentStatus.REGISTRATION,
-      createdAt: new Date(),
-    };
+    // Create in database
+    const dbTournament = await this.prisma.tournament.create({
+      data: {
+        name,
+        creatorId,
+        maxPlayers,
+        bracketType,
+        totalRounds,
+        status: 'registration',
+        currentPlayers: 0,
+        currentRound: 0,
+      },
+      include: {
+        players: true,
+        matches: true,
+      },
+    });
 
-    this.tournaments.set(tournamentId, tournament);
+    const tournament = this.dbToTournament(dbTournament);
+    
+    // Add to cache
+    this.activeCache.set(tournament.id, tournament);
 
     // Broadcast tournament created
     this.connectionManager.broadcast('tournament:created', {
-      tournamentId,
-      name,
-      maxPlayers,
-      creatorId,
+      tournamentId: tournament.id,
+      name: tournament.name,
+      maxPlayers: tournament.maxPlayers,
+      creatorId: tournament.creatorId,
     });
 
     return tournament;
@@ -76,7 +151,7 @@ export class TournamentService {
   // ==================== PLAYER MANAGEMENT ====================
 
   async joinTournament(userId: number, tournamentId: number): Promise<void> {
-    const tournament = this.tournaments.get(tournamentId);
+    const tournament = await this.getTournamentFromCacheOrDb(tournamentId);
 
     if (!tournament) {
       throw new Error('Tournament not found');
@@ -97,6 +172,25 @@ export class TournamentService {
     // Get user info
     const user = await this.userService.getUser(userId);
 
+    // Add player to database
+    await this.prisma.tournamentPlayer.create({
+      data: {
+        tournamentId,
+        userId,
+        username: user.username,
+        avatar: user.avatar,
+      },
+    });
+
+    // Update tournament in database
+    await this.prisma.tournament.update({
+      where: { id: tournamentId },
+      data: {
+        currentPlayers: { increment: 1 },
+      },
+    });
+
+    // Update cache
     const player: TournamentPlayer = {
       userId,
       username: user.username,
@@ -124,7 +218,7 @@ export class TournamentService {
   }
 
   async leaveTournament(userId: number, tournamentId: number): Promise<void> {
-    const tournament = this.tournaments.get(tournamentId);
+    const tournament = await this.getTournamentFromCacheOrDb(tournamentId);
 
     if (!tournament) {
       throw new Error('Tournament not found');
@@ -140,6 +234,23 @@ export class TournamentService {
       throw new Error('Not registered for this tournament');
     }
 
+    // Remove from database
+    await this.prisma.tournamentPlayer.deleteMany({
+      where: {
+        tournamentId,
+        userId,
+      },
+    });
+
+    // Update tournament in database
+    await this.prisma.tournament.update({
+      where: { id: tournamentId },
+      data: {
+        currentPlayers: { decrement: 1 },
+      },
+    });
+
+    // Update cache
     tournament.players.splice(playerIndex, 1);
     tournament.currentPlayers--;
 
@@ -153,7 +264,7 @@ export class TournamentService {
   // ==================== TOURNAMENT START ====================
 
   async startTournament(tournamentId: number, requesterId: number): Promise<void> {
-    const tournament = this.tournaments.get(tournamentId);
+    const tournament = await this.getTournamentFromCacheOrDb(tournamentId);
 
     if (!tournament) {
       throw new Error('Tournament not found');
@@ -178,14 +289,47 @@ export class TournamentService {
       tournament.totalRounds = Math.log2(nextPowerOfTwo);
     }
 
+    // Update status in database
+    await this.prisma.tournament.update({
+      where: { id: tournamentId },
+      data: {
+        status: 'starting',
+        startedAt: new Date(),
+        maxPlayers: tournament.maxPlayers,
+        totalRounds: tournament.totalRounds,
+      },
+    });
+
     tournament.status = TournamentStatus.STARTING;
     tournament.startedAt = new Date();
 
-    // Seed players (could be based on rank, for now random)
+    // Seed players
     this.seedPlayers(tournament);
 
+    // Update player seeds in database
+    for (const player of tournament.players) {
+      await this.prisma.tournamentPlayer.updateMany({
+        where: {
+          tournamentId,
+          userId: player.userId,
+        },
+        data: {
+          seed: player.seed,
+        },
+      });
+    }
+
     // Generate bracket
-    this.generateBracket(tournament);
+    await this.generateBracket(tournament);
+
+    // Update status to in_progress
+    await this.prisma.tournament.update({
+      where: { id: tournamentId },
+      data: {
+        status: 'in_progress',
+        currentRound: 1,
+      },
+    });
 
     tournament.status = TournamentStatus.IN_PROGRESS;
     tournament.currentRound = 1;
@@ -202,7 +346,7 @@ export class TournamentService {
   // ==================== BRACKET GENERATION ====================
 
   private seedPlayers(tournament: Tournament): void {
-    // Shuffle players for random seeding (could use ELO for better seeding)
+    // Shuffle players for random seeding
     const shuffled = [...tournament.players].sort(() => Math.random() - 0.5);
 
     shuffled.forEach((player, index) => {
@@ -212,9 +356,8 @@ export class TournamentService {
     tournament.players = shuffled;
   }
 
-  private generateBracket(tournament: Tournament): void {
-    const totalMatches = tournament.maxPlayers - 1; // Total matches in single elimination
-    let matchId = 0;
+  private async generateBracket(tournament: Tournament): Promise<void> {
+    const matches: TournamentMatch[] = [];
 
     // Generate all rounds
     for (let round = 1; round <= tournament.totalRounds; round++) {
@@ -255,16 +398,33 @@ export class TournamentService {
           }
         }
 
-        tournament.matches.push(match);
-        matchId++;
+        matches.push(match);
+
+        // Save match to database
+        await this.prisma.tournamentMatch.create({
+          data: {
+            tournamentId: tournament.id,
+            matchId: match.matchId,
+            round: match.round,
+            matchNumber: match.matchNumber,
+            player1Id: match.player1Id,
+            player1Name: match.player1Name,
+            player2Id: match.player2Id,
+            player2Name: match.player2Name,
+            winnerId: match.winnerId,
+            status: match.status,
+          },
+        });
       }
     }
+
+    tournament.matches = matches;
   }
 
   // ==================== MATCH MANAGEMENT ====================
 
   private async startRoundMatches(tournamentId: number, round: number): Promise<void> {
-    const tournament = this.tournaments.get(tournamentId);
+    const tournament = await this.getTournamentFromCacheOrDb(tournamentId);
     if (!tournament) return;
 
     const roundMatches = tournament.matches.filter(
@@ -272,7 +432,6 @@ export class TournamentService {
     );
 
     if (roundMatches.length === 0) {
-      // No matches ready, check if round is complete
       await this.checkRoundCompletion(tournamentId, round);
       return;
     }
@@ -302,7 +461,6 @@ export class TournamentService {
       }
     }
 
-    // Broadcast round started
     this.broadcastToTournament(tournamentId, 'tournament:round-started', {
       tournamentId,
       round,
@@ -314,43 +472,12 @@ export class TournamentService {
     });
   }
 
-  async startTournamentMatch(
-    tournamentId: number,
-    matchId: string,
-    player1Id: number,
-    player2Id: number,
-  ): Promise<number> {
-    const tournament = this.tournaments.get(tournamentId);
-
-    if (!tournament) {
-      throw new Error('Tournament not found');
-    }
-
-    const match = tournament.matches.find(m => m.matchId === matchId);
-
-    if (!match) {
-      throw new Error('Match not found');
-    }
-
-    if (match.status !== 'ready') {
-      throw new Error('Match is not ready to start');
-    }
-
-    // Use game service to create the game
-    // This assumes you have the game service available
-    // The game will be handled by your existing game system
-
-    match.status = 'in_progress';
-
-    return 0; // Return game ID once integrated with game service
-  }
-
   async recordMatchResult(
     tournamentId: number,
     gameId: number,
     winnerId: number,
   ): Promise<void> {
-    const tournament = this.tournaments.get(tournamentId);
+    const tournament = await this.getTournamentFromCacheOrDb(tournamentId);
 
     if (!tournament) {
       console.error(`Tournament ${tournamentId} not found for game ${gameId}`);
@@ -368,6 +495,18 @@ export class TournamentService {
     match.winnerId = winnerId;
     match.status = 'completed';
 
+    // Update match in database
+    await this.prisma.tournamentMatch.updateMany({
+      where: {
+        tournamentId,
+        matchId: match.matchId,
+      },
+      data: {
+        winnerId,
+        status: 'completed',
+      },
+    });
+
     // Broadcast match completed
     this.broadcastToTournament(tournamentId, 'tournament:match-completed', {
       tournamentId,
@@ -381,7 +520,7 @@ export class TournamentService {
   }
 
   private async checkRoundCompletion(tournamentId: number, round: number): Promise<void> {
-    const tournament = this.tournaments.get(tournamentId);
+    const tournament = await this.getTournamentFromCacheOrDb(tournamentId);
     if (!tournament) return;
 
     const roundMatches = tournament.matches.filter(m => m.round === round);
@@ -389,9 +528,18 @@ export class TournamentService {
 
     if (!allCompleted) return;
 
-    // Round is complete, advance winners to next round
+    // Round is complete
     if (round < tournament.totalRounds) {
-      this.advanceWinners(tournament, round);
+      await this.advanceWinners(tournament, round);
+      
+      // Update current round in database
+      await this.prisma.tournament.update({
+        where: { id: tournamentId },
+        data: {
+          currentRound: round + 1,
+        },
+      });
+
       tournament.currentRound = round + 1;
 
       this.broadcastToTournament(tournamentId, 'tournament:round-completed', {
@@ -410,7 +558,7 @@ export class TournamentService {
     }
   }
 
-  private advanceWinners(tournament: Tournament, completedRound: number): void {
+  private async advanceWinners(tournament: Tournament, completedRound: number): Promise<void> {
     const nextRound = completedRound + 1;
     const completedMatches = tournament.matches.filter(
       m => m.round === completedRound && m.status === 'completed'
@@ -425,13 +573,11 @@ export class TournamentService {
       const nextMatch = nextRoundMatches[Math.floor(i / 2)];
 
       if (nextMatch) {
-        // Winner of match1 becomes player1 of next match
         nextMatch.player1Id = match1.winnerId || null;
         nextMatch.player1Name = tournament.players.find(
           p => p.userId === match1.winnerId
         )?.username;
 
-        // Winner of match2 becomes player2 of next match (if exists)
         if (match2) {
           nextMatch.player2Id = match2.winnerId || null;
           nextMatch.player2Name = tournament.players.find(
@@ -439,26 +585,36 @@ export class TournamentService {
           )?.username;
         }
 
-        // Mark match as ready if both players are set
         if (nextMatch.player1Id && nextMatch.player2Id) {
           nextMatch.status = 'ready';
         } else if (nextMatch.player1Id && !nextMatch.player2Id) {
-          // Bye - player advances
           nextMatch.winnerId = nextMatch.player1Id;
           nextMatch.status = 'completed';
         }
+
+        // Update in database
+        await this.prisma.tournamentMatch.updateMany({
+          where: {
+            tournamentId: tournament.id,
+            matchId: nextMatch.matchId,
+          },
+          data: {
+            player1Id: nextMatch.player1Id,
+            player1Name: nextMatch.player1Name,
+            player2Id: nextMatch.player2Id,
+            player2Name: nextMatch.player2Name,
+            winnerId: nextMatch.winnerId,
+            status: nextMatch.status,
+          },
+        });
       }
     }
   }
 
   private async completeTournament(tournamentId: number): Promise<void> {
-    const tournament = this.tournaments.get(tournamentId);
+    const tournament = await this.getTournamentFromCacheOrDb(tournamentId);
     if (!tournament) return;
 
-    tournament.status = TournamentStatus.FINISHED;
-    tournament.finishedAt = new Date();
-
-    // Final match determines winner
     const finalMatch = tournament.matches.find(
       m => m.round === tournament.totalRounds
     );
@@ -470,46 +626,98 @@ export class TournamentService {
       )?.username;
     }
 
+    tournament.status = TournamentStatus.FINISHED;
+    tournament.finishedAt = new Date();
+
+    // Update in database
+    await this.prisma.tournament.update({
+      where: { id: tournamentId },
+      data: {
+        status: 'finished',
+        winnerId: tournament.winnerId,
+        winnerName: tournament.winnerName,
+        finishedAt: tournament.finishedAt,
+      },
+    });
+
     this.broadcastToTournament(tournamentId, 'tournament:completed', {
       tournamentId,
       winnerId: tournament.winnerId,
       winnerName: tournament.winnerName,
     });
 
-    // Save tournament to database
-    await this.saveTournamentToDatabase(tournament);
-
-    // Clean up after 1 hour
+    // Remove from active cache after 1 hour
     setTimeout(() => {
-      this.tournaments.delete(tournamentId);
+      this.activeCache.delete(tournamentId);
     }, 3600000);
   }
 
   // ==================== QUERIES ====================
 
+  async getTournamentFromCacheOrDb(tournamentId: number): Promise<Tournament | null> {
+    // Check cache first
+    const cached = this.activeCache.get(tournamentId);
+    if (cached) return cached;
+
+    // Load from database
+    const dbTournament = await this.prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      include: {
+        players: true,
+        matches: true,
+      },
+    });
+
+    if (!dbTournament) return null;
+
+    const tournament = this.dbToTournament(dbTournament);
+    
+    // Cache if active
+    if (['registration', 'starting', 'in_progress'].includes(tournament.status)) {
+      this.activeCache.set(tournamentId, tournament);
+    }
+
+    return tournament;
+  }
+
   getTournament(tournamentId: number): Tournament | undefined {
-    return this.tournaments.get(tournamentId);
+    return this.activeCache.get(tournamentId);
+  }
+
+  async getAllTournamentsFromDb(limit: number = 100): Promise<Tournament[]> {
+    const dbTournaments = await this.prisma.tournament.findMany({
+      include: {
+        players: true,
+        matches: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: limit,
+    });
+
+    return dbTournaments.map(t => this.dbToTournament(t));
   }
 
   getAllTournaments(): Tournament[] {
-    return Array.from(this.tournaments.values());
+    return Array.from(this.activeCache.values());
   }
 
   getActiveTournaments(): Tournament[] {
-    return Array.from(this.tournaments.values()).filter(
+    return Array.from(this.activeCache.values()).filter(
       t => t.status === TournamentStatus.REGISTRATION || 
            t.status === TournamentStatus.IN_PROGRESS
     );
   }
 
   getUserTournaments(userId: number): Tournament[] {
-    return Array.from(this.tournaments.values()).filter(t =>
+    return Array.from(this.activeCache.values()).filter(t =>
       t.players.some(p => p.userId === userId)
     );
   }
 
   getTournamentBracket(tournamentId: number): TournamentBracket | null {
-    const tournament = this.tournaments.get(tournamentId);
+    const tournament = this.activeCache.get(tournamentId);
     if (!tournament) return null;
 
     const rounds: TournamentRound[] = [];
@@ -532,7 +740,7 @@ export class TournamentService {
   }
 
   getTournamentStats(tournamentId: number): TournamentStats | null {
-    const tournament = this.tournaments.get(tournamentId);
+    const tournament = this.activeCache.get(tournamentId);
     if (!tournament) return null;
 
     const totalGames = tournament.matches.length;
@@ -561,7 +769,6 @@ export class TournamentService {
 
   private setupGameEndListener(): void {
     // This will be called by game service when a tournament game ends
-    // You'll need to integrate this with your game service
   }
 
   private isPowerOfTwo(n: number): boolean {
@@ -576,20 +783,8 @@ export class TournamentService {
     return power;
   }
 
-  private async generateTournamentId(): Promise<number> {
-    const id = Math.floor(Math.random() * 1000000) + 1;
-
-    const exists = this.tournaments.has(id);
-
-    if (exists) {
-      return this.generateTournamentId();
-    }
-
-    return id;
-  }
-
   private broadcastToTournament(tournamentId: number, event: string, data: any): void {
-    const tournament = this.tournaments.get(tournamentId);
+    const tournament = this.activeCache.get(tournamentId);
     if (!tournament) return;
 
     tournament.players.forEach(player => {
@@ -597,20 +792,10 @@ export class TournamentService {
     });
   }
 
-  private async saveTournamentToDatabase(tournament: Tournament): Promise<void> {
-    try {
-      // Save tournament results to database
-      // This is a placeholder - adapt to your database schema
-      console.log(`Tournament ${tournament.id} completed. Winner: ${tournament.winnerName}`);
-    } catch (error) {
-      console.error('Failed to save tournament to database:', error);
-    }
-  }
-
   // ==================== ADMIN/CLEANUP ====================
 
   async cancelTournament(tournamentId: number, adminId: number): Promise<void> {
-    const tournament = this.tournaments.get(tournamentId);
+    const tournament = await this.getTournamentFromCacheOrDb(tournamentId);
 
     if (!tournament) {
       throw new Error('Tournament not found');
@@ -626,13 +811,21 @@ export class TournamentService {
 
     tournament.status = TournamentStatus.CANCELLED;
 
+    // Update in database
+    await this.prisma.tournament.update({
+      where: { id: tournamentId },
+      data: {
+        status: 'cancelled',
+      },
+    });
+
     this.broadcastToTournament(tournamentId, 'tournament:cancelled', {
       tournamentId,
     });
 
-    // Clean up after 5 minutes
+    // Remove from cache after 5 minutes
     setTimeout(() => {
-      this.tournaments.delete(tournamentId);
+      this.activeCache.delete(tournamentId);
     }, 300000);
   }
 }

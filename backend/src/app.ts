@@ -23,6 +23,9 @@ const app: FastifyPluginAsync<AppOptions> = async (fastify, opts): Promise<void>
   await fastify.register(cors, {
     origin: config.frontUrl,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Authorization'],
   });
 
   // JWT
