@@ -4,6 +4,7 @@ import { GameService } from '../services/game.service';
 import { UserService } from '../services/user.service';
 import { ChatService } from '../services/chat.service';
 import { TournamentService } from '../services/tournament.service';
+import { AIOpponentService } from '../services/ai.service';
 import { setupGameWebSocket } from './game.websocket';
 import { setupChatWebSocket } from './chat.websocket';
 import { setupTournamentWebSocket } from './tournament.websocket';
@@ -13,12 +14,14 @@ export async function websocketHandler(fastify: FastifyInstance) {
   const chatService = fastify.chatService;
   const gameService = fastify.gameService;
   const tournamentService = fastify.tournamentService;
+  const aiOpponentService = fastify.aiOpponentService;
   const userService = new UserService(fastify.prisma);
 
   // Setup game WebSocket handlers
   const gameWebSocket = await setupGameWebSocket(
     fastify,
-    gameService
+    gameService,
+    aiOpponentService
   );
 
   // Setup chat WebSocket handlers
@@ -173,5 +176,6 @@ declare module 'fastify' {
     chatService: ChatService;
     gameService: GameService;
     tournamentService: TournamentService;
+    aiOpponentService: AIOpponentService;
   }
 }

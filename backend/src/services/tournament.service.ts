@@ -139,10 +139,14 @@ export class TournamentService {
 
     // Broadcast tournament created
     this.connectionManager.broadcast('tournament:created', {
-      tournamentId: tournament.id,
-      name: tournament.name,
-      maxPlayers: tournament.maxPlayers,
-      creatorId: tournament.creatorId,
+      tournament: {
+        id: tournament.id,
+        name: tournament.name,
+        maxPlayers: tournament.maxPlayers,
+        currentPlayers: tournament.currentPlayers,
+        status: tournament.status,
+        creatorId: tournament.creatorId,
+      }
     });
 
     return tournament;
