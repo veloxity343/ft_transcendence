@@ -12,11 +12,17 @@ export class GameService {
   // Game constants
   private readonly REFRESH_RATE = 10; // ms
   private readonly PADDLE_SPEED = 1;
-  private readonly INITIAL_BALL_SPEED = 0.25;
+  private readonly INITIAL_BALL_SPEED = 0.35; // Increased from 0.25 for faster start
+  private readonly MAX_BALL_SPEED = 1.2; // Maximum ball speed cap
   private readonly WIN_SCORE = 11;
   private readonly PADDLE_HEIGHT = 10; // percentage
   private readonly BALL_RADIUS = 1; // vh units
   private readonly GAME_ASPECT_RATIO = 16 / 9;
+  
+  // New physics constants
+  private readonly BALL_ACCELERATION = 1.08; // 8% increase per hit (up from 5%)
+  private readonly PADDLE_MOMENTUM_MULTIPLIER = 0.4; // How much paddle motion affects ball
+  private readonly SPIN_INFLUENCE = 0.8; // How much hit position affects angle
 
   constructor(
     private prisma: PrismaClient,
@@ -33,13 +39,11 @@ export class GameService {
 
     const user = await this.userService.getUser(userId);
 
-    // Look for waiting room
     const waitingRoom = Array.from(this.rooms.values()).find(
       room => room.status === GameStatus.WAITING && !room.isPrivate && !room.player2Id
     );
 
     if (waitingRoom) {
-      // Join existing room as player 2
       waitingRoom.player2Id = userId;
       waitingRoom.player2Name = user.username;
       waitingRoom.player2Avatar = user.avatar;
@@ -47,11 +51,9 @@ export class GameService {
 
       this.userToRoom.set(userId, waitingRoom.id);
 
-      // Set both players as in-game
       this.connectionManager.setStatus(waitingRoom.player1Id, UserStatus.IN_GAME);
       this.connectionManager.setStatus(userId, UserStatus.IN_GAME);
 
-      // Notify both players
       this.emitToRoom(waitingRoom.id, 'game-starting', {
         gameId: waitingRoom.id,
         player1: {
@@ -66,7 +68,6 @@ export class GameService {
         },
       });
 
-      // Start game after 3 seconds
       setTimeout(() => {
         this.startGame(waitingRoom.id);
       }, 3000);
@@ -79,7 +80,6 @@ export class GameService {
         gameId: waitingRoom.id,
       };
     } else {
-      // Create new room as player 1
       const gameId = await this.generateGameId();
       const newRoom: GameRoom = {
         id: gameId,
@@ -257,18 +257,15 @@ export class GameService {
       return;
     }
 
-    // Check for disconnections
     if (room.player1Disconnected) {
       room.player2Score = this.WIN_SCORE;
     } else if (room.player2Disconnected) {
       room.player1Score = this.WIN_SCORE;
     } else {
-      // Update game state
       this.updatePaddles(room);
       this.updateBall(room);
     }
 
-    // Send state to clients
     const state: GameState = {
       gameId: room.id,
       player1Score: room.player1Score,
@@ -282,7 +279,6 @@ export class GameService {
 
     this.emitToRoom(gameId, 'game-update', state);
 
-    // Check for game end
     if (room.player1Score >= this.WIN_SCORE || room.player2Score >= this.WIN_SCORE) {
       this.endGame(gameId);
     }
@@ -293,12 +289,19 @@ export class GameService {
     room.ballY = 50;
     room.ballSpeed = this.INITIAL_BALL_SPEED;
 
-    // Random initial direction
-    room.ballSpeedX = Math.random() > 0.5 ? this.INITIAL_BALL_SPEED : -this.INITIAL_BALL_SPEED;
-    room.ballSpeedY = (Math.random() - 0.5) * this.INITIAL_BALL_SPEED;
+    // Random initial direction with some angle
+    const angle = (Math.random() - 0.5) * Math.PI / 3; // ±30 degrees
+    const direction = Math.random() > 0.5 ? 1 : -1;
+    
+    room.ballSpeedX = direction * this.INITIAL_BALL_SPEED * Math.cos(angle);
+    room.ballSpeedY = this.INITIAL_BALL_SPEED * Math.sin(angle);
   }
 
   private updatePaddles(room: GameRoom) {
+    // Store previous paddle positions for momentum calculation
+    const prevPaddleLeft = room.paddleLeft;
+    const prevPaddleRight = room.paddleRight;
+
     // Update left paddle (player 1)
     if (room.paddleLeftDirection === PaddleDirection.UP) {
       room.paddleLeft = Math.max(0, room.paddleLeft - this.PADDLE_SPEED);
@@ -312,12 +315,27 @@ export class GameService {
     } else if (room.paddleRightDirection === PaddleDirection.DOWN) {
       room.paddleRight = Math.min(90, room.paddleRight + this.PADDLE_SPEED);
     }
+
+    // Store paddle velocities for momentum transfer
+    (room as any).paddleLeftVelocity = room.paddleLeft - prevPaddleLeft;
+    (room as any).paddleRightVelocity = room.paddleRight - prevPaddleRight;
   }
 
   private updateBall(room: GameRoom) {
     // Update ball position
     room.ballX += room.ballSpeedX;
     room.ballY += room.ballSpeedY;
+    
+    // Safety check: if ball is stuck (too slow), reinitialize
+    const currentSpeed = Math.sqrt(
+      room.ballSpeedX * room.ballSpeedX + 
+      room.ballSpeedY * room.ballSpeedY
+    );
+    if (currentSpeed < 0.1) {
+      console.log('Ball stuck, reinitializing...');
+      this.initializeBall(room);
+      return;
+    }
 
     // Ball collision with top/bottom walls
     if (room.ballY <= this.BALL_RADIUS) {
@@ -334,12 +352,7 @@ export class GameService {
       room.ballY >= room.paddleLeft - 1 &&
       room.ballY <= room.paddleLeft + this.PADDLE_HEIGHT + 1
     ) {
-      room.ballX = 3 + this.BALL_RADIUS / this.GAME_ASPECT_RATIO;
-      room.ballSpeed *= 1.05;
-      room.ballSpeedX = Math.abs(room.ballSpeedX) * 1.05;
-      
-      const hitPosition = (room.ballY - room.paddleLeft - this.PADDLE_HEIGHT / 2) / (this.PADDLE_HEIGHT / 2);
-      room.ballSpeedY = hitPosition * room.ballSpeed * 0.8;
+      this.handlePaddleCollision(room, true);
     }
 
     // Ball collision with right paddle
@@ -348,12 +361,7 @@ export class GameService {
       room.ballY >= room.paddleRight - 1 &&
       room.ballY <= room.paddleRight + this.PADDLE_HEIGHT + 1
     ) {
-      room.ballX = 97 - this.BALL_RADIUS / this.GAME_ASPECT_RATIO;
-      room.ballSpeed *= 1.05;
-      room.ballSpeedX = -Math.abs(room.ballSpeedX) * 1.05;
-      
-      const hitPosition = (room.ballY - room.paddleRight - this.PADDLE_HEIGHT / 2) / (this.PADDLE_HEIGHT / 2);
-      room.ballSpeedY = hitPosition * room.ballSpeed * 0.8;
+      this.handlePaddleCollision(room, false);
     }
 
     // Score points
@@ -366,6 +374,76 @@ export class GameService {
     }
   }
 
+  private handlePaddleCollision(room: GameRoom, isLeftPaddle: boolean) {
+    // Position ball at paddle edge to prevent sticking
+    if (isLeftPaddle) {
+      room.ballX = 3 + this.BALL_RADIUS / this.GAME_ASPECT_RATIO + 0.5; // Extra padding
+    } else {
+      room.ballX = 97 - this.BALL_RADIUS / this.GAME_ASPECT_RATIO - 0.5; // Extra padding
+    }
+
+    // Calculate where on paddle the ball hit (0 = top, 1 = bottom)
+    const paddleY = isLeftPaddle ? room.paddleLeft : room.paddleRight;
+    const hitPosition = (room.ballY - paddleY) / this.PADDLE_HEIGHT;
+    const normalizedHit = (hitPosition - 0.5) * 2; // -1 to 1
+
+    // Get paddle velocity for momentum transfer
+    const paddleVelocity = isLeftPaddle 
+      ? (room as any).paddleLeftVelocity || 0
+      : (room as any).paddleRightVelocity || 0;
+
+    // Calculate base speed increase
+    const currentSpeed = Math.sqrt(
+      room.ballSpeedX * room.ballSpeedX + 
+      room.ballSpeedY * room.ballSpeedY
+    );
+    
+    // Increase ball speed with each hit (but cap it)
+    let newSpeed = Math.min(
+      currentSpeed * this.BALL_ACCELERATION,
+      this.MAX_BALL_SPEED
+    );
+
+    // Add bonus speed from paddle momentum
+    const momentumBonus = Math.abs(paddleVelocity) * this.PADDLE_MOMENTUM_MULTIPLIER;
+    newSpeed += momentumBonus;
+    
+    // Ensure minimum speed to prevent getting stuck
+    newSpeed = Math.max(newSpeed, this.INITIAL_BALL_SPEED);
+    
+    // Cap at maximum speed
+    newSpeed = Math.min(newSpeed, this.MAX_BALL_SPEED);
+
+    // Calculate new ball direction
+    // Reverse horizontal direction
+    const horizontalDirection = isLeftPaddle ? 1 : -1;
+    
+    // Calculate angle based on hit position and spin influence
+    const baseAngle = normalizedHit * (Math.PI / 3); // Max ±60 degrees
+    const spinAngle = baseAngle * this.SPIN_INFLUENCE;
+    
+    // Add paddle momentum to vertical component
+    const paddleMomentumY = paddleVelocity * this.PADDLE_MOMENTUM_MULTIPLIER * 0.5;
+    
+    // Set new velocities
+    room.ballSpeedX = horizontalDirection * newSpeed * Math.cos(spinAngle);
+    room.ballSpeedY = newSpeed * Math.sin(spinAngle) + paddleMomentumY;
+
+    // Update ball speed tracker
+    room.ballSpeed = newSpeed;
+
+    // Add slight randomness to prevent perfectly predictable trajectories
+    const randomness = (Math.random() - 0.5) * 0.02;
+    room.ballSpeedY += randomness;
+    
+    // Final safety check - ensure ball is actually moving away from paddle
+    if (isLeftPaddle && room.ballSpeedX < 0.1) {
+      room.ballSpeedX = this.INITIAL_BALL_SPEED;
+    } else if (!isLeftPaddle && room.ballSpeedX > -0.1) {
+      room.ballSpeedX = -this.INITIAL_BALL_SPEED;
+    }
+  }
+
   private async endGame(gameId: number) {
     const room = this.rooms.get(gameId);
 
@@ -373,7 +451,6 @@ export class GameService {
       return;
     }
 
-    // Clear interval
     if (room.intervalId) {
       clearInterval(room.intervalId);
     }
@@ -383,7 +460,6 @@ export class GameService {
     const winnerId = room.player1Score > room.player2Score ? room.player1Id : room.player2Id;
     const loserId = room.player1Score > room.player2Score ? room.player2Id : room.player1Id;
 
-    // Emit game end
     this.emitToRoom(gameId, 'game-ended', {
       gameId,
       winnerId,
@@ -393,7 +469,6 @@ export class GameService {
       },
     });
 
-    // Save game to database
     const duration = room.startTime ? Date.now() - room.startTime.getTime() : 0;
     
     await this.saveGame(
@@ -407,18 +482,14 @@ export class GameService {
       duration,
     );
 
-    // Update user stats
     await this.updateGameStats(winnerId, loserId, gameId, duration);
 
-    // Set users back to online
     this.connectionManager.setStatus(room.player1Id, UserStatus.ONLINE);
     this.connectionManager.setStatus(room.player2Id, UserStatus.ONLINE);
 
-    // Remove users from room tracking
     this.userToRoom.delete(room.player1Id);
     this.userToRoom.delete(room.player2Id);
 
-    // Clean up room after 30 seconds
     setTimeout(() => {
       this.rooms.delete(gameId);
     }, 30000);
@@ -577,10 +648,8 @@ export class GameService {
 
     if (!winner || !loser) return;
 
-    // Calculate new ELO scores
     const [newWinnerScore, newLoserScore] = this.calculateEloScores(winner.score, loser.score);
 
-    // Update winner
     const winnerGamesPlayed = winner.gamesPlayed + 1;
     const winnerGamesWon = winner.gamesWon + 1;
     const winnerWinRate = winnerGamesWon / winnerGamesPlayed;
@@ -599,7 +668,6 @@ export class GameService {
       },
     });
 
-    // Update loser
     const loserGamesPlayed = loser.gamesPlayed + 1;
     const loserWinRate = loser.gamesWon / loserGamesPlayed;
     const loserHistory = parseJsonArray(loser.gameHistory);
@@ -617,7 +685,6 @@ export class GameService {
       },
     });
 
-    // Update ranks
     await this.updateRanks();
   }
 
