@@ -230,6 +230,85 @@ export class GameService {
     };
   }
 
+  async createLocalGame(
+    userId: number,
+    player1Name: string,
+    player2Name: string
+  ): Promise<PlayerInfo> {
+    if (this.userToRoom.has(userId)) {
+      throw new Error('Already in a game');
+    }
+
+    const user = await this.userService.getUser(userId);
+    const gameId = await this.generateGameId();
+
+    const newRoom: GameRoom = {
+      id: gameId,
+      // Both players have the same user ID since it's local
+      player1Id: userId,
+      player1Name: player1Name,
+      player1Avatar: user.avatar,
+      player1Score: 0,
+      player1Disconnected: false,
+      paddleLeft: 45,
+      paddleLeftDirection: PaddleDirection.NONE,
+
+      player2Id: userId, // Same user controls both paddles
+      player2Name: player2Name,
+      player2Avatar: user.avatar,
+      player2Score: 0,
+      player2Disconnected: false,
+      paddleRight: 45,
+      paddleRightDirection: PaddleDirection.NONE,
+
+      ballX: 50,
+      ballY: 50,
+      ballSpeedX: 0,
+      ballSpeedY: 0,
+      ballSpeed: this.INITIAL_BALL_SPEED,
+
+      status: GameStatus.STARTING,
+      isPrivate: false,
+      isLocal: true, // Mark as local game
+      lastUpdateTime: new Date(),
+    };
+
+    this.rooms.set(gameId, newRoom);
+    this.userToRoom.set(userId, gameId);
+
+    this.connectionManager.setStatus(userId, UserStatus.IN_GAME);
+
+    // Emit game starting event
+    this.connectionManager.emitToUser(userId, 'game-starting', {
+      gameId,
+      player1: {
+        id: userId,
+        name: player1Name,
+        avatar: user.avatar,
+      },
+      player2: {
+        id: userId,
+        name: player2Name,
+        avatar: user.avatar,
+      },
+      isLocal: true,
+    });
+
+    // Start game after countdown
+    setTimeout(() => {
+      this.startGame(gameId);
+    }, 3000);
+
+    return {
+      playerId: userId,
+      playerName: player1Name,
+      playerAvatar: user.avatar,
+      playerNumber: 1,
+      gameId,
+      isLocal: true,
+    };
+  }
+
   // ==================== GAME LOOP ====================
 
   private startGame(gameId: number) {
@@ -467,6 +546,7 @@ export class GameService {
         player1: room.player1Score,
         player2: room.player2Score,
       },
+      isLocal: room.isLocal || false,
     });
 
     const duration = room.startTime ? Date.now() - room.startTime.getTime() : 0;
@@ -482,13 +562,38 @@ export class GameService {
       duration,
     );
 
-    await this.updateGameStats(winnerId, loserId, gameId, duration);
+    // Only update stats for non-local games (remote multiplayer)
+    // Local games are for practice and shouldn't affect rankings
+    if (!room.isLocal) {
+      await this.updateGameStats(winnerId, loserId, gameId, duration);
+    } else {
+      // For local games, just add to game history without updating ELO
+      const user = await this.prisma.user.findUnique({
+        where: { id: room.player1Id },
+      });
+
+      if (user) {
+        const history = parseJsonArray(user.gameHistory);
+        history.push(gameId);
+        
+        await this.prisma.user.update({
+          where: { id: room.player1Id },
+          data: {
+            gameHistory: stringifyJsonArray(history),
+          },
+        });
+      }
+    }
 
     this.connectionManager.setStatus(room.player1Id, UserStatus.ONLINE);
-    this.connectionManager.setStatus(room.player2Id, UserStatus.ONLINE);
+    if (!room.isLocal && room.player2Id !== room.player1Id) {
+      this.connectionManager.setStatus(room.player2Id, UserStatus.ONLINE);
+    }
 
     this.userToRoom.delete(room.player1Id);
-    this.userToRoom.delete(room.player2Id);
+    if (!room.isLocal && room.player2Id !== room.player1Id) {
+      this.userToRoom.delete(room.player2Id);
+    }
 
     setTimeout(() => {
       this.rooms.delete(gameId);
@@ -497,19 +602,47 @@ export class GameService {
 
   // ==================== PLAYER ACTIONS ====================
 
-  movePaddle(userId: number, gameId: number, direction: PaddleDirection) {
+  movePaddle(
+    userId: number,
+    gameId: number,
+    direction: PaddleDirection,
+    playerNumber?: 1 | 2
+  ) {
     const room = this.rooms.get(gameId);
 
     if (!room) {
       throw new Error('Game not found');
     }
 
-    if (room.player1Id === userId) {
-      room.paddleLeftDirection = direction;
-    } else if (room.player2Id === userId) {
-      room.paddleRightDirection = direction;
+    // Handle local games
+    if (room.isLocal) {
+      // For local games, playerNumber is required to know which paddle to move
+      if (!playerNumber) {
+        throw new Error('Player number required for local games');
+      }
+
+      // Verify the user owns this local game
+      if (room.player1Id !== userId) {
+        throw new Error('Not authorized for this game');
+      }
+
+      // Move the appropriate paddle
+      if (playerNumber === 1) {
+        room.paddleLeftDirection = direction;
+      } else if (playerNumber === 2) {
+        room.paddleRightDirection = direction;
+      } else {
+        throw new Error('Invalid player number');
+      }
     } else {
-      throw new Error('Not a player in this game');
+      // Handle remote games (existing logic)
+      if (room.player1Id === userId) {
+        room.paddleLeftDirection = direction;
+      } else if (room.player2Id === userId) {
+        room.paddleRightDirection = direction;
+      } else {
+        throw new Error('Not a player in this game');
+      }
     }
   }
 
@@ -736,5 +869,16 @@ export class GameService {
     }
 
     return id;
+  }
+
+  getGameInfo(gameId: number): { isLocal: boolean; player1Name: string; player2Name: string } | null {
+    const room = this.rooms.get(gameId);
+    if (!room) return null;
+
+    return {
+      isLocal: room.isLocal || false,
+      player1Name: room.player1Name,
+      player2Name: room.player2Name || 'Player 2',
+    };
   }
 }

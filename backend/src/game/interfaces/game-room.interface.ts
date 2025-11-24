@@ -27,6 +27,7 @@ export interface GameRoom {
 
   status: GameStatus;
   isPrivate: boolean;
+  isLocal?: boolean;
   startTime?: Date;
   lastUpdateTime: Date;
 
@@ -50,4 +51,5 @@ export interface PlayerInfo {
   playerAvatar: string;
   playerNumber: 1 | 2;
   gameId: number;
+  isLocal?: boolean;
 }
