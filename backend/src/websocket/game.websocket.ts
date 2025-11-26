@@ -106,6 +106,29 @@ export async function setupGameWebSocket(
             break;
           }
 
+          case 'game:create-local': {
+            try {
+                const { player1Name, player2Name } = message.data || {};
+                
+                const playerInfo = await gameService.createLocalGame(
+                    userId,
+                    player1Name || 'Player 1',
+                    player2Name || 'Player 2'
+                );
+                
+                socket.send(JSON.stringify({
+                    event: 'game:created',
+                    data: playerInfo,
+                }));
+            } catch (error: any) {
+                socket.send(JSON.stringify({
+                    event: 'game:error',
+                    data: { message: error.message },
+                }));
+            }
+            break;
+          }
+
           case 'game:send-invitation': {
             try {
               if (!message.data || typeof message.data.targetUserId !== 'number') {
@@ -152,7 +175,8 @@ export async function setupGameWebSocket(
               gameService.movePaddle(
                 userId,
                 message.data.gameId,
-                message.data.direction
+                message.data.direction,
+                message.data.playerNumber
               );
 
               // Send acknowledgment

@@ -12,7 +12,7 @@ export class GameService {
   // Game constants
   private readonly REFRESH_RATE = 10; // ms
   private readonly PADDLE_SPEED = 1;
-  private readonly INITIAL_BALL_SPEED = 0.35; // Increased from 0.25 for faster start
+  private readonly INITIAL_BALL_SPEED = 0.35;
   private readonly MAX_BALL_SPEED = 1.2; // Maximum ball speed cap
   private readonly WIN_SCORE = 11;
   private readonly PADDLE_HEIGHT = 10; // percentage
@@ -20,9 +20,10 @@ export class GameService {
   private readonly GAME_ASPECT_RATIO = 16 / 9;
   
   // New physics constants
-  private readonly BALL_ACCELERATION = 1.08; // 8% increase per hit (up from 5%)
+  private readonly BALL_ACCELERATION = 1.08; // 8% increase per hit
   private readonly PADDLE_MOMENTUM_MULTIPLIER = 0.4; // How much paddle motion affects ball
   private readonly SPIN_INFLUENCE = 0.8; // How much hit position affects angle
+  private readonly BALL_SPEED_DECAY = 0.9995; // Natural speed decay
 
   constructor(
     private prisma: PrismaClient,
@@ -401,6 +402,10 @@ export class GameService {
   }
 
   private updateBall(room: GameRoom) {
+    room.ballSpeedX *= this.BALL_SPEED_DECAY;
+    room.ballSpeedY *= this.BALL_SPEED_DECAY;
+    room.ballSpeed *= this.BALL_SPEED_DECAY;
+
     // Update ball position
     room.ballX += room.ballSpeedX;
     room.ballY += room.ballSpeedY;
