@@ -11,8 +11,33 @@ const icons = {
   private: `<svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`,
   local: `<svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`,
   back: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg>`,
-  copy: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`
+  copy: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`,
+  spinner: `<svg class="w-6 h-6 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path></svg>`
 };
+
+// Helper to wait for WebSocket connection
+function waitForConnection(timeout = 5000): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (wsClient.isConnected()) {
+      resolve(true);
+      return;
+    }
+    
+    const startTime = Date.now();
+    const checkConnection = () => {
+      if (wsClient.isConnected()) {
+        resolve(true);
+      } else if (Date.now() - startTime > timeout) {
+        resolve(false);
+      } else {
+        setTimeout(checkConnection, 100);
+      }
+    };
+    
+    wsClient.connect();
+    setTimeout(checkConnection, 100);
+  });
+}
 
 export function GameView(): HTMLElement {
   const container = document.createElement('div');
@@ -44,12 +69,44 @@ export function GameView(): HTMLElement {
       </div>
     </div>
 
+    <div id="waitingScreen" class="hidden max-w-2xl mx-auto">
+      <div class="glass-card p-8 text-center">
+        <div class="flex justify-center mb-4">${icons.spinner}</div>
+        <h2 id="waitingTitle" class="text-2xl font-bold text-navy mb-2">Searching for opponent...</h2>
+        <p id="waitingMessage" class="text-navy-muted mb-4">Please wait while we find you a match</p>
+        <div id="privateGameInfo" class="hidden mb-4 p-4 bg-white/50 rounded-lg">
+          <p class="text-sm text-navy-muted mb-2">Share this Game ID with your friend:</p>
+          <div class="flex items-center justify-center gap-2">
+            <span id="gameIdDisplay" class="text-2xl font-mono font-bold text-blue"></span>
+            <button id="copyGameIdBtn" class="btn-outline p-2">${icons.copy}</button>
+          </div>
+        </div>
+        <button id="cancelWaitingBtn" class="btn-outline">${icons.back} Cancel</button>
+      </div>
+    </div>
+
+    <div id="joinPrivateScreen" class="hidden max-w-md mx-auto">
+      <div class="glass-card p-8">
+        <h2 class="text-2xl font-bold text-navy text-center mb-6">Join Private Game</h2>
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-2 text-navy">Game ID</label>
+          <input type="number" id="joinGameIdInput" class="input-glass w-full" placeholder="Enter Game ID">
+        </div>
+        <div class="flex gap-4">
+          <button id="joinPrivateBtn" class="btn-primary flex-1">Join Game</button>
+          <button id="backFromJoinBtn" class="btn-outline">${icons.back}</button>
+        </div>
+        <div class="divider-glass my-4"></div>
+        <button id="createPrivateBtn" class="btn-outline w-full">Or Create New Private Game</button>
+      </div>
+    </div>
+
     <div id="aiDifficultySelection" class="hidden max-w-2xl mx-auto">
       <div class="text-center mb-8"><h1 class="text-3xl font-bold"><span class="text-blue">SELECT</span> <span class="text-navy">DIFFICULTY</span></h1></div>
       <div class="grid grid-cols-3 gap-4">
-        <button data-difficulty="easy" class="difficulty-btn glass-card p-6 text-center cursor-pointer"><div class="text-4xl mb-2 text-green-500">I</div><div class="font-bold text-navy">Easy</div></button>
-        <button data-difficulty="medium" class="difficulty-btn glass-card p-6 text-center cursor-pointer"><div class="text-4xl mb-2 text-blue">II</div><div class="font-bold text-navy">Medium</div></button>
-        <button data-difficulty="hard" class="difficulty-btn glass-card p-6 text-center cursor-pointer"><div class="text-4xl mb-2 text-red-500">III</div><div class="font-bold text-navy">Hard</div></button>
+        <button data-difficulty="easy" class="difficulty-btn glass-card p-6 text-center cursor-pointer hover:border-green-500 transition-all"><div class="text-4xl mb-2 text-green-500">I</div><div class="font-bold text-navy">Easy</div><p class="text-xs text-navy-muted mt-1">Relaxed gameplay</p></button>
+        <button data-difficulty="medium" class="difficulty-btn glass-card p-6 text-center cursor-pointer hover:border-blue transition-all"><div class="text-4xl mb-2 text-blue">II</div><div class="font-bold text-navy">Medium</div><p class="text-xs text-navy-muted mt-1">Balanced challenge</p></button>
+        <button data-difficulty="hard" class="difficulty-btn glass-card p-6 text-center cursor-pointer hover:border-red-500 transition-all"><div class="text-4xl mb-2 text-red-500">III</div><div class="font-bold text-navy">Hard</div><p class="text-xs text-navy-muted mt-1">Expert level</p></button>
       </div>
       <div class="text-center mt-6"><button id="backFromAIBtn" class="btn-outline">${icons.back} Back</button></div>
     </div>
@@ -79,6 +136,7 @@ export function GameView(): HTMLElement {
     <style>
       .game-mode-btn{background:rgba(255,255,255,0.4);backdrop-filter:blur(10px);border:2px solid rgba(255,255,255,0.5);border-radius:20px;padding:1.5rem;text-align:center;cursor:pointer;transition:all 0.3s;display:flex;flex-direction:column;align-items:center;gap:0.5rem}
       .game-mode-btn:hover{transform:translateY(-4px);border-color:var(--color-blue);box-shadow:0 8px 24px rgba(74,124,201,0.2)}
+      .game-mode-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
       .game-mode-btn svg{color:var(--color-blue)}
       .game-mode-label{font-weight:600;color:var(--color-navy);font-size:0.875rem}
       .arcade-cabinet{background:linear-gradient(180deg,#2a2a35 0%,#1a1a22 100%);border-radius:24px;padding:1.5rem;box-shadow:0 20px 60px rgba(0,0,0,0.4)}
@@ -97,6 +155,8 @@ export function GameView(): HTMLElement {
       .control-group kbd{background:#3a3a45;color:#9a9aaa;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem;border:1px solid #4a4a55}
       .control-label{color:#5a5a6a;font-size:0.75rem;margin:0 0.25rem}
       .arcade-controls{display:flex;justify-content:center;padding:1rem}
+      @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+      .animate-spin{animation:spin 1s linear infinite}
     </style>
   `;
 
@@ -111,9 +171,13 @@ export function GameView(): HTMLElement {
   let currentDirectionP2 = 0;
   const keysPressed = new Set<string>();
   const unsubscribers: (() => void)[] = [];
+  let lastScore1 = 0;
+  let lastScore2 = 0;
 
   // Elements
   const gameModeSelection = container.querySelector('#gameModeSelection') as HTMLElement;
+  const waitingScreen = container.querySelector('#waitingScreen') as HTMLElement;
+  const joinPrivateScreen = container.querySelector('#joinPrivateScreen') as HTMLElement;
   const aiDifficultySelection = container.querySelector('#aiDifficultySelection') as HTMLElement;
   const gameContainer = container.querySelector('#gameContainer') as HTMLElement;
   const connectionStatus = container.querySelector('#connectionStatus') as HTMLElement;
@@ -126,29 +190,71 @@ export function GameView(): HTMLElement {
   const player2Label = container.querySelector('#player2Label') as HTMLElement;
   const gameStatusBar = container.querySelector('#gameStatusBar') as HTMLElement;
   const controlsDisplay = container.querySelector('#controlsDisplay') as HTMLElement;
+  const waitingTitle = container.querySelector('#waitingTitle') as HTMLElement;
+  const waitingMessage = container.querySelector('#waitingMessage') as HTMLElement;
+  const privateGameInfo = container.querySelector('#privateGameInfo') as HTMLElement;
+  const gameIdDisplay = container.querySelector('#gameIdDisplay') as HTMLElement;
+  const joinGameIdInput = container.querySelector('#joinGameIdInput') as HTMLInputElement;
 
   // Update connection status display
   const updateConnectionStatus = () => {
     if (wsClient.isConnected()) {
-      connectionStatus.innerHTML = '<span style="color: #22c55e;">Connected</span>';
+      connectionStatus.innerHTML = '<span style="color: #22c55e;">● Connected</span>';
+      enableButtons(true);
     } else {
-      connectionStatus.innerHTML = '<span style="color: #ef4444;">Disconnected - Connecting...</span>';
+      connectionStatus.innerHTML = '<span style="color: #ef4444;">○ Connecting...</span>';
+      enableButtons(false);
     }
   };
 
+  // Enable/disable mode buttons
+  const enableButtons = (enabled: boolean) => {
+    const buttons = container.querySelectorAll('.game-mode-btn');
+    buttons.forEach(btn => {
+      (btn as HTMLButtonElement).disabled = !enabled;
+    });
+  };
+
   // Show screen helper
-  const showScreen = (screen: 'menu' | 'aiSelect' | 'game') => {
+  const showScreen = (screen: 'menu' | 'waiting' | 'joinPrivate' | 'aiSelect' | 'game') => {
     gameModeSelection.classList.add('hidden');
+    waitingScreen.classList.add('hidden');
+    joinPrivateScreen.classList.add('hidden');
     aiDifficultySelection.classList.add('hidden');
     gameContainer.classList.add('hidden');
     
-    if (screen === 'menu') gameModeSelection.classList.remove('hidden');
-    else if (screen === 'aiSelect') aiDifficultySelection.classList.remove('hidden');
-    else if (screen === 'game') {
-      gameContainer.classList.remove('hidden');
-      initRenderer();
-      setTimeout(() => canvasContainer.focus(), 100);
+    switch (screen) {
+      case 'menu':
+        gameModeSelection.classList.remove('hidden');
+        break;
+      case 'waiting':
+        waitingScreen.classList.remove('hidden');
+        break;
+      case 'joinPrivate':
+        joinPrivateScreen.classList.remove('hidden');
+        break;
+      case 'aiSelect':
+        aiDifficultySelection.classList.remove('hidden');
+        break;
+      case 'game':
+        gameContainer.classList.remove('hidden');
+        initRenderer();
+        setTimeout(() => canvasContainer.focus(), 100);
+        break;
     }
+  };
+
+  // Show waiting screen with custom message
+  const showWaiting = (title: string, message: string, showPrivateInfo = false, gameIdToShow?: number) => {
+    waitingTitle.textContent = title;
+    waitingMessage.textContent = message;
+    if (showPrivateInfo && gameIdToShow) {
+      privateGameInfo.classList.remove('hidden');
+      gameIdDisplay.textContent = gameIdToShow.toString();
+    } else {
+      privateGameInfo.classList.add('hidden');
+    }
+    showScreen('waiting');
   };
 
   // Initialize renderer
@@ -242,75 +348,168 @@ export function GameView(): HTMLElement {
     currentDirectionP1 = 0;
     currentDirectionP2 = 0;
     keysPressed.clear();
+    lastScore1 = 0;
+    lastScore2 = 0;
     player1Label.style.color = '';
     player2Label.style.color = '';
     player1Label.textContent = 'Player 1';
     player2Label.textContent = 'Player 2';
+    player1Score.textContent = '0';
+    player2Score.textContent = '0';
+  };
+
+  // Helper to send message with connection check
+  const sendMessage = async (event: string, data: any = {}) => {
+    if (!wsClient.isConnected()) {
+      showToast('Connecting to server...', 'info');
+      const connected = await waitForConnection();
+      if (!connected) {
+        showToast('Failed to connect. Please try again.', 'error');
+        return false;
+      }
+    }
+    wsClient.send(event, data);
+    return true;
   };
 
   // WebSocket message handlers
   const setupWSHandlers = () => {
     console.log('Setting up WebSocket handlers...');
     
+    // Handle matchmaking join
     unsubscribers.push(wsClient.on('game:joined', (msg) => {
       console.log('game:joined', msg.data);
       gameId = msg.data.gameId;
       playerNumber = msg.data.playerNumber;
       isLocalGame = msg.data.isLocal || false;
-      showToast(`Joined game as Player ${playerNumber}`, 'success');
-      if (isLocalGame) showScreen('game');
+      
+      if (isLocalGame) {
+        // Local game - show game screen immediately
+        showToast('Local game created!', 'success');
+        showScreen('game');
+      } else if (playerNumber === 1) {
+        // First player in matchmaking - waiting for opponent
+        showWaiting('Waiting for opponent...', 'You will be matched soon');
+      } else {
+        // Second player - game will start
+        showToast(`Joined game as Player ${playerNumber}`, 'success');
+      }
     }));
 
+    // Handle private/local game creation
     unsubscribers.push(wsClient.on('game:created', (msg) => {
       console.log('game:created', msg.data);
       gameId = msg.data.gameId;
       playerNumber = msg.data.playerNumber;
-      showToast(`Created private game: ${gameId}`, 'success');
+      isLocalGame = msg.data.isLocal || false;
+      
+      if (isLocalGame) {
+        // Local game - wait for game-starting event
+        showToast('Local game created! Starting soon...', 'success');
+        showWaiting('Starting local game...', 'Game will begin in a moment');
+      } else {
+        // Private game - show game ID for sharing
+        showToast('Private game created!', 'success');
+        showWaiting('Waiting for opponent...', 'Share the Game ID with your friend', true, gameId!);
+      }
     }));
 
+    // Handle AI game creation
     unsubscribers.push(wsClient.on('game:ai-created', (msg) => {
       console.log('game:ai-created', msg.data);
       gameId = msg.data.gameId;
       playerNumber = msg.data.playerNumber;
       isLocalGame = false;
-      showToast(`AI game created!`, 'success');
+      showToast(`AI game created (${msg.data.difficulty})!`, 'success');
+      showWaiting('Starting AI game...', 'Game will begin in a moment');
     }));
 
+    // Handle game starting (countdown phase)
     unsubscribers.push(wsClient.on('game-starting', (msg) => {
       console.log('game-starting', msg.data);
       player1Label.textContent = msg.data.player1?.name || 'Player 1';
       player2Label.textContent = msg.data.player2?.name || 'Player 2';
       player1Score.textContent = '0';
       player2Score.textContent = '0';
+      
       if (msg.data.isLocal) isLocalGame = true;
-      if (!isLocalGame && playerNumber === 1) player1Label.style.color = '#4A7CC9';
-      else if (!isLocalGame && playerNumber === 2) player2Label.style.color = '#4A7CC9';
+      if (msg.data.vsAI) isLocalGame = false;
+      
+      // Highlight current player's name
+      if (!isLocalGame) {
+        if (playerNumber === 1) player1Label.style.color = '#4A7CC9';
+        else if (playerNumber === 2) player2Label.style.color = '#4A7CC9';
+      }
+      
       showScreen('game');
       updateStatus('Starting...', 'waiting');
     }));
 
+    // Handle game state updates
     unsubscribers.push(wsClient.on('game-update', (msg) => {
       if (!renderer) return;
       const data = msg.data;
+      
+      // Update score display
       player1Score.textContent = data.player1Score.toString();
       player2Score.textContent = data.player2Score.toString();
       
-      if (data.status === 'playing') updateStatus('Playing', 'playing');
-      else if (data.status === 'countdown') updateStatus(`Starting in ${data.countdownValue || 3}...`, 'waiting');
-      else if (data.status === 'waiting') updateStatus('Waiting...', 'waiting');
+      // Update status
+      if (data.status === 'in_progress') {
+        updateStatus('Playing', 'playing');
+      } else if (data.status === 'starting') {
+        updateStatus('Get Ready!', 'waiting');
+      } else if (data.status === 'waiting') {
+        updateStatus('Waiting...', 'waiting');
+      }
       
-      renderer.drawFromBackendState(data, playerNumber);
+      // Log score changes
+      if (data.player1Score !== lastScore1 || data.player2Score !== lastScore2) {
+        console.log(`Score: ${data.player1Score} - ${data.player2Score}`);
+        lastScore1 = data.player1Score;
+        lastScore2 = data.player2Score;
+      }
+      
+      // Render game state
+      renderer.drawFromBackendState({
+        paddleLeft: data.paddleLeft,
+        paddleRight: data.paddleRight,
+        ballX: data.ballX,
+        ballY: data.ballY,
+        player1Score: data.player1Score,
+        player2Score: data.player2Score,
+        status: data.status === 'in_progress' ? 'playing' : data.status
+      }, playerNumber);
     }));
 
+    // Handle game end
     unsubscribers.push(wsClient.on('game-ended', (msg) => {
       console.log('game-ended', msg.data);
       updateStatus('Game Over!', '');
+      
       const user = storage.getUserData();
-      const won = msg.data.winnerId === user?.id;
-      showToast(won ? 'You Won!' : 'You Lost!', won ? 'success' : 'error');
-      setTimeout(() => { resetGame(); showScreen('menu'); }, 3000);
+      const finalScore = msg.data.finalScore;
+      
+      // Determine winner
+      let won = false;
+      if (msg.data.isLocal) {
+        // For local games, just show who won
+        const winner = finalScore.player1 > finalScore.player2 ? 'Player 1' : 'Player 2';
+        showToast(`${winner} Wins!`, 'info');
+      } else {
+        // For remote games, check if current user won
+        won = msg.data.winnerId?.toString() === user?.id?.toString();
+        showToast(won ? 'You Won!' : 'You Lost!', won ? 'success' : 'error');
+      }
+      
+      // Return to menu after delay
+      setTimeout(() => { 
+        resetGame(); 
+        showScreen('menu'); 
+      }, 3000);
     }));
 
+    // Handle game cancelled
     unsubscribers.push(wsClient.on('game-cancelled', () => {
       console.log('game-cancelled');
       showToast('Game was cancelled', 'info');
@@ -318,11 +517,35 @@ export function GameView(): HTMLElement {
       showScreen('menu');
     }));
 
+    // Handle game left confirmation
+    unsubscribers.push(wsClient.on('game:left', () => {
+      console.log('game:left');
+      resetGame();
+      showScreen('menu');
+    }));
+
+    // Handle errors
     unsubscribers.push(wsClient.on('game:error', (msg) => {
-      console.log('game:error', msg.data);
+      console.error('game:error', msg.data);
       showToast(msg.data.message || 'Game error', 'error');
       resetGame();
       showScreen('menu');
+    }));
+
+    // Handle move acknowledgment (optional, for debugging)
+    unsubscribers.push(wsClient.on('game:move-ack', (msg) => {
+      // Silent acknowledgment
+    }));
+
+    // Handle WebSocket connection status
+    unsubscribers.push(wsClient.on('ws:connected', () => {
+      console.log('WebSocket connected');
+      updateConnectionStatus();
+    }));
+
+    unsubscribers.push(wsClient.on('ws:disconnected', () => {
+      console.log('WebSocket disconnected');
+      updateConnectionStatus();
     }));
   };
 
@@ -336,10 +559,12 @@ export function GameView(): HTMLElement {
   });
 
   // Button handlers
-  container.querySelector('#quickPlayBtn')?.addEventListener('click', () => {
+  container.querySelector('#quickPlayBtn')?.addEventListener('click', async () => {
     console.log('Quick Play clicked');
     isLocalGame = false;
-    wsClient.send('game:join-matchmaking', {});
+    if (await sendMessage('game:join-matchmaking', {})) {
+      showWaiting('Searching for opponent...', 'Please wait while we find you a match');
+    }
   });
 
   container.querySelector('#aiGameBtn')?.addEventListener('click', () => {
@@ -348,24 +573,65 @@ export function GameView(): HTMLElement {
   });
 
   container.querySelector('#privateGameBtn')?.addEventListener('click', () => {
-    console.log('Private Game clicked');
     isLocalGame = false;
-    wsClient.send('game:create-private', {});
+    showScreen('joinPrivate');
   });
 
-  container.querySelector('#localGameBtn')?.addEventListener('click', () => {
+  container.querySelector('#localGameBtn')?.addEventListener('click', async () => {
     console.log('Local Game clicked');
     isLocalGame = true;
-    wsClient.send('game:create-local', { player1Name: 'Player 1', player2Name: 'Player 2' });
+    if (await sendMessage('game:create-local', { player1Name: 'Player 1', player2Name: 'Player 2' })) {
+      showWaiting('Creating local game...', 'Game will start shortly');
+    }
   });
 
   container.querySelector('#backFromAIBtn')?.addEventListener('click', () => showScreen('menu'));
+  container.querySelector('#backFromJoinBtn')?.addEventListener('click', () => showScreen('menu'));
+
+  container.querySelector('#cancelWaitingBtn')?.addEventListener('click', () => {
+    if (gameId) {
+      wsClient.send('game:leave', {});
+    }
+    resetGame();
+    showScreen('menu');
+  });
+
+  container.querySelector('#createPrivateBtn')?.addEventListener('click', async () => {
+    console.log('Create Private Game clicked');
+    if (await sendMessage('game:create-private', {})) {
+      showWaiting('Creating private game...', 'Please wait');
+    }
+  });
+
+  container.querySelector('#joinPrivateBtn')?.addEventListener('click', async () => {
+    const inputGameId = parseInt(joinGameIdInput.value);
+    if (!inputGameId || isNaN(inputGameId)) {
+      showToast('Please enter a valid Game ID', 'error');
+      return;
+    }
+    console.log('Joining private game:', inputGameId);
+    if (await sendMessage('game:join-private', { gameId: inputGameId })) {
+      showWaiting('Joining game...', 'Connecting to game');
+    }
+  });
+
+  container.querySelector('#copyGameIdBtn')?.addEventListener('click', () => {
+    if (gameId) {
+      navigator.clipboard.writeText(gameId.toString()).then(() => {
+        showToast('Game ID copied!', 'success');
+      }).catch(() => {
+        showToast('Failed to copy', 'error');
+      });
+    }
+  });
 
   container.querySelectorAll('.difficulty-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', async (e) => {
       const difficulty = (e.currentTarget as HTMLElement).dataset.difficulty;
       console.log('AI difficulty:', difficulty);
-      if (difficulty) wsClient.send('game:create-ai', { difficulty });
+      if (difficulty && await sendMessage('game:create-ai', { difficulty })) {
+        showWaiting(`Starting ${difficulty} AI game...`, 'Preparing opponent');
+      }
     });
   });
 
@@ -395,7 +661,7 @@ export function GameView(): HTMLElement {
   // Update connection status periodically
   const statusInterval = setInterval(updateConnectionStatus, 1000);
   
-  // Cleanup on unmount (store reference)
+  // Cleanup on unmount
   (container as any).__cleanup = () => {
     console.log('GameView cleanup');
     clearInterval(statusInterval);
