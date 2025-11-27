@@ -16,7 +16,7 @@ export function LoginView(): HTMLElement {
 
       <form id="loginForm" class="space-y-6">
         <div>
-          <label class="block text-sm font-medium mb-2" style="color: var(--color-retro-dark)">Username</label>
+          <label class="block text-sm font-medium mb-2 text-retro-dark">Username</label>
           <input
             type="text"
             id="username"
@@ -29,7 +29,7 @@ export function LoginView(): HTMLElement {
         </div>
 
         <div>
-          <label class="block text-sm font-medium mb-2" style="color: var(--color-retro-dark)">Password</label>
+          <label class="block text-sm font-medium mb-2 text-retro-dark">Password</label>
           <input
             type="password"
             id="password"
@@ -49,9 +49,9 @@ export function LoginView(): HTMLElement {
       </form>
 
       <div class="mt-6 text-center">
-        <p style="color: var(--color-retro-brown)">
+        <p class="text-retro-brown">
           Don't have an account?
-          <a href="/register" class="text-game-accent hover:underline ml-1 font-semibold">
+          <a href="/register" class="ml-1 hover:text-game-accent transition-colors">
             Register here
           </a>
         </p>

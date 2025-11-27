@@ -16,7 +16,7 @@ export function RegisterView(): HTMLElement {
 
       <form id="registerForm" class="space-y-6">
         <div>
-          <label class="block text-sm font-medium mb-2" style="color: var(--color-retro-dark)">Username</label>
+          <label class="block text-sm font-medium mb-2 text-retro-dark">Username</label>
           <input
             type="text"
             id="username"
@@ -29,7 +29,7 @@ export function RegisterView(): HTMLElement {
         </div>
 
         <div>
-          <label class="block text-sm font-medium mb-2" style="color: var(--color-retro-dark)">Email</label>
+          <label class="block text-sm font-medium mb-2 text-retro-dark">Email</label>
           <input
             type="email"
             id="email"
@@ -42,7 +42,7 @@ export function RegisterView(): HTMLElement {
         </div>
 
         <div>
-          <label class="block text-sm font-medium mb-2" style="color: var(--color-retro-dark)">Password</label>
+          <label class="block text-sm font-medium mb-2 text-retro-dark">Password</label>
           <input
             type="password"
             id="password"
@@ -55,7 +55,7 @@ export function RegisterView(): HTMLElement {
         </div>
 
         <div>
-          <label class="block text-sm font-medium mb-2" style="color: var(--color-retro-dark)">Confirm Password</label>
+          <label class="block text-sm font-medium mb-2 text-retro-dark">Confirm Password</label>
           <input
             type="password"
             id="confirmPassword"
@@ -75,9 +75,9 @@ export function RegisterView(): HTMLElement {
       </form>
 
       <div class="mt-6 text-center">
-        <p style="color: var(--color-retro-brown)">
+        <p class="text-retro-brown">
           Already have an account?
-          <a href="/login" class="text-game-accent hover:underline ml-1 font-semibold">
+          <a href="/login" class="ml-1 hover:text-game-accent transition-colors">
             Login here
           </a>
         </p>
