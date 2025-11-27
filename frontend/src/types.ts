@@ -72,6 +72,18 @@ export interface GameSettings {
   aiDifficulty?: 'easy' | 'medium' | 'hard';
 }
 
+// Backend game state format (from WebSocket)
+export interface BackendGameState {
+  paddleLeft: number;
+  paddleRight: number;
+  ballX: number;
+  ballY: number;
+  player1Score: number;
+  player2Score: number;
+  status: string;
+  countdownValue?: number;
+}
+
 // Tournament types
 export interface Tournament {
   id: string;
@@ -116,25 +128,10 @@ export interface ChatRoom {
   type: 'global' | 'game' | 'tournament' | 'private';
 }
 
-// WebSocket types
+// WebSocket types - matches backend format
 export interface WSMessage {
-  type: string;
-  payload: any;
-}
-
-export interface GameUpdateMessage extends WSMessage {
-  type: 'game:update';
-  payload: GameState;
-}
-
-export interface ChatMessageWS extends WSMessage {
-  type: 'chat:message';
-  payload: ChatMessage;
-}
-
-export interface TournamentUpdateMessage extends WSMessage {
-  type: 'tournament:update';
-  payload: Tournament;
+  event: string;
+  data: any;
 }
 
 // API Response types
@@ -157,7 +154,7 @@ export interface RegisterRequest {
 }
 
 export interface AuthResponse {
-  token: string;
+  access_token: string;
   user: User;
 }
 

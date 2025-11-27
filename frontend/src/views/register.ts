@@ -9,19 +9,19 @@ export function RegisterView(): HTMLElement {
   container.className = 'min-h-screen flex items-center justify-center px-4 py-12';
 
   container.innerHTML = `
-    <div class="card max-w-md w-full">
+    <div class="glass-card max-w-md w-full p-8">
       <h2 class="text-3xl font-bold text-center mb-8">
-        <span class="text-game-accent">Join</span> Transcendence
+        <span class="text-blue animate-glow">Join</span> <span class="text-navy">Transcendence</span>
       </h2>
 
       <form id="registerForm" class="space-y-6">
         <div>
-          <label class="block text-sm font-medium mb-2 text-retro-dark">Username</label>
+          <label class="block text-sm font-medium mb-2 text-navy">Username</label>
           <input
             type="text"
             id="username"
             name="username"
-            class="input-field"
+            class="input-glass w-full"
             placeholder="Choose a username"
             required
           />
@@ -29,12 +29,12 @@ export function RegisterView(): HTMLElement {
         </div>
 
         <div>
-          <label class="block text-sm font-medium mb-2 text-retro-dark">Email</label>
+          <label class="block text-sm font-medium mb-2 text-navy">Email</label>
           <input
             type="email"
             id="email"
             name="email"
-            class="input-field"
+            class="input-glass w-full"
             placeholder="Enter your email"
             required
           />
@@ -42,12 +42,12 @@ export function RegisterView(): HTMLElement {
         </div>
 
         <div>
-          <label class="block text-sm font-medium mb-2 text-retro-dark">Password</label>
+          <label class="block text-sm font-medium mb-2 text-navy">Password</label>
           <input
             type="password"
             id="password"
             name="password"
-            class="input-field"
+            class="input-glass w-full"
             placeholder="Choose a password"
             required
           />
@@ -55,12 +55,12 @@ export function RegisterView(): HTMLElement {
         </div>
 
         <div>
-          <label class="block text-sm font-medium mb-2 text-retro-dark">Confirm Password</label>
+          <label class="block text-sm font-medium mb-2 text-navy">Confirm Password</label>
           <input
             type="password"
             id="confirmPassword"
             name="confirmPassword"
-            class="input-field"
+            class="input-glass w-full"
             placeholder="Confirm your password"
             required
           />
@@ -75,9 +75,9 @@ export function RegisterView(): HTMLElement {
       </form>
 
       <div class="mt-6 text-center">
-        <p class="text-retro-brown">
+        <p class="text-navy-muted">
           Already have an account?
-          <a href="/login" class="ml-1 hover:text-game-accent transition-colors">
+          <a href="/login" class="ml-1 text-blue hover:text-blue-dark transition-colors font-semibold">
             Login here
           </a>
         </p>

@@ -1,6 +1,10 @@
-import { WS_URL, WS_EVENTS } from '../constants';
+import { WS_URL } from '../constants';
 import { storage } from '../utils/storage';
-import type { WSMessage } from '../types';
+
+export interface WSMessage {
+  event: string;
+  data: any;
+}
 
 type MessageHandler = (message: WSMessage) => void;
 
@@ -42,6 +46,7 @@ class WebSocketClient {
     this.ws.onopen = () => {
       console.log('WebSocket connected');
       this.reconnectAttempts = 0;
+      this.emit('ws:connected', {});
     };
 
     this.ws.onmessage = (event) => {
@@ -55,10 +60,12 @@ class WebSocketClient {
 
     this.ws.onerror = (error) => {
       console.error('WebSocket error:', error);
+      this.emit('ws:error', { error });
     };
 
     this.ws.onclose = () => {
       console.log('WebSocket disconnected');
+      this.emit('ws:disconnected', {});
       if (!this.isIntentionallyClosed) {
         this.handleReconnect();
       }
@@ -66,15 +73,25 @@ class WebSocketClient {
   }
 
   private handleMessage(message: WSMessage): void {
-    const handlers = this.handlers.get(message.type);
+    const { event, data } = message;
+    
+    // Call specific event handlers
+    const handlers = this.handlers.get(event);
     if (handlers) {
       handlers.forEach(handler => handler(message));
     }
     
-    // Also notify wildcard handlers
+    // Call wildcard handlers
     const wildcardHandlers = this.handlers.get('*');
     if (wildcardHandlers) {
       wildcardHandlers.forEach(handler => handler(message));
+    }
+  }
+
+  private emit(event: string, data: any): void {
+    const handlers = this.handlers.get(event);
+    if (handlers) {
+      handlers.forEach(handler => handler({ event, data }));
     }
   }
 
@@ -94,33 +111,34 @@ class WebSocketClient {
     }, delay);
   }
 
-  send(type: string, payload: any): void {
+  send(event: string, data: any = {}): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      const message: WSMessage = { type, payload };
+      const message = { event, data };
       this.ws.send(JSON.stringify(message));
+      console.log('Sent:', event, data);
     } else {
       console.error('WebSocket is not connected');
     }
   }
 
-  on(eventType: string, handler: MessageHandler): () => void {
-    if (!this.handlers.has(eventType)) {
-      this.handlers.set(eventType, new Set());
+  on(eventName: string, handler: MessageHandler): () => void {
+    if (!this.handlers.has(eventName)) {
+      this.handlers.set(eventName, new Set());
     }
-    this.handlers.get(eventType)!.add(handler);
+    this.handlers.get(eventName)!.add(handler);
 
     // Return unsubscribe function
     return () => {
-      this.off(eventType, handler);
+      this.off(eventName, handler);
     };
   }
 
-  off(eventType: string, handler: MessageHandler): void {
-    const handlers = this.handlers.get(eventType);
+  off(eventName: string, handler: MessageHandler): void {
+    const handlers = this.handlers.get(eventName);
     if (handlers) {
       handlers.delete(handler);
       if (handlers.size === 0) {
-        this.handlers.delete(eventType);
+        this.handlers.delete(eventName);
       }
     }
   }
@@ -138,36 +156,33 @@ class WebSocketClient {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
-  // Convenience methods for common events
-  onGameUpdate(handler: MessageHandler): () => void {
-    return this.on(WS_EVENTS.GAME_UPDATE, handler);
+  // Game-specific convenience methods
+  joinMatchmaking(): void {
+    this.send('game:join-matchmaking');
   }
 
-  onChatMessage(handler: MessageHandler): () => void {
-    return this.on(WS_EVENTS.CHAT_MESSAGE, handler);
+  createPrivateGame(): void {
+    this.send('game:create-private');
   }
 
-  onTournamentUpdate(handler: MessageHandler): () => void {
-    return this.on(WS_EVENTS.TOURNAMENT_UPDATE, handler);
+  createAIGame(difficulty: string): void {
+    this.send('game:create-ai', { difficulty });
   }
 
-  // Send game input
-  sendPaddleMove(direction: 'up' | 'down' | 'stop'): void {
-    this.send(WS_EVENTS.PADDLE_MOVE, { direction });
+  createLocalGame(player1Name: string = 'Player 1', player2Name: string = 'Player 2'): void {
+    this.send('game:create-local', { player1Name, player2Name });
   }
 
-  // Send chat message
-  sendChatMessage(roomId: string, content: string): void {
-    this.send(WS_EVENTS.CHAT_MESSAGE, { roomId, content });
+  leaveGame(): void {
+    this.send('game:leave');
   }
 
-  // Join/leave game
-  joinGame(gameId: string): void {
-    this.send(WS_EVENTS.USER_JOIN_GAME, { gameId });
-  }
-
-  leaveGame(gameId: string): void {
-    this.send(WS_EVENTS.USER_LEAVE_GAME, { gameId });
+  movePaddle(gameId: number, direction: number, playerNumber?: number): void {
+    const data: any = { gameId, direction };
+    if (playerNumber !== undefined) {
+      data.playerNumber = playerNumber;
+    }
+    this.send('game:move', data);
   }
 }
 

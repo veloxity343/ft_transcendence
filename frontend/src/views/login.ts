@@ -9,19 +9,19 @@ export function LoginView(): HTMLElement {
   container.className = 'min-h-screen flex items-center justify-center px-4';
 
   container.innerHTML = `
-    <div class="card max-w-md w-full">
+    <div class="glass-card max-w-md w-full p-8">
       <h2 class="text-3xl font-bold text-center mb-8">
-        <span class="text-game-accent">Login</span> to Transcendence
+        <span class="text-blue animate-glow">Login</span> <span class="text-navy">to Transcendence</span>
       </h2>
 
       <form id="loginForm" class="space-y-6">
         <div>
-          <label class="block text-sm font-medium mb-2 text-retro-dark">Username</label>
+          <label class="block text-sm font-medium mb-2 text-navy">Username</label>
           <input
             type="text"
             id="username"
             name="username"
-            class="input-field"
+            class="input-glass w-full"
             placeholder="Enter your username"
             required
           />
@@ -29,12 +29,12 @@ export function LoginView(): HTMLElement {
         </div>
 
         <div>
-          <label class="block text-sm font-medium mb-2 text-retro-dark">Password</label>
+          <label class="block text-sm font-medium mb-2 text-navy">Password</label>
           <input
             type="password"
             id="password"
             name="password"
-            class="input-field"
+            class="input-glass w-full"
             placeholder="Enter your password"
             required
           />
@@ -49,9 +49,9 @@ export function LoginView(): HTMLElement {
       </form>
 
       <div class="mt-6 text-center">
-        <p class="text-retro-brown">
+        <p class="text-navy-muted">
           Don't have an account?
-          <a href="/register" class="ml-1 hover:text-game-accent transition-colors">
+          <a href="/register" class="ml-1 text-blue hover:text-blue-dark transition-colors font-semibold">
             Register here
           </a>
         </p>

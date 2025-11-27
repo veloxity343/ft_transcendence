@@ -18,12 +18,13 @@ export const GAME_CONFIG = {
   },
   
   COLORS: {
-    BACKGROUND: '#0a0a0f',
-    PADDLE: '#00ff88',
-    BALL: '#00ff88',
-    NET: '#1a1a2e',
+    BACKGROUND: '#0F2847',
+    PADDLE: '#4A7CC9',
+    BALL: '#6B9AD8',
+    NET: '#1E3A5F',
     TEXT: '#ffffff',
-    SCORE: '#00ff88',
+    SCORE: '#4A7CC9',
+    GLOW: 'rgba(74, 124, 201, 0.5)',
   },
   
   SCORE: {
