@@ -1,27 +1,35 @@
 @import url('https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap');
 
-/* Theme Variables */
+/* Theme Variables - Apple II Beige with Deep Blue Accents */
 :root {
-  /* Color palette */
-  --color-retro-cream: #F5E6D3;
-  --color-retro-beige: #E8D4B8;
-  --color-retro-tan: #D4B896;
-  --color-retro-brown: #4A6B8A;
-  --color-retro-dark: #0F2847;
-  --color-phosphor-green: #00D9FF;
-  --color-phosphor-green-dark: #00A8CC;
-  --color-amber: #5DADE2;
-  --color-amber-dark: #3498DB;
+  /* Warm background palette */
+  --color-cream: #F5E6D3;
+  --color-beige: #E8D4B8;
+  --color-tan: #D4B896;
+  --color-brown: #8B7355;
+  
+  /* Deep blue accent palette - softer, richer tones */
+  --color-blue: #4A7CC9;
+  --color-blue-dark: #3A6AB5;
+  --color-blue-light: #6B9AD8;
+  --color-blue-muted: #7BA3D4;
+  --color-blue-glow: rgba(74, 124, 201, 0.5);
+  
+  /* Navy text colors */
+  --color-navy: #1E3A5F;
+  --color-navy-dark: #0F2847;
+  --color-navy-muted: #4A6B8A;
   
   /* Semantic mappings */
-  --color-game-bg: var(--color-retro-cream);
-  --color-game-card: var(--color-retro-beige);
-  --color-game-border: var(--color-retro-tan);
-  --color-game-text: var(--color-retro-dark);
-  --color-game-accent: var(--color-phosphor-green);
-  --color-game-accent-dark: var(--color-phosphor-green-dark);
-  --color-game-secondary: var(--color-amber);
-  --color-game-secondary-dark: var(--color-amber-dark);
+  --color-bg: var(--color-cream);
+  --color-card: var(--color-beige);
+  --color-border: var(--color-tan);
+  --color-text: var(--color-navy);
+  --color-text-muted: var(--color-navy-muted);
+  --color-accent: var(--color-blue);
+  --color-accent-dark: var(--color-blue-dark);
+  --color-accent-light: var(--color-blue-light);
+  --color-accent-glow: var(--color-blue-glow);
 }
 
 /* Base Styles */
@@ -29,11 +37,11 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  border-color: var(--color-retro-tan);
+  border-color: var(--color-tan);
 }
 
 body {
-  background-color: var(--color-retro-cream);
+  background-color: var(--color-cream);
   background-image: 
     repeating-linear-gradient(
       0deg,
@@ -42,7 +50,7 @@ body {
       rgba(139, 115, 85, 0.03) 2px,
       rgba(139, 115, 85, 0.03) 4px
     );
-  color: var(--color-retro-dark);
+  color: var(--color-navy);
   font-family: 'Share Tech Mono', monospace;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -51,51 +59,55 @@ body {
 
 /* Typography */
 h1, h2, h3, h4, h5, h6 {
-  color: var(--color-retro-dark);
+  color: var(--color-navy);
   font-weight: 700;
   line-height: 1.2;
 }
 
 p {
-  color: var(--color-retro-brown);
+  color: var(--color-navy-muted);
 }
 
 a {
-  color: var(--color-retro-dark);
+  color: var(--color-navy);
   text-decoration: none;
   transition: all 0.2s;
   font-weight: 600;
 }
 
 a:hover {
-  color: var(--color-phosphor-green);
-  text-shadow: 0 0 8px rgba(0, 217, 255, 0.4);
+  color: var(--color-blue);
+  text-shadow: 0 0 8px var(--color-blue-glow);
 }
 
 /* Text utilities */
 .text-navy {
-  color: var(--color-retro-dark);
+  color: var(--color-navy);
 }
 
-.text-navy-blue {
-  color: var(--color-retro-brown);
-}
-
-.text-cyan {
-  color: var(--color-phosphor-green);
+.text-navy-muted {
+  color: var(--color-navy-muted);
 }
 
 .text-blue {
-  color: var(--color-amber-dark);
+  color: var(--color-blue);
+}
+
+.text-blue-dark {
+  color: var(--color-blue-dark);
+}
+
+.text-brown {
+  color: var(--color-brown);
 }
 
 /* Selection */
 ::selection {
-  background-color: var(--color-phosphor-green);
-  color: var(--color-retro-dark);
+  background-color: var(--color-blue);
+  color: white;
 }
 
 ::-moz-selection {
-  background-color: var(--color-phosphor-green);
-  color: var(--color-retro-dark);
+  background-color: var(--color-blue);
+  color: white;
 }

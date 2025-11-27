@@ -1,22 +1,40 @@
-/* Glow Animations */
-@keyframes retro-glow {
+/* Blue Glow Animations */
+@keyframes blue-glow {
   0%, 100% {
     text-shadow: 
-      0 0 8px rgba(0, 217, 255, 0.5),
-      0 0 16px rgba(0, 217, 255, 0.3),
-      0 0 24px rgba(0, 217, 255, 0.2);
+      0 0 8px rgba(74, 124, 201, 0.5),
+      0 0 16px rgba(74, 124, 201, 0.3),
+      0 0 24px rgba(74, 124, 201, 0.2);
   }
   50% {
     text-shadow: 
-      0 0 12px rgba(0, 217, 255, 0.8),
-      0 0 24px rgba(0, 217, 255, 0.5),
-      0 0 36px rgba(0, 217, 255, 0.3);
+      0 0 12px rgba(74, 124, 201, 0.8),
+      0 0 24px rgba(74, 124, 201, 0.5),
+      0 0 36px rgba(74, 124, 201, 0.3);
   }
 }
 
 .animate-glow {
-  animation: retro-glow 2s ease-in-out infinite;
-  color: var(--color-retro-dark);
+  animation: blue-glow 2s ease-in-out infinite;
+  color: var(--color-blue);
+}
+
+/* Box Glow */
+@keyframes box-glow {
+  0%, 100% {
+    box-shadow: 
+      0 0 10px rgba(74, 124, 201, 0.3),
+      0 0 20px rgba(74, 124, 201, 0.2);
+  }
+  50% {
+    box-shadow: 
+      0 0 15px rgba(74, 124, 201, 0.5),
+      0 0 30px rgba(74, 124, 201, 0.3);
+  }
+}
+
+.animate-box-glow {
+  animation: box-glow 2s ease-in-out infinite;
 }
 
 /* Scanline Effect */
@@ -35,16 +53,35 @@ body::after {
   top: 0;
   left: 0;
   width: 100%;
-  height: 3px;
+  height: 4px;
   background: linear-gradient(
     to bottom,
     transparent,
-    rgba(0, 217, 255, 0.15),
+    rgba(74, 124, 201, 0.12),
     transparent
   );
   pointer-events: none;
-  animation: scanline 8s linear infinite;
+  animation: scanline 6s linear infinite;
   z-index: 9999;
+}
+
+/* CRT Scanlines Overlay (subtle) */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.015) 2px,
+    rgba(0, 0, 0, 0.015) 4px
+  );
+  pointer-events: none;
+  z-index: 9998;
 }
 
 /* Pulse Animation */
@@ -122,13 +159,13 @@ body::after {
 }
 
 .hover-glow:hover {
-  box-shadow: 0 0 20px rgba(0, 217, 255, 0.4);
+  box-shadow: 0 0 20px rgba(74, 124, 201, 0.4);
 }
 
 /* Focus Effects */
 .focus-glow:focus {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.3);
+  box-shadow: 0 0 0 3px rgba(74, 124, 201, 0.3);
 }
 
 /* Loading Spinner */
@@ -139,8 +176,8 @@ body::after {
 }
 
 .spinner {
-  border: 3px solid rgba(0, 217, 255, 0.2);
-  border-top-color: var(--color-phosphor-green);
+  border: 3px solid rgba(74, 124, 201, 0.2);
+  border-top-color: var(--color-blue);
   border-radius: 50%;
   width: 40px;
   height: 40px;
@@ -160,15 +197,29 @@ body::after {
 .text-shimmer {
   background: linear-gradient(
     to right,
-    var(--color-retro-dark) 0%,
-    var(--color-phosphor-green) 50%,
-    var(--color-retro-dark) 100%
+    var(--color-navy) 0%,
+    var(--color-blue) 50%,
+    var(--color-navy) 100%
   );
   background-size: 1000px 100%;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: shimmer 3s linear infinite;
+}
+
+/* Float Animation */
+@keyframes float-soft {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.float-animation {
+  animation: float-soft 6s ease-in-out infinite;
 }
 
 /* Transition utilities */
@@ -182,4 +233,26 @@ body::after {
 
 .transition-slow {
   transition: all 0.5s ease;
+}
+
+/* Soft glow effects */
+.soft-glow {
+  box-shadow: 0 0 20px rgba(74, 124, 201, 0.2),
+              0 0 40px rgba(74, 124, 201, 0.1);
+}
+
+.soft-glow-hover:hover {
+  box-shadow: 0 0 25px rgba(74, 124, 201, 0.3),
+              0 0 50px rgba(74, 124, 201, 0.15);
+}
+
+/* Text glow */
+.text-glow {
+  text-shadow: 0 0 10px rgba(74, 124, 201, 0.4);
+}
+
+.text-glow-strong {
+  text-shadow: 
+    0 0 10px rgba(74, 124, 201, 0.5),
+    0 0 20px rgba(74, 124, 201, 0.3);
 }
