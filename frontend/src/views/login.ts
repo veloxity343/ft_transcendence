@@ -14,7 +14,7 @@ export function LoginView(): HTMLElement {
         <span class="text-blue animate-glow">Login</span> <span class="text-navy">to Transcendence</span>
       </h2>
 
-      <form id="loginForm" class="space-y-6">
+      <form id="loginForm" class="space-y-5">
         <div>
           <label class="block text-sm font-medium mb-2 text-navy">Username</label>
           <input
@@ -43,7 +43,7 @@ export function LoginView(): HTMLElement {
 
         <div id="formError" class="text-red-500 text-sm text-center hidden"></div>
 
-        <button type="submit" class="btn-primary w-full" id="submitBtn">
+        <button type="submit" class="btn-primary w-full py-2.5 mt-2" id="submitBtn">
           Login
         </button>
       </form>

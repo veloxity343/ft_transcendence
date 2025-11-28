@@ -64,10 +64,10 @@ export function HomeView(): HTMLElement {
           The Ultimate Pong Experience
         </p>
         <div class="flex gap-4 justify-center">
-          <button id="loginBtn" class="btn-primary text-lg px-8 py-3">
+          <button id="loginBtn" class="btn-primary text-lg px-6 py-2">
             Login
           </button>
-          <button id="registerBtn" class="btn-outline text-lg px-8 py-3">
+          <button id="registerBtn" class="btn-outline text-lg px-6 py-2">
             Register
           </button>
         </div>

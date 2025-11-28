@@ -4,13 +4,14 @@
   color: white;
   border: 2px solid var(--color-blue-dark);
   font-weight: bold;
-  padding: 0.75rem 1.5rem;
+  padding: 0.5rem 1.25rem;
   border-radius: 0.5rem;
   transition: all 0.2s;
   box-shadow: 
     0 2px 0 var(--color-blue-dark),
     0 4px 8px rgba(74, 124, 201, 0.2);
   cursor: pointer;
+  font-size: 0.875rem;
 }
 
 .btn-primary:hover {
@@ -33,13 +34,14 @@
   color: var(--color-navy);
   border: 2px solid var(--color-brown);
   font-weight: bold;
-  padding: 0.75rem 1.5rem;
+  padding: 0.5rem 1.25rem;
   border-radius: 0.5rem;
   transition: all 0.2s;
   box-shadow: 
     0 2px 0 var(--color-brown),
     0 4px 8px rgba(139, 115, 85, 0.2);
   cursor: pointer;
+  font-size: 0.875rem;
 }
 
 .btn-secondary:hover {
@@ -63,10 +65,11 @@
   color: var(--color-blue);
   border: 2px solid var(--color-blue);
   font-weight: bold;
-  padding: 0.75rem 1.5rem;
+  padding: 0.5rem 1.25rem;
   border-radius: 0.5rem;
   transition: all 0.2s;
   cursor: pointer;
+  font-size: 0.875rem;
 }
 
 .btn-outline:hover {
@@ -82,11 +85,12 @@
   -webkit-backdrop-filter: blur(10px);
   border: 1.5px solid rgba(255, 255, 255, 0.6);
   color: var(--color-navy);
-  padding: 0.75rem 1.5rem;
+  padding: 0.5rem 1.25rem;
   border-radius: 16px;
   font-weight: 600;
   transition: all 0.3s ease;
   cursor: pointer;
+  font-size: 0.875rem;
 }
 
 .btn-glass:hover {
@@ -99,6 +103,18 @@
 
 .btn-glass:active {
   transform: translateY(0);
+}
+
+/* Small button variant */
+.btn-sm {
+  padding: 0.375rem 0.875rem;
+  font-size: 0.75rem;
+}
+
+/* Large button variant */
+.btn-lg {
+  padding: 0.75rem 1.75rem;
+  font-size: 1rem;
 }
 
 button:disabled {
@@ -176,10 +192,11 @@ button:focus-visible {
   border: 2px solid var(--color-tan);
   color: var(--color-navy);
   border-radius: 0.5rem;
-  padding: 0.75rem 1rem;
+  padding: 0.625rem 0.875rem;
   transition: all 0.2s;
   width: 100%;
   font-family: 'Share Tech Mono', monospace;
+  font-size: 0.875rem;
 }
 
 .input-field:focus {
@@ -200,11 +217,12 @@ button:focus-visible {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1.5px solid rgba(255, 255, 255, 0.6);
-  border-radius: 16px;
-  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  padding: 0.625rem 0.875rem;
   transition: all 0.3s ease;
   color: var(--color-navy);
   font-family: 'Share Tech Mono', monospace;
+  font-size: 0.875rem;
 }
 
 .input-glass:focus {

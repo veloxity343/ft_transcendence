@@ -6,7 +6,7 @@ import { SUCCESS_MESSAGES } from '../constants';
 
 export function Navbar(): HTMLElement {
   const nav = document.createElement('nav');
-  nav.className = 'border-b';
+  nav.className = 'border-b relative z-[100]';
   
   const isAuthenticated = authApi.isAuthenticated();
   const user = storage.getUserData();
@@ -44,7 +44,7 @@ export function Navbar(): HTMLElement {
                 </svg>
               </button>
               
-              <div id="userMenu" class="hidden absolute right-0 mt-2 w-48 rounded-xl shadow-lg py-2 z-50 bg-white border border-tan">
+              <div id="userMenu" class="hidden absolute right-0 mt-2 w-48 rounded-xl shadow-lg py-2 z-[200] bg-white border border-tan">
                 <a href="/profile" class="block px-4 py-2 text-navy hover:bg-blue hover:text-white font-semibold transition-colors">
                   Profile
                 </a>
@@ -67,7 +67,7 @@ export function Navbar(): HTMLElement {
             <a href="/login" class="text-navy hover:text-blue transition-colors font-semibold">
               Login
             </a>
-            <a href="/register" class="btn-primary">
+            <a href="/register" class="btn-primary btn-sm">
               Register
             </a>
           </div>
@@ -96,7 +96,7 @@ export function Navbar(): HTMLElement {
     logoutBtn?.addEventListener('click', async () => {
       await authApi.logout();
       showToast(SUCCESS_MESSAGES.LOGOUT_SUCCESS, 'success');
-      router.navigateTo('/');
+      window.location.href = '/';
     });
   }
 
