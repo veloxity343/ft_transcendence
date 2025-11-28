@@ -6,6 +6,7 @@ import { LoginView } from './views/login';
 import { RegisterView } from './views/register';
 import { wsClient } from './websocket/client';
 import { authApi } from './api/auth';
+import { storage } from './utils/storage';
 import { GameView } from './views/game';
 
 // Initialize app
@@ -14,6 +15,12 @@ function initializeApp(): void {
   if (!app) {
     console.error('App container not found');
     return;
+  }
+
+  // Check for expired token on startup and clear if needed
+  if (storage.getAuthToken() && storage.isTokenExpired()) {
+    console.warn('Token expired on startup, clearing auth state');
+    storage.clearAll();
   }
 
   // Create layout
@@ -38,7 +45,7 @@ function initializeApp(): void {
   // Register routes
   registerRoutes();
 
-  // Connect WebSocket if authenticated
+  // Connect WebSocket if authenticated (storage.isAuthenticated now checks token expiration)
   if (authApi.isAuthenticated()) {
     wsClient.connect();
   }
@@ -178,6 +185,15 @@ function setupAuthListeners(): void {
 
   window.addEventListener('auth:logout', () => {
     wsClient.disconnect();
+    // Refresh navbar to show logged out state
+    const app = document.getElementById('app');
+    if (app) {
+      const oldNav = app.querySelector('nav');
+      if (oldNav) {
+        const newNav = Navbar();
+        oldNav.replaceWith(newNav);
+      }
+    }
   });
 }
 

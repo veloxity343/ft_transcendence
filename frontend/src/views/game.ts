@@ -16,27 +16,14 @@ const icons = {
 };
 
 // Helper to wait for WebSocket connection
-function waitForConnection(timeout = 5000): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (wsClient.isConnected()) {
-      resolve(true);
-      return;
-    }
-    
-    const startTime = Date.now();
-    const checkConnection = () => {
-      if (wsClient.isConnected()) {
-        resolve(true);
-      } else if (Date.now() - startTime > timeout) {
-        resolve(false);
-      } else {
-        setTimeout(checkConnection, 100);
-      }
-    };
-    
-    wsClient.connect();
-    setTimeout(checkConnection, 100);
-  });
+async function waitForConnection(timeout = 5000): Promise<boolean> {
+  if (wsClient.isConnected()) {
+    return true;
+  }
+  
+  // connect() returns Promise<boolean>
+  const connected = await wsClient.connect();
+  return connected;
 }
 
 export function GameView(): HTMLElement {
@@ -376,24 +363,22 @@ export function GameView(): HTMLElement {
   const setupWSHandlers = () => {
     console.log('Setting up WebSocket handlers...');
     
-    // Handle matchmaking join
+    // Handle matchmaking join - only show waiting if player 1 waiting for opponent
     unsubscribers.push(wsClient.on('game:joined', (msg) => {
       console.log('game:joined', msg.data);
       gameId = msg.data.gameId;
       playerNumber = msg.data.playerNumber;
       isLocalGame = msg.data.isLocal || false;
       
-      if (isLocalGame) {
-        // Local game - show game screen immediately
-        showToast('Local game created!', 'success');
-        showScreen('game');
-      } else if (playerNumber === 1) {
-        // First player in matchmaking - waiting for opponent
+      // Only show waiting if we're player 1 in matchmaking waiting for opponent
+      // game-starting event will handle showing the actual game screen
+      if (!isLocalGame && playerNumber === 1) {
         showWaiting('Waiting for opponent...', 'You will be matched soon');
-      } else {
-        // Second player - game will start
+      } else if (!isLocalGame && playerNumber === 2) {
+        // Second player joined - game will start, just show toast
         showToast(`Joined game as Player ${playerNumber}`, 'success');
       }
+      // For local games, game-starting will handle it
     }));
 
     // Handle private/local game creation
@@ -404,27 +389,27 @@ export function GameView(): HTMLElement {
       isLocalGame = msg.data.isLocal || false;
       
       if (isLocalGame) {
-        // Local game - wait for game-starting event
-        showToast('Local game created! Starting soon...', 'success');
-        showWaiting('Starting local game...', 'Game will begin in a moment');
+        // Local game - game-starting will show the game screen
+        showToast('Local game created!', 'success');
+        // Don't call showWaiting - game-starting handles it
       } else {
-        // Private game - show game ID for sharing
+        // Private game - show game ID for sharing, need to wait for opponent
         showToast('Private game created!', 'success');
         showWaiting('Waiting for opponent...', 'Share the Game ID with your friend', true, gameId!);
       }
     }));
 
-    // Handle AI game creation
+    // Handle AI game creation - don't show waiting, game-starting handles the screen
     unsubscribers.push(wsClient.on('game:ai-created', (msg) => {
       console.log('game:ai-created', msg.data);
       gameId = msg.data.gameId;
       playerNumber = msg.data.playerNumber;
       isLocalGame = false;
       showToast(`AI game created (${msg.data.difficulty})!`, 'success');
-      showWaiting('Starting AI game...', 'Game will begin in a moment');
+      // Don't call showWaiting here - game-starting event handles showing the game screen
     }));
 
-    // Handle game starting (countdown phase)
+    // Handle game starting (countdown phase) - THIS IS THE AUTHORITATIVE EVENT FOR SHOWING GAME SCREEN
     unsubscribers.push(wsClient.on('game-starting', (msg) => {
       console.log('game-starting', msg.data);
       player1Label.textContent = msg.data.player1?.name || 'Player 1';

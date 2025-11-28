@@ -1,6 +1,19 @@
 import { STORAGE_KEYS } from '../constants';
 import type { User, GameSettings } from '../types';
 
+// Decode JWT payload without verification (server handles verification)
+function decodeJwtPayload(token: string): { exp?: number; iat?: number } | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = parts[1];
+    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
 class Storage {
   // Auth Token
   setAuthToken(token: string): void {
@@ -9,6 +22,36 @@ class Storage {
 
   getAuthToken(): string | null {
     return localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+  }
+
+  // Get token only if it's not expired (with 30 second buffer)
+  getValidAuthToken(): string | null {
+    const token = this.getAuthToken();
+    if (!token) return null;
+    
+    const payload = decodeJwtPayload(token);
+    if (!payload?.exp) return token; // No expiration, assume valid
+    
+    const now = Math.floor(Date.now() / 1000);
+    const bufferSeconds = 30; // Consider expired 30s before actual expiry
+    
+    if (payload.exp <= now + bufferSeconds) {
+      console.warn('Auth token expired or expiring soon');
+      return null;
+    }
+    
+    return token;
+  }
+
+  isTokenExpired(): boolean {
+    const token = this.getAuthToken();
+    if (!token) return true;
+    
+    const payload = decodeJwtPayload(token);
+    if (!payload?.exp) return false;
+    
+    const now = Math.floor(Date.now() / 1000);
+    return payload.exp <= now;
   }
 
   removeAuthToken(): void {
@@ -55,9 +98,9 @@ class Storage {
     localStorage.clear();
   }
 
-  // Check if user is authenticated
+  // Check if user is authenticated (token exists AND is not expired)
   isAuthenticated(): boolean {
-    return !!this.getAuthToken();
+    return this.getValidAuthToken() !== null;
   }
 }
 

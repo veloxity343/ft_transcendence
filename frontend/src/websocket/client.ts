@@ -15,29 +15,38 @@ class WebSocketClient {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
   private isIntentionallyClosed = false;
+  private connectPromiseResolve: ((value: boolean) => void) | null = null;
 
-  connect(): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      console.log('WebSocket already connected');
-      return;
-    }
+  connect(): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        console.log('WebSocket already connected');
+        resolve(true);
+        return;
+      }
 
-    const token = storage.getAuthToken();
-    if (!token) {
-      console.error('No auth token found');
-      return;
-    }
+      // Use getValidAuthToken to check expiration before connecting
+      const token = storage.getValidAuthToken();
+      if (!token) {
+        console.error('No valid auth token found - token may be expired');
+        this.handleAuthFailure();
+        resolve(false);
+        return;
+      }
 
-    this.isIntentionallyClosed = false;
-    const wsUrl = `${WS_URL}?token=${token}`;
-    
-    try {
-      this.ws = new WebSocket(wsUrl);
-      this.setupEventListeners();
-    } catch (error) {
-      console.error('WebSocket connection error:', error);
-      this.handleReconnect();
-    }
+      this.isIntentionallyClosed = false;
+      this.connectPromiseResolve = resolve;
+      const wsUrl = `${WS_URL}?token=${token}`;
+      
+      try {
+        this.ws = new WebSocket(wsUrl);
+        this.setupEventListeners();
+      } catch (error) {
+        console.error('WebSocket connection error:', error);
+        this.connectPromiseResolve = null;
+        resolve(false);
+      }
+    });
   }
 
   private setupEventListeners(): void {
@@ -47,11 +56,18 @@ class WebSocketClient {
       console.log('WebSocket connected');
       this.reconnectAttempts = 0;
       this.emit('ws:connected', {});
+      
+      // Resolve the connect promise if pending
+      if (this.connectPromiseResolve) {
+        this.connectPromiseResolve(true);
+        this.connectPromiseResolve = null;
+      }
     };
 
     this.ws.onmessage = (event) => {
       try {
         const message: WSMessage = JSON.parse(event.data);
+        console.log('WS received:', message.event, message.data);
         this.handleMessage(message);
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
@@ -61,11 +77,32 @@ class WebSocketClient {
     this.ws.onerror = (error) => {
       console.error('WebSocket error:', error);
       this.emit('ws:error', { error });
+      
+      // Resolve the connect promise as failed if pending
+      if (this.connectPromiseResolve) {
+        this.connectPromiseResolve(false);
+        this.connectPromiseResolve = null;
+      }
     };
 
-    this.ws.onclose = () => {
-      console.log('WebSocket disconnected');
+    this.ws.onclose = (event) => {
+      console.log('WebSocket disconnected', event.code, event.reason);
       this.emit('ws:disconnected', {});
+      
+      // Resolve the connect promise as failed if pending
+      if (this.connectPromiseResolve) {
+        this.connectPromiseResolve(false);
+        this.connectPromiseResolve = null;
+      }
+      
+      // Check if closed due to auth failure (code 4001 or 4003 are common for auth issues)
+      // Also check if token is now expired
+      if (event.code === 4001 || event.code === 4003 || storage.isTokenExpired()) {
+        console.warn('WebSocket closed due to authentication failure');
+        this.handleAuthFailure();
+        return;
+      }
+      
       if (!this.isIntentionallyClosed) {
         this.handleReconnect();
       }
@@ -74,6 +111,12 @@ class WebSocketClient {
 
   private handleMessage(message: WSMessage): void {
     const { event, data } = message;
+    
+    // Check for auth-related error messages
+    if (event === 'error' && data?.code === 'AUTH_FAILED') {
+      this.handleAuthFailure();
+      return;
+    }
     
     // Call specific event handlers
     const handlers = this.handlers.get(event);
@@ -95,9 +138,36 @@ class WebSocketClient {
     }
   }
 
+  private handleAuthFailure(): void {
+    console.warn('Authentication failed - clearing session and redirecting to login');
+    this.isIntentionallyClosed = true;
+    this.reconnectAttempts = this.maxReconnectAttempts; // Prevent further reconnects
+    
+    // Clear auth data
+    storage.clearAll();
+    
+    // Emit auth failure event
+    this.emit('ws:auth-failed', {});
+    
+    // Dispatch global auth:logout event
+    window.dispatchEvent(new CustomEvent('auth:logout'));
+    
+    // Redirect to login page
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  }
+
   private handleReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('Max reconnect attempts reached');
+      return;
+    }
+
+    // Check token before attempting reconnect
+    if (storage.isTokenExpired()) {
+      console.warn('Token expired, not attempting reconnect');
+      this.handleAuthFailure();
       return;
     }
 
@@ -107,7 +177,12 @@ class WebSocketClient {
     console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
     
     setTimeout(() => {
-      this.connect();
+      // Double-check token validity before reconnecting
+      if (!storage.isTokenExpired()) {
+        this.connect();
+      } else {
+        this.handleAuthFailure();
+      }
     }, delay);
   }
 
@@ -115,9 +190,9 @@ class WebSocketClient {
     if (this.ws?.readyState === WebSocket.OPEN) {
       const message = { event, data };
       this.ws.send(JSON.stringify(message));
-      console.log('Sent:', event, data);
+      console.log('WS sent:', event, data);
     } else {
-      console.error('WebSocket is not connected');
+      console.error('WebSocket is not connected, cannot send:', event);
     }
   }
 

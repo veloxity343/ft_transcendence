@@ -93,7 +93,7 @@ export function LoginView(): HTMLElement {
 
       if (response.success) {
         showToast(SUCCESS_MESSAGES.LOGIN_SUCCESS, 'success');
-        router.navigateTo('/game');
+        router.navigateTo('/');
       } else {
         formError.textContent = response.error || 'Login failed';
         formError.classList.remove('hidden');

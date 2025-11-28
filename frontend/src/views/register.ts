@@ -143,7 +143,8 @@ export function RegisterView(): HTMLElement {
 
       if (response.success) {
         showToast(SUCCESS_MESSAGES.REGISTER_SUCCESS, 'success');
-        router.navigateTo('/game');
+        // Full page reload to refresh navbar and reconnect WebSocket
+        window.location.href = '/';
       } else {
         formError.textContent = response.error || 'Registration failed';
         formError.classList.remove('hidden');
