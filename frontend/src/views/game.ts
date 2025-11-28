@@ -287,7 +287,9 @@ export function GameView(): HTMLElement {
 
   // Keyboard handlers
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (gameId && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) e.preventDefault();
+    if (gameId && ['ArrowUp', 'ArrowDown', 'w', 'W', 's', 'S'].includes(e.key)) {
+        e.preventDefault();
+    }
     if ((document.activeElement as HTMLElement)?.tagName === 'INPUT') return;
     if (!gameId) return;
     
