@@ -34,7 +34,7 @@ function initializeApp(): void {
   // Add main content container
   const mainContainer = document.createElement('main');
   mainContainer.id = 'main-content';
-  mainContainer.className = 'min-h-[calc(100vh-4rem)]';
+  mainContainer.className = 'min-h-[calc(100vh-4rem)] flex flex-col';
   layout.appendChild(mainContainer);
   
   app.appendChild(layout);
@@ -91,12 +91,11 @@ function registerRoutes(): void {
     title: 'Tournaments',
     component: () => {
       const div = document.createElement('div');
+      div.className = 'flex-1 flex items-center justify-center';
       div.innerHTML = `
-        <div class="min-h-screen flex items-center justify-center">
-          <div class="text-center">
-            <h1 class="text-4xl font-bold mb-4" style="color: var(--color-retro-dark)">Game View</h1>
-            <p style="color: var(--color-retro-brown)">Game interface coming soon...</p>
-          </div>
+        <div class="text-center">
+          <h1 class="text-4xl font-bold mb-4" style="color: var(--color-navy)">Tournaments</h1>
+          <p style="color: var(--color-navy-muted)">Tournament interface coming soon...</p>
         </div>
       `;
       return div;
@@ -109,12 +108,11 @@ function registerRoutes(): void {
     title: 'Leaderboard',
     component: () => {
       const div = document.createElement('div');
+      div.className = 'flex-1 flex items-center justify-center';
       div.innerHTML = `
-        <div class="min-h-screen flex items-center justify-center">
-          <div class="text-center">
-            <h1 class="text-4xl font-bold mb-4" style="color: var(--color-retro-dark)">Game View</h1>
-            <p style="color: var(--color-retro-brown)">Game interface coming soon...</p>
-          </div>
+        <div class="text-center">
+          <h1 class="text-4xl font-bold mb-4" style="color: var(--color-navy)">Leaderboard</h1>
+          <p style="color: var(--color-navy-muted)">Leaderboard interface coming soon...</p>
         </div>
       `;
       return div;
@@ -127,12 +125,11 @@ function registerRoutes(): void {
     title: 'Statistics',
     component: () => {
       const div = document.createElement('div');
+      div.className = 'flex-1 flex items-center justify-center';
       div.innerHTML = `
-        <div class="min-h-screen flex items-center justify-center">
-          <div class="text-center">
-            <h1 class="text-4xl font-bold mb-4" style="color: var(--color-retro-dark)">Game View</h1>
-            <p style="color: var(--color-retro-brown)">Game interface coming soon...</p>
-          </div>
+        <div class="text-center">
+          <h1 class="text-4xl font-bold mb-4" style="color: var(--color-navy)">Statistics</h1>
+          <p style="color: var(--color-navy-muted)">Statistics interface coming soon...</p>
         </div>
       `;
       return div;
@@ -145,12 +142,11 @@ function registerRoutes(): void {
     title: 'Profile',
     component: () => {
       const div = document.createElement('div');
+      div.className = 'flex-1 flex items-center justify-center';
       div.innerHTML = `
-        <div class="min-h-screen flex items-center justify-center">
-          <div class="text-center">
-            <h1 class="text-4xl font-bold mb-4" style="color: var(--color-retro-dark)">Game View</h1>
-            <p style="color: var(--color-retro-brown)">Game interface coming soon...</p>
-          </div>
+        <div class="text-center">
+          <h1 class="text-4xl font-bold mb-4" style="color: var(--color-navy)">Profile</h1>
+          <p style="color: var(--color-navy-muted)">Profile interface coming soon...</p>
         </div>
       `;
       return div;
@@ -163,12 +159,11 @@ function registerRoutes(): void {
     title: 'Settings',
     component: () => {
       const div = document.createElement('div');
+      div.className = 'flex-1 flex items-center justify-center';
       div.innerHTML = `
-        <div class="min-h-screen flex items-center justify-center">
-          <div class="text-center">
-            <h1 class="text-4xl font-bold mb-4" style="color: var(--color-retro-dark)">Game View</h1>
-            <p style="color: var(--color-retro-brown)">Game interface coming soon...</p>
-          </div>
+        <div class="text-center">
+          <h1 class="text-4xl font-bold mb-4" style="color: var(--color-navy)">Settings</h1>
+          <p style="color: var(--color-navy-muted)">Settings interface coming soon...</p>
         </div>
       `;
       return div;

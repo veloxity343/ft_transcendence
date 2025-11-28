@@ -6,7 +6,7 @@ import { SUCCESS_MESSAGES } from '../constants';
 
 export function LoginView(): HTMLElement {
   const container = document.createElement('div');
-  container.className = 'min-h-screen flex items-center justify-center px-4';
+  container.className = 'flex-1 flex items-center justify-center px-4';
 
   container.innerHTML = `
     <div class="glass-card max-w-md w-full p-8">
@@ -93,7 +93,8 @@ export function LoginView(): HTMLElement {
 
       if (response.success) {
         showToast(SUCCESS_MESSAGES.LOGIN_SUCCESS, 'success');
-        router.navigateTo('/');
+        // Full page reload to refresh navbar and reconnect WebSocket
+        window.location.href = '/';
       } else {
         formError.textContent = response.error || 'Login failed';
         formError.classList.remove('hidden');

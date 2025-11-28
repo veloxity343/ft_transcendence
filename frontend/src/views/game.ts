@@ -28,14 +28,14 @@ async function waitForConnection(timeout = 5000): Promise<boolean> {
 
 export function GameView(): HTMLElement {
   const container = document.createElement('div');
-  container.className = 'min-h-screen p-4 md:p-8';
+  container.className = 'flex-1 p-4 md:p-8 flex flex-col items-center';
 
   const themeOptions = Object.entries(GAME_THEMES).map(([key, theme]) => 
     `<option value="${key}">${theme.name}</option>`
   ).join('');
 
   container.innerHTML = `
-    <div id="gameModeSelection" class="max-w-4xl mx-auto">
+    <div id="gameModeSelection" class="max-w-4xl w-full">
       <div class="text-center mb-8">
         <h1 class="text-4xl font-bold mb-2">
           <span class="text-blue animate-glow">SELECT</span> <span class="text-navy">MODE</span>
@@ -56,7 +56,7 @@ export function GameView(): HTMLElement {
       </div>
     </div>
 
-    <div id="waitingScreen" class="hidden max-w-2xl mx-auto">
+    <div id="waitingScreen" class="hidden max-w-2xl w-full">
       <div class="glass-card p-8 text-center">
         <div class="flex justify-center mb-4">${icons.spinner}</div>
         <h2 id="waitingTitle" class="text-2xl font-bold text-navy mb-2">Searching for opponent...</h2>
@@ -72,7 +72,7 @@ export function GameView(): HTMLElement {
       </div>
     </div>
 
-    <div id="joinPrivateScreen" class="hidden max-w-md mx-auto">
+    <div id="joinPrivateScreen" class="hidden max-w-md w-full">
       <div class="glass-card p-8">
         <h2 class="text-2xl font-bold text-navy text-center mb-6">Join Private Game</h2>
         <div class="mb-4">
@@ -88,7 +88,7 @@ export function GameView(): HTMLElement {
       </div>
     </div>
 
-    <div id="aiDifficultySelection" class="hidden max-w-2xl mx-auto">
+    <div id="aiDifficultySelection" class="hidden max-w-2xl w-full">
       <div class="text-center mb-8"><h1 class="text-3xl font-bold"><span class="text-blue">SELECT</span> <span class="text-navy">DIFFICULTY</span></h1></div>
       <div class="grid grid-cols-3 gap-4">
         <button data-difficulty="easy" class="difficulty-btn glass-card p-6 text-center cursor-pointer hover:border-green-500 transition-all"><div class="text-4xl mb-2 text-green-500">I</div><div class="font-bold text-navy">Easy</div><p class="text-xs text-navy-muted mt-1">Relaxed gameplay</p></button>
@@ -98,7 +98,7 @@ export function GameView(): HTMLElement {
       <div class="text-center mt-6"><button id="backFromAIBtn" class="btn-outline">${icons.back} Back</button></div>
     </div>
 
-    <div id="gameContainer" class="hidden max-w-4xl mx-auto">
+    <div id="gameContainer" class="hidden max-w-4xl w-full">
       <div class="arcade-cabinet">
         <div class="arcade-bezel">
           <div class="arcade-marquee">

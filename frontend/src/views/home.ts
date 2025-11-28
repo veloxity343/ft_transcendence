@@ -54,7 +54,7 @@ export function HomeView(): HTMLElement {
 
   if (!isAuthenticated) {
     // Guest view - simple centered content
-    container.className = 'min-h-screen flex items-center justify-center px-4';
+    container.className = 'flex-1 flex items-center justify-center px-4';
     container.innerHTML = `
       <div class="glass-card text-center max-w-lg p-12">
         <h1 class="text-5xl font-bold mb-6">

@@ -6,7 +6,7 @@ import { SUCCESS_MESSAGES } from '../constants';
 
 export function RegisterView(): HTMLElement {
   const container = document.createElement('div');
-  container.className = 'min-h-screen flex items-center justify-center px-4 py-12';
+  container.className = 'flex-1 flex items-center justify-center px-4 py-12';
 
   container.innerHTML = `
     <div class="glass-card max-w-md w-full p-8">
