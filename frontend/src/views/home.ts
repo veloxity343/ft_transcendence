@@ -52,6 +52,14 @@ export function HomeView(): HTMLElement {
   const isAuthenticated = authApi.isAuthenticated();
   const user = storage.getUserData();
 
+  // Enable scanlines effect on home page
+  document.body.classList.add('show-scanlines');
+  
+  // Cleanup function to remove scanlines when leaving home page
+  (container as any).__cleanup = () => {
+    document.body.classList.remove('show-scanlines');
+  };
+
   if (!isAuthenticated) {
     // Guest view - simple centered content
     container.className = 'flex-1 flex items-center justify-center px-4';

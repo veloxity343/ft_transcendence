@@ -5,6 +5,7 @@ class Router {
   private routes: Map<Route, RouteConfig> = new Map();
   private currentRoute: Route | null = null;
   private appContainer: HTMLElement | null = null;
+  private currentComponent: HTMLElement | null = null;
 
   constructor() {
     window.addEventListener('popstate', () => {
@@ -77,11 +78,17 @@ class Router {
       return;
     }
 
+    // Call cleanup on current component if it exists
+    if (this.currentComponent && (this.currentComponent as any).__cleanup) {
+      (this.currentComponent as any).__cleanup();
+    }
+
     // Clear existing content
     this.appContainer.innerHTML = '';
 
     // Render new component
     const component = route.component();
+    this.currentComponent = component;
     this.appContainer.appendChild(component);
   }
 

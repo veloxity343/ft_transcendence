@@ -19,6 +19,11 @@ export class GameService {
   private readonly BALL_RADIUS = 1; // vh units
   private readonly GAME_ASPECT_RATIO = 16 / 9;
   
+  // Paddle collision zones (x positions in %)
+  private readonly LEFT_PADDLE_X = 3;
+  private readonly RIGHT_PADDLE_X = 97;
+  private readonly PADDLE_WIDTH = 1;
+  
   // New physics constants
   private readonly BALL_ACCELERATION = 1.08; // 8% increase per hit
   private readonly PADDLE_MOMENTUM_MULTIPLIER = 0.4; // How much paddle motion affects ball
@@ -375,6 +380,10 @@ export class GameService {
     
     room.ballSpeedX = direction * this.INITIAL_BALL_SPEED * Math.cos(angle);
     room.ballSpeedY = this.INITIAL_BALL_SPEED * Math.sin(angle);
+    
+    // Store previous position for collision detection
+    (room as any).prevBallX = room.ballX;
+    (room as any).prevBallY = room.ballY;
   }
 
   private updatePaddles(room: GameRoom) {
@@ -402,13 +411,18 @@ export class GameService {
   }
 
   private updateBall(room: GameRoom) {
+    // Store previous position BEFORE any updates
+    const prevBallX = room.ballX;
+    const prevBallY = room.ballY;
+    
+    // Apply speed decay
     room.ballSpeedX *= this.BALL_SPEED_DECAY;
     room.ballSpeedY *= this.BALL_SPEED_DECAY;
     room.ballSpeed *= this.BALL_SPEED_DECAY;
 
-    // Update ball position
-    room.ballX += room.ballSpeedX;
-    room.ballY += room.ballSpeedY;
+    // Calculate new position
+    let newBallX = room.ballX + room.ballSpeedX;
+    let newBallY = room.ballY + room.ballSpeedY;
     
     // Safety check: if ball is stuck (too slow), reinitialize
     const currentSpeed = Math.sqrt(
@@ -422,54 +436,109 @@ export class GameService {
     }
 
     // Ball collision with top/bottom walls
-    if (room.ballY <= this.BALL_RADIUS) {
-      room.ballY = this.BALL_RADIUS;
+    if (newBallY <= this.BALL_RADIUS) {
+      newBallY = this.BALL_RADIUS;
       room.ballSpeedY *= -1;
-    } else if (room.ballY >= 100 - this.BALL_RADIUS) {
-      room.ballY = 100 - this.BALL_RADIUS;
+    } else if (newBallY >= 100 - this.BALL_RADIUS) {
+      newBallY = 100 - this.BALL_RADIUS;
       room.ballSpeedY *= -1;
     }
 
-    // Ball collision with left paddle
-    if (
-      room.ballX <= 3 + this.BALL_RADIUS / this.GAME_ASPECT_RATIO &&
-      room.ballY >= room.paddleLeft - 1 &&
-      room.ballY <= room.paddleLeft + this.PADDLE_HEIGHT + 1
-    ) {
-      this.handlePaddleCollision(room, true);
+    // ==================== SWEPT PADDLE COLLISION ====================
+    // This detects if the ball CROSSED the paddle line, not just where it ended up
+    
+    const ballRadius = this.BALL_RADIUS / this.GAME_ASPECT_RATIO;
+    
+    // Paddle collision boundaries (where ball edge would hit)
+    const leftPaddleX = this.LEFT_PADDLE_X + this.PADDLE_WIDTH;  // Right edge of left paddle
+    const rightPaddleX = this.RIGHT_PADDLE_X - this.PADDLE_WIDTH; // Left edge of right paddle
+    
+    // Generous collision tolerance to account for network latency
+    const COLLISION_TOLERANCE = 3; // Extra vertical tolerance in %
+    
+    // Left paddle collision - ball moving left
+    if (room.ballSpeedX < 0) {
+      const ballLeftEdgeNow = newBallX - ballRadius;
+      const ballLeftEdgePrev = prevBallX - ballRadius;
+      
+      // Check if ball crossed or reached the paddle line this frame
+      if (ballLeftEdgeNow <= leftPaddleX && ballLeftEdgePrev > ballLeftEdgeNow) {
+        // Interpolate to find Y position at moment of crossing
+        let collisionY: number;
+        if (ballLeftEdgePrev !== ballLeftEdgeNow) {
+          const t = Math.max(0, Math.min(1, (leftPaddleX - ballLeftEdgePrev) / (ballLeftEdgeNow - ballLeftEdgePrev)));
+          collisionY = prevBallY + t * (newBallY - prevBallY);
+        } else {
+          collisionY = newBallY;
+        }
+        
+        // Check paddle coverage with tolerance
+        const paddleTop = room.paddleLeft - COLLISION_TOLERANCE;
+        const paddleBottom = room.paddleLeft + this.PADDLE_HEIGHT + COLLISION_TOLERANCE;
+        
+        if (collisionY >= paddleTop && collisionY <= paddleBottom) {
+          this.handlePaddleCollision(room, true, collisionY);
+          newBallX = leftPaddleX + ballRadius + 0.5;
+        }
+      }
+    }
+    
+    // Right paddle collision - ball moving right  
+    if (room.ballSpeedX > 0) {
+      const ballRightEdgeNow = newBallX + ballRadius;
+      const ballRightEdgePrev = prevBallX + ballRadius;
+      
+      // Check if ball crossed or reached the paddle line this frame
+      if (ballRightEdgeNow >= rightPaddleX && ballRightEdgePrev < ballRightEdgeNow) {
+        // Interpolate to find Y position at moment of crossing
+        let collisionY: number;
+        if (ballRightEdgePrev !== ballRightEdgeNow) {
+          const t = Math.max(0, Math.min(1, (rightPaddleX - ballRightEdgePrev) / (ballRightEdgeNow - ballRightEdgePrev)));
+          collisionY = prevBallY + t * (newBallY - prevBallY);
+        } else {
+          collisionY = newBallY;
+        }
+        
+        // Check paddle coverage with tolerance
+        const paddleTop = room.paddleRight - COLLISION_TOLERANCE;
+        const paddleBottom = room.paddleRight + this.PADDLE_HEIGHT + COLLISION_TOLERANCE;
+        
+        if (collisionY >= paddleTop && collisionY <= paddleBottom) {
+          this.handlePaddleCollision(room, false, collisionY);
+          newBallX = rightPaddleX - ballRadius - 0.5;
+        }
+      }
     }
 
-    // Ball collision with right paddle
-    if (
-      room.ballX >= 97 - this.BALL_RADIUS / this.GAME_ASPECT_RATIO &&
-      room.ballY >= room.paddleRight - 1 &&
-      room.ballY <= room.paddleRight + this.PADDLE_HEIGHT + 1
-    ) {
-      this.handlePaddleCollision(room, false);
-    }
+    // Update ball position
+    room.ballX = newBallX;
+    room.ballY = newBallY;
 
-    // Score points
-    if (room.ballX <= 0 - this.BALL_RADIUS / this.GAME_ASPECT_RATIO) {
+    // Score points - ball must be clearly past the goal line
+    if (room.ballX <= -ballRadius) {
       room.player2Score++;
       this.initializeBall(room);
-    } else if (room.ballX >= 100 + this.BALL_RADIUS / this.GAME_ASPECT_RATIO) {
+    } else if (room.ballX >= 100 + ballRadius) {
       room.player1Score++;
       this.initializeBall(room);
     }
   }
 
-  private handlePaddleCollision(room: GameRoom, isLeftPaddle: boolean) {
+  private handlePaddleCollision(room: GameRoom, isLeftPaddle: boolean, collisionY?: number) {
+    const ballRadius = this.BALL_RADIUS / this.GAME_ASPECT_RATIO;
+    
     // Position ball at paddle edge to prevent sticking
     if (isLeftPaddle) {
-      room.ballX = 3 + this.BALL_RADIUS / this.GAME_ASPECT_RATIO + 0.5; // Extra padding
+      room.ballX = this.LEFT_PADDLE_X + this.PADDLE_WIDTH + ballRadius + 0.5;
     } else {
-      room.ballX = 97 - this.BALL_RADIUS / this.GAME_ASPECT_RATIO - 0.5; // Extra padding
+      room.ballX = this.RIGHT_PADDLE_X - this.PADDLE_WIDTH - ballRadius - 0.5;
     }
 
     // Calculate where on paddle the ball hit (0 = top, 1 = bottom)
     const paddleY = isLeftPaddle ? room.paddleLeft : room.paddleRight;
-    const hitPosition = (room.ballY - paddleY) / this.PADDLE_HEIGHT;
-    const normalizedHit = (hitPosition - 0.5) * 2; // -1 to 1
+    const hitY = collisionY !== undefined ? collisionY : room.ballY;
+    const hitPosition = (hitY - paddleY) / this.PADDLE_HEIGHT;
+    const normalizedHit = Math.max(-1, Math.min(1, (hitPosition - 0.5) * 2)); // Clamp -1 to 1
 
     // Get paddle velocity for momentum transfer
     const paddleVelocity = isLeftPaddle 

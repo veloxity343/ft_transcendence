@@ -37,7 +37,7 @@
   animation: box-glow 2s ease-in-out infinite;
 }
 
-/* Scanline Effect */
+/* Scanline Effect - Only shown when body has .show-scanlines class */
 @keyframes scanline {
   0% {
     transform: translateY(-100%);
@@ -47,7 +47,7 @@
   }
 }
 
-body::after {
+body.show-scanlines::after {
   content: '';
   position: fixed;
   top: 0;
@@ -65,8 +65,8 @@ body::after {
   z-index: 9999;
 }
 
-/* CRT Scanlines Overlay (subtle) */
-body::before {
+/* CRT Scanlines Overlay (subtle) - Only shown when body has .show-scanlines class */
+body.show-scanlines::before {
   content: '';
   position: fixed;
   top: 0;
