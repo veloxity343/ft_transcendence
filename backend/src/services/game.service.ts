@@ -444,17 +444,13 @@ export class GameService {
       room.ballSpeedY *= -1;
     }
 
-    // ==================== SWEPT PADDLE COLLISION ====================
-    // This detects if the ball CROSSED the paddle line, not just where it ended up
-    
     const ballRadius = this.BALL_RADIUS / this.GAME_ASPECT_RATIO;
     
-    // Paddle collision boundaries (where ball edge would hit)
-    const leftPaddleX = this.LEFT_PADDLE_X + this.PADDLE_WIDTH;  // Right edge of left paddle
-    const rightPaddleX = this.RIGHT_PADDLE_X - this.PADDLE_WIDTH; // Left edge of right paddle
+    // Paddle collision boundaries
+    const leftPaddleX = this.LEFT_PADDLE_X + this.PADDLE_WIDTH;
+    const rightPaddleX = this.RIGHT_PADDLE_X - this.PADDLE_WIDTH;
     
-    // Generous collision tolerance to account for network latency
-    const COLLISION_TOLERANCE = 3; // Extra vertical tolerance in %
+    const COLLISION_TOLERANCE = 3;
     
     // Left paddle collision - ball moving left
     if (room.ballSpeedX < 0) {
