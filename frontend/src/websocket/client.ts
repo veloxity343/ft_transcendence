@@ -1,5 +1,6 @@
 import { WS_URL } from '../constants';
 import { storage } from '../utils/storage';
+import { errorOverlay } from '../components/error-overlay';
 
 export interface WSMessage {
   event: string;
@@ -16,6 +17,8 @@ class WebSocketClient {
   private reconnectDelay = 1000;
   private isIntentionallyClosed = false;
   private connectPromiseResolve: ((value: boolean) => void) | null = null;
+  private hasShownDisconnectOverlay = false;
+  private wasConnected = false;
 
   connect(): Promise<boolean> {
     return new Promise((resolve) => {
@@ -44,6 +47,7 @@ class WebSocketClient {
       } catch (error) {
         console.error('WebSocket connection error:', error);
         this.connectPromiseResolve = null;
+        this.showConnectionError();
         resolve(false);
       }
     });
@@ -55,7 +59,14 @@ class WebSocketClient {
     this.ws.onopen = () => {
       console.log('WebSocket connected');
       this.reconnectAttempts = 0;
+      this.wasConnected = true;
+      this.hasShownDisconnectOverlay = false;
       this.emit('ws:connected', {});
+      
+      // Hide error overlay if showing
+      if (errorOverlay.isShowing() && errorOverlay.getCurrentType() === 'websocket') {
+        errorOverlay.hide();
+      }
       
       // Resolve the connect promise if pending
       if (this.connectPromiseResolve) {
@@ -87,7 +98,7 @@ class WebSocketClient {
 
     this.ws.onclose = (event) => {
       console.log('WebSocket disconnected', event.code, event.reason);
-      this.emit('ws:disconnected', {});
+      this.emit('ws:disconnected', { code: event.code, reason: event.reason });
       
       // Resolve the connect promise as failed if pending
       if (this.connectPromiseResolve) {
@@ -101,6 +112,12 @@ class WebSocketClient {
         console.warn('WebSocket closed due to authentication failure');
         this.handleAuthFailure();
         return;
+      }
+      
+      // Show disconnect overlay if this was an unexpected disconnect
+      // and we were previously connected (not just a failed initial connection)
+      if (!this.isIntentionallyClosed && this.wasConnected && !this.hasShownDisconnectOverlay) {
+        this.showConnectionError();
       }
       
       if (!this.isIntentionallyClosed) {
@@ -138,6 +155,25 @@ class WebSocketClient {
     }
   }
 
+  private showConnectionError(): void {
+    // Don't show if we intentionally disconnected or already showing
+    if (this.isIntentionallyClosed) return;
+    if (errorOverlay.isShowing()) return;
+    
+    this.hasShownDisconnectOverlay = true;
+    
+    errorOverlay.show({
+      type: 'websocket',
+      canRetry: true,
+      onRetry: async () => {
+        return await this.connect();
+      },
+      onDismiss: () => {
+        this.hasShownDisconnectOverlay = false;
+      },
+    });
+  }
+
   private handleAuthFailure(): void {
     console.warn('Authentication failed - clearing session and redirecting to login');
     this.isIntentionallyClosed = true;
@@ -149,13 +185,14 @@ class WebSocketClient {
     // Emit auth failure event
     this.emit('ws:auth-failed', {});
     
+    // Show auth error overlay
+    errorOverlay.show({
+      type: 'auth',
+      canRetry: false,
+    });
+    
     // Dispatch global auth:logout event
     window.dispatchEvent(new CustomEvent('auth:logout'));
-    
-    // Redirect to login page
-    if (window.location.pathname !== '/login') {
-      window.location.href = '/login';
-    }
   }
 
   private handleReconnect(): void {
@@ -193,6 +230,10 @@ class WebSocketClient {
       console.log('WS sent:', event, data);
     } else {
       console.error('WebSocket is not connected, cannot send:', event);
+      // Show connection error if not already showing
+      if (!errorOverlay.isShowing()) {
+        this.showConnectionError();
+      }
     }
   }
 
@@ -220,6 +261,7 @@ class WebSocketClient {
 
   disconnect(): void {
     this.isIntentionallyClosed = true;
+    this.hasShownDisconnectOverlay = false;
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -229,6 +271,19 @@ class WebSocketClient {
 
   isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  // Get connection state for UI
+  getConnectionState(): 'connected' | 'connecting' | 'disconnected' {
+    if (!this.ws) return 'disconnected';
+    switch (this.ws.readyState) {
+      case WebSocket.CONNECTING:
+        return 'connecting';
+      case WebSocket.OPEN:
+        return 'connected';
+      default:
+        return 'disconnected';
+    }
   }
 
   // Game-specific convenience methods

@@ -8,6 +8,8 @@ import { wsClient } from './websocket/client';
 import { authApi } from './api/auth';
 import { storage } from './utils/storage';
 import { GameView } from './views/game';
+import { errorOverlay } from './components/error-overlay';
+import './utils/debug';
 
 // Initialize app
 function initializeApp(): void {
@@ -16,6 +18,9 @@ function initializeApp(): void {
     console.error('App container not found');
     return;
   }
+
+  // Setup global error handlers
+  setupGlobalErrorHandlers();
 
   // Check for expired token on startup and clear if needed
   if (storage.getAuthToken() && storage.isTokenExpired()) {
@@ -55,6 +60,68 @@ function initializeApp(): void {
 
   // Handle WebSocket reconnection on auth changes
   setupAuthListeners();
+}
+
+function setupGlobalErrorHandlers(): void {
+  // Handle unhandled promise rejections
+  window.addEventListener('unhandledrejection', (event) => {
+    console.error('Unhandled promise rejection:', event.reason);
+    
+    // Check if it's a network-related error
+    if (event.reason instanceof TypeError && event.reason.message.includes('fetch')) {
+      // Network error - handled by httpClient
+      return;
+    }
+    
+    // Log but don't show overlay for every unhandled rejection
+    // Could add more specific handling here
+  });
+
+  // Handle global errors
+  window.addEventListener('error', (event) => {
+    console.error('Global error:', event.error);
+    
+    // Don't show overlay for script errors, just log them
+    // These are typically bugs that need fixing, not user-facing errors
+  });
+
+  // Handle offline/online status
+  window.addEventListener('offline', () => {
+    console.warn('Browser went offline');
+    errorOverlay.show({
+      type: 'network',
+      title: 'You\'re Offline',
+      message: 'Your internet connection was lost. Some features may be unavailable.',
+      canRetry: true,
+      onRetry: async () => {
+        return navigator.onLine;
+      },
+    });
+  });
+
+  window.addEventListener('online', () => {
+    console.log('Browser came back online');
+    // Hide network error if showing
+    if (errorOverlay.getCurrentType() === 'network') {
+      errorOverlay.hide();
+    }
+    
+    // Reconnect WebSocket if authenticated
+    if (authApi.isAuthenticated() && !wsClient.isConnected()) {
+      wsClient.connect();
+    }
+  });
+
+  // Handle visibility change (tab switching)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      // Check connection when tab becomes visible
+      if (authApi.isAuthenticated() && !wsClient.isConnected()) {
+        console.log('Tab visible, reconnecting WebSocket...');
+        wsClient.connect();
+      }
+    }
+  });
 }
 
 function registerRoutes(): void {

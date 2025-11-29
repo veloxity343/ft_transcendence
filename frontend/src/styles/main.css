@@ -5,6 +5,7 @@
 @import "./animations.css";
 @import "./utilities.css";
 @import "./glass.css";
+@import "./error.css";
 
 /* Navbar specific styles */
 nav {
