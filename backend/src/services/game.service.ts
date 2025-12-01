@@ -13,10 +13,10 @@ export class GameService {
   private readonly REFRESH_RATE = 10; // ms
   private readonly PADDLE_SPEED = 1;
   private readonly INITIAL_BALL_SPEED = 0.35;
-  private readonly MAX_BALL_SPEED = 1.2; // Maximum ball speed cap
+  private readonly MAX_BALL_SPEED = 1.2;
   private readonly WIN_SCORE = 11;
-  private readonly PADDLE_HEIGHT = 10; // percentage
-  private readonly BALL_RADIUS = 1; // vh units
+  private readonly PADDLE_HEIGHT = 10;
+  private readonly BALL_RADIUS = 1;
   private readonly GAME_ASPECT_RATIO = 16 / 9;
   
   // Paddle collision zones (x positions in %)
@@ -24,11 +24,10 @@ export class GameService {
   private readonly RIGHT_PADDLE_X = 97;
   private readonly PADDLE_WIDTH = 1;
   
-  // New physics constants
-  private readonly BALL_ACCELERATION = 1.08; // 8% increase per hit
-  private readonly PADDLE_MOMENTUM_MULTIPLIER = 0.4; // How much paddle motion affects ball
-  private readonly SPIN_INFLUENCE = 0.8; // How much hit position affects angle
-  private readonly BALL_SPEED_DECAY = 0.9995; // Natural speed decay
+  private readonly BALL_ACCELERATION = 1.08;
+  private readonly PADDLE_MOMENTUM_MULTIPLIER = 0.4;
+  private readonly SPIN_INFLUENCE = 0.8;
+  private readonly BALL_SPEED_DECAY = 0.9995;
 
   constructor(
     private prisma: PrismaClient,
@@ -36,17 +35,212 @@ export class GameService {
     private connectionManager: ConnectionManager,
   ) {}
 
+  /**
+   * SYNCHRONOUSLY release user from game - they can immediately join a new game.
+   * Cleanup happens asynchronously in the background and CANNOT touch the user afterward.
+   */
+  leaveGame(userId: number): boolean {
+    const gameId = this.userToRoom.get(userId);
+    
+    if (!gameId) {
+      return false; // User not in any game
+    }
+
+    const room = this.rooms.get(gameId);
+
+    // ========== SYNCHRONOUS USER RELEASE ==========
+    // This MUST happen first, making the user immediately available for new games
+    this.userToRoom.delete(userId);
+    this.connectionManager.setStatus(userId, UserStatus.ONLINE);
+    
+    // User is now FREE - they can join a new game immediately
+    // Everything below this point CANNOT affect this user anymore
+
+    if (!room) {
+      return true; // Room already gone
+    }
+
+    // Mark that this user left - used by game loop to detect abandonment
+    if (room.player1Id === userId) {
+      (room as any).player1Left = true;
+    }
+    if (room.player2Id === userId) {
+      (room as any).player2Left = true;
+    }
+
+    // Stop game loop immediately to prevent it from running on stale data
+    if (room.intervalId) {
+      clearInterval(room.intervalId);
+      room.intervalId = undefined;
+    }
+
+    // ========== ASYNC BACKGROUND CLEANUP ==========
+    // This runs later and is ISOLATED from the user who left
+    this.scheduleGameCleanup(gameId, userId);
+
+    return true;
+  }
+
+  /**
+   * Schedule cleanup to run asynchronously in the background.
+   * This cleanup is FULLY ISOLATED and cannot touch users who have moved on.
+   */
+  private scheduleGameCleanup(gameId: number, leavingUserId: number) {
+    setTimeout(() => {
+      const room = this.rooms.get(gameId);
+      if (!room) return; // Already cleaned up
+
+      // Determine cleanup type based on game state
+      if (room.status === GameStatus.WAITING || room.status === GameStatus.STARTING) {
+        this.cleanupCancelledGame(gameId, leavingUserId);
+      } else if (room.status === GameStatus.IN_PROGRESS) {
+        this.cleanupForfeitedGame(gameId, leavingUserId);
+      } else {
+        // Game already finished, just remove room
+        this.finalizeRoomCleanup(gameId);
+      }
+    }, 0);
+  }
+
+  /**
+   * Cleanup for games that were cancelled before starting
+   */
+  private cleanupCancelledGame(gameId: number, leavingUserId: number) {
+    const room = this.rooms.get(gameId);
+    if (!room) return;
+
+    // Notify remaining player ONLY if they're still in THIS game
+    const otherPlayerId = room.player1Id === leavingUserId ? room.player2Id : room.player1Id;
+    
+    if (otherPlayerId && this.userToRoom.get(otherPlayerId) === gameId) {
+      // This player is still waiting in this game - notify them
+      this.connectionManager.emitToUser(otherPlayerId, 'game-cancelled', { gameId });
+      // Release them too
+      this.userToRoom.delete(otherPlayerId);
+      this.connectionManager.setStatus(otherPlayerId, UserStatus.ONLINE);
+    }
+
+    this.finalizeRoomCleanup(gameId);
+  }
+
+  /**
+   * Cleanup for games where a player forfeited during gameplay
+   */
+  private cleanupForfeitedGame(gameId: number, forfeitingUserId: number) {
+    const room = this.rooms.get(gameId);
+    if (!room) return;
+
+    room.status = GameStatus.FINISHED;
+
+    // Handle local games
+    if (room.isLocal) {
+      // Local game - just remove room, user already released
+      this.finalizeRoomCleanup(gameId);
+      return;
+    }
+
+    // Handle remote games
+    if (!room.player2Id) {
+      // No opponent, just cleanup
+      this.finalizeRoomCleanup(gameId);
+      return;
+    }
+
+    const winnerId = room.player1Id === forfeitingUserId ? room.player2Id : room.player1Id;
+    const loserId = forfeitingUserId;
+
+    // Set final scores
+    if (room.player1Id === winnerId) {
+      room.player1Score = this.WIN_SCORE;
+    } else {
+      room.player2Score = this.WIN_SCORE;
+    }
+
+    // CRITICAL: Only emit to winner if they're still in THIS game
+    if (this.userToRoom.get(winnerId) === gameId) {
+      this.connectionManager.emitToUser(winnerId, 'game-ended', {
+        gameId,
+        winnerId,
+        finalScore: {
+          player1: room.player1Score,
+          player2: room.player2Score,
+        },
+        isLocal: false,
+        forfeit: true,
+      });
+
+      // Release winner too
+      this.userToRoom.delete(winnerId);
+      this.connectionManager.setStatus(winnerId, UserStatus.ONLINE);
+    }
+
+    // Save game stats asynchronously (don't block)
+    const duration = room.startTime ? Date.now() - room.startTime.getTime() : 0;
+    
+    this.saveGame(
+      gameId, room.player1Id, room.player2Id,
+      room.player1Score, room.player2Score,
+      room.startTime || new Date(), new Date(), duration
+    ).catch(err => console.error('Failed to save forfeit game:', err));
+
+    this.updateGameStats(winnerId, loserId, gameId, duration)
+      .catch(err => console.error('Failed to update forfeit stats:', err));
+
+    this.finalizeRoomCleanup(gameId);
+  }
+
+  /**
+   * Final room cleanup - removes room and any lingering user mappings
+   * ONLY if they're still pointing to this game
+   */
+  private finalizeRoomCleanup(gameId: number) {
+    const room = this.rooms.get(gameId);
+    if (!room) return;
+
+    // Clean up any users still mapped to this game
+    // (They might have disconnected without proper cleanup)
+    if (room.player1Id && this.userToRoom.get(room.player1Id) === gameId) {
+      this.userToRoom.delete(room.player1Id);
+      this.connectionManager.setStatus(room.player1Id, UserStatus.ONLINE);
+    }
+    if (room.player2Id && room.player2Id !== room.player1Id && 
+        this.userToRoom.get(room.player2Id) === gameId) {
+      this.userToRoom.delete(room.player2Id);
+      this.connectionManager.setStatus(room.player2Id, UserStatus.ONLINE);
+    }
+
+    // Remove room
+    this.rooms.delete(gameId);
+  }
+
+  isUserInGame(userId: number): boolean {
+    return this.userToRoom.has(userId);
+  }
+
+  getUserGameId(userId: number): number | undefined {
+    return this.userToRoom.get(userId);
+  }
+
+  handleDisconnect(userId: number) {
+    this.leaveGame(userId);
+  }
+
   // ==================== MATCHMAKING ====================
 
   async joinMatchmaking(userId: number): Promise<PlayerInfo> {
+    // Release from any previous game (synchronous)
     if (this.userToRoom.has(userId)) {
-      throw new Error('Already in a game');
+      this.leaveGame(userId);
     }
 
     const user = await this.userService.getUser(userId);
 
+    // Find waiting room (skip any that are being cleaned up)
     const waitingRoom = Array.from(this.rooms.values()).find(
-      room => room.status === GameStatus.WAITING && !room.isPrivate && !room.player2Id
+      room => room.status === GameStatus.WAITING && 
+              !room.isPrivate && 
+              !room.player2Id &&
+              room.intervalId !== undefined // Room is still active
     );
 
     if (waitingRoom) {
@@ -132,7 +326,7 @@ export class GameService {
 
   async createPrivateGame(userId: number): Promise<PlayerInfo> {
     if (this.userToRoom.has(userId)) {
-      throw new Error('Already in a game');
+      this.leaveGame(userId);
     }
 
     const user = await this.userService.getUser(userId);
@@ -197,6 +391,15 @@ export class GameService {
       throw new Error('Cannot join your own game');
     }
 
+    // Check if room is still active
+    if (room.status === GameStatus.FINISHED || !room.intervalId) {
+      throw new Error('Game is no longer available');
+    }
+
+    if (this.userToRoom.has(userId)) {
+      this.leaveGame(userId);
+    }
+
     const user = await this.userService.getUser(userId);
 
     room.player2Id = userId;
@@ -242,7 +445,7 @@ export class GameService {
     player2Name: string
   ): Promise<PlayerInfo> {
     if (this.userToRoom.has(userId)) {
-      throw new Error('Already in a game');
+      this.leaveGame(userId);
     }
 
     const user = await this.userService.getUser(userId);
@@ -250,7 +453,6 @@ export class GameService {
 
     const newRoom: GameRoom = {
       id: gameId,
-      // Both players have the same user ID since it's local
       player1Id: userId,
       player1Name: player1Name,
       player1Avatar: user.avatar,
@@ -259,7 +461,7 @@ export class GameService {
       paddleLeft: 45,
       paddleLeftDirection: PaddleDirection.NONE,
 
-      player2Id: userId, // Same user controls both paddles
+      player2Id: userId,
       player2Name: player2Name,
       player2Avatar: user.avatar,
       player2Score: 0,
@@ -275,7 +477,7 @@ export class GameService {
 
       status: GameStatus.STARTING,
       isPrivate: false,
-      isLocal: true, // Mark as local game
+      isLocal: true,
       lastUpdateTime: new Date(),
     };
 
@@ -284,7 +486,6 @@ export class GameService {
 
     this.connectionManager.setStatus(userId, UserStatus.IN_GAME);
 
-    // Emit game starting event
     this.connectionManager.emitToUser(userId, 'game-starting', {
       gameId,
       player1: {
@@ -300,7 +501,6 @@ export class GameService {
       isLocal: true,
     });
 
-    // Start game after countdown
     setTimeout(() => {
       this.startGame(gameId);
     }, 3000);
@@ -324,6 +524,20 @@ export class GameService {
       return;
     }
 
+    if (room.status === GameStatus.FINISHED) {
+      return;
+    }
+
+    // Verify both players are still in THIS game before starting
+    const player1StillHere = this.userToRoom.get(room.player1Id) === gameId;
+    const player2StillHere = this.userToRoom.get(room.player2Id) === gameId;
+
+    if (!player1StillHere || !player2StillHere) {
+      // One or both players left before game started, don't start
+      this.finalizeRoomCleanup(gameId);
+      return;
+    }
+
     room.status = GameStatus.IN_PROGRESS;
     room.startTime = new Date();
     this.initializeBall(room);
@@ -339,6 +553,42 @@ export class GameService {
     const room = this.rooms.get(gameId);
 
     if (!room) {
+      return;
+    }
+
+    // Stop if game ended
+    if (room.status === GameStatus.FINISHED) {
+      if (room.intervalId) {
+        clearInterval(room.intervalId);
+        room.intervalId = undefined;
+      }
+      return;
+    }
+
+    // CRITICAL: Check if either player is no longer in THIS game
+    const player1StillHere = room.player1Id && this.userToRoom.get(room.player1Id) === gameId;
+    const player2StillHere = room.player2Id && this.userToRoom.get(room.player2Id) === gameId;
+
+    // If both players left or moved to different games, stop this game
+    if (!player1StillHere && !player2StillHere) {
+      if (room.intervalId) {
+        clearInterval(room.intervalId);
+        room.intervalId = undefined;
+      }
+      room.status = GameStatus.FINISHED;
+      this.finalizeRoomCleanup(gameId);
+      return;
+    }
+
+    // If only one player left, they forfeit
+    if (!player1StillHere || !player2StillHere) {
+      if (room.intervalId) {
+        clearInterval(room.intervalId);
+        room.intervalId = undefined;
+      }
+      room.status = GameStatus.FINISHED;
+      // Don't emit to players who left - they're in new games
+      this.finalizeRoomCleanup(gameId);
       return;
     }
 
@@ -374,8 +624,7 @@ export class GameService {
     room.ballY = 50;
     room.ballSpeed = this.INITIAL_BALL_SPEED;
 
-    // Random initial direction with some angle
-    const angle = (Math.random() - 0.5) * Math.PI / 3; // ±30 degrees
+    const angle = (Math.random() - 0.5) * Math.PI / 3;
     const direction = Math.random() > 0.5 ? 1 : -1;
     
     room.ballSpeedX = direction * this.INITIAL_BALL_SPEED * Math.cos(angle);
@@ -387,25 +636,21 @@ export class GameService {
   }
 
   private updatePaddles(room: GameRoom) {
-    // Store previous paddle positions for momentum calculation
     const prevPaddleLeft = room.paddleLeft;
     const prevPaddleRight = room.paddleRight;
 
-    // Update left paddle (player 1)
     if (room.paddleLeftDirection === PaddleDirection.UP) {
       room.paddleLeft = Math.max(0, room.paddleLeft - this.PADDLE_SPEED);
     } else if (room.paddleLeftDirection === PaddleDirection.DOWN) {
       room.paddleLeft = Math.min(90, room.paddleLeft + this.PADDLE_SPEED);
     }
 
-    // Update right paddle (player 2)
     if (room.paddleRightDirection === PaddleDirection.UP) {
       room.paddleRight = Math.max(0, room.paddleRight - this.PADDLE_SPEED);
     } else if (room.paddleRightDirection === PaddleDirection.DOWN) {
       room.paddleRight = Math.min(90, room.paddleRight + this.PADDLE_SPEED);
     }
 
-    // Store paddle velocities for momentum transfer
     (room as any).paddleLeftVelocity = room.paddleLeft - prevPaddleLeft;
     (room as any).paddleRightVelocity = room.paddleRight - prevPaddleRight;
   }
@@ -424,13 +669,11 @@ export class GameService {
     let newBallX = room.ballX + room.ballSpeedX;
     let newBallY = room.ballY + room.ballSpeedY;
     
-    // Safety check: if ball is stuck (too slow), reinitialize
     const currentSpeed = Math.sqrt(
       room.ballSpeedX * room.ballSpeedX + 
       room.ballSpeedY * room.ballSpeedY
     );
     if (currentSpeed < 0.1) {
-      console.log('Ball stuck, reinitializing...');
       this.initializeBall(room);
       return;
     }
@@ -530,62 +773,46 @@ export class GameService {
       room.ballX = this.RIGHT_PADDLE_X - this.PADDLE_WIDTH - ballRadius - 0.5;
     }
 
-    // Calculate where on paddle the ball hit (0 = top, 1 = bottom)
     const paddleY = isLeftPaddle ? room.paddleLeft : room.paddleRight;
     const hitY = collisionY !== undefined ? collisionY : room.ballY;
     const hitPosition = (hitY - paddleY) / this.PADDLE_HEIGHT;
     const normalizedHit = Math.max(-1, Math.min(1, (hitPosition - 0.5) * 2)); // Clamp -1 to 1
 
-    // Get paddle velocity for momentum transfer
     const paddleVelocity = isLeftPaddle 
       ? (room as any).paddleLeftVelocity || 0
       : (room as any).paddleRightVelocity || 0;
 
-    // Calculate base speed increase
     const currentSpeed = Math.sqrt(
       room.ballSpeedX * room.ballSpeedX + 
       room.ballSpeedY * room.ballSpeedY
     );
     
-    // Increase ball speed with each hit (but cap it)
     let newSpeed = Math.min(
       currentSpeed * this.BALL_ACCELERATION,
       this.MAX_BALL_SPEED
     );
 
-    // Add bonus speed from paddle momentum
     const momentumBonus = Math.abs(paddleVelocity) * this.PADDLE_MOMENTUM_MULTIPLIER;
     newSpeed += momentumBonus;
     
-    // Ensure minimum speed to prevent getting stuck
     newSpeed = Math.max(newSpeed, this.INITIAL_BALL_SPEED);
-    
-    // Cap at maximum speed
     newSpeed = Math.min(newSpeed, this.MAX_BALL_SPEED);
 
-    // Calculate new ball direction
-    // Reverse horizontal direction
     const horizontalDirection = isLeftPaddle ? 1 : -1;
     
-    // Calculate angle based on hit position and spin influence
-    const baseAngle = normalizedHit * (Math.PI / 3); // Max ±60 degrees
+    const baseAngle = normalizedHit * (Math.PI / 3);
     const spinAngle = baseAngle * this.SPIN_INFLUENCE;
     
-    // Add paddle momentum to vertical component
     const paddleMomentumY = paddleVelocity * this.PADDLE_MOMENTUM_MULTIPLIER * 0.5;
     
-    // Set new velocities
     room.ballSpeedX = horizontalDirection * newSpeed * Math.cos(spinAngle);
     room.ballSpeedY = newSpeed * Math.sin(spinAngle) + paddleMomentumY;
 
-    // Update ball speed tracker
     room.ballSpeed = newSpeed;
 
-    // Add slight randomness to prevent perfectly predictable trajectories
     const randomness = (Math.random() - 0.5) * 0.02;
     room.ballSpeedY += randomness;
     
-    // Final safety check - ensure ball is actually moving away from paddle
     if (isLeftPaddle && room.ballSpeedX < 0.1) {
       room.ballSpeedX = this.INITIAL_BALL_SPEED;
     } else if (!isLeftPaddle && room.ballSpeedX > -0.1) {
@@ -600,8 +827,13 @@ export class GameService {
       return;
     }
 
+    if (room.status === GameStatus.FINISHED) {
+      return;
+    }
+
     if (room.intervalId) {
       clearInterval(room.intervalId);
+      room.intervalId = undefined;
     }
 
     room.status = GameStatus.FINISHED;
@@ -632,12 +864,9 @@ export class GameService {
       duration,
     );
 
-    // Only update stats for non-local games (remote multiplayer)
-    // Local games are for practice and shouldn't affect rankings
     if (!room.isLocal) {
       await this.updateGameStats(winnerId, loserId, gameId, duration);
     } else {
-      // For local games, just add to game history without updating ELO
       const user = await this.prisma.user.findUnique({
         where: { id: room.player1Id },
       });
@@ -665,9 +894,7 @@ export class GameService {
       this.userToRoom.delete(room.player2Id);
     }
 
-    setTimeout(() => {
-      this.rooms.delete(gameId);
-    }, 30000);
+    this.rooms.delete(gameId);
   }
 
   // ==================== PLAYER ACTIONS ====================
@@ -684,19 +911,20 @@ export class GameService {
       throw new Error('Game not found');
     }
 
-    // Handle local games
+    // Verify user is actually in THIS game
+    if (this.userToRoom.get(userId) !== gameId) {
+      throw new Error('Not in this game');
+    }
+
     if (room.isLocal) {
-      // For local games, playerNumber is required to know which paddle to move
       if (!playerNumber) {
         throw new Error('Player number required for local games');
       }
 
-      // Verify the user owns this local game
       if (room.player1Id !== userId) {
         throw new Error('Not authorized for this game');
       }
 
-      // Move the appropriate paddle
       if (playerNumber === 1) {
         room.paddleLeftDirection = direction;
       } else if (playerNumber === 2) {
@@ -705,7 +933,6 @@ export class GameService {
         throw new Error('Invalid player number');
       }
     } else {
-      // Handle remote games (existing logic)
       if (room.player1Id === userId) {
         room.paddleLeftDirection = direction;
       } else if (room.player2Id === userId) {
@@ -714,54 +941,6 @@ export class GameService {
         throw new Error('Not a player in this game');
       }
     }
-  }
-
-  handleDisconnect(userId: number) {
-    const gameId = this.userToRoom.get(userId);
-
-    if (gameId) {
-      const room = this.rooms.get(gameId);
-
-      if (room) {
-        if (room.player1Id === userId) {
-          room.player1Disconnected = true;
-        } else if (room.player2Id === userId) {
-          room.player2Disconnected = true;
-        }
-
-        if (room.status === GameStatus.WAITING) {
-          this.cancelGame(gameId);
-        }
-      }
-
-      this.userToRoom.delete(userId);
-    }
-  }
-
-  private cancelGame(gameId: number) {
-    const room = this.rooms.get(gameId);
-
-    if (!room) {
-      return;
-    }
-
-    if (room.intervalId) {
-      clearInterval(room.intervalId);
-    }
-
-    this.emitToRoom(gameId, 'game-cancelled', { gameId });
-
-    if (room.player1Id) {
-      this.connectionManager.setStatus(room.player1Id, UserStatus.ONLINE);
-      this.userToRoom.delete(room.player1Id);
-    }
-
-    if (room.player2Id) {
-      this.connectionManager.setStatus(room.player2Id, UserStatus.ONLINE);
-      this.userToRoom.delete(room.player2Id);
-    }
-
-    this.rooms.delete(gameId);
   }
 
   // ==================== SPECTATING ====================
@@ -787,15 +966,20 @@ export class GameService {
 
   // ==================== UTILITY ====================
 
+  /**
+   * Emit events only to players who are still in THIS specific game
+   */
   private emitToRoom(gameId: number, event: string, data: any) {
     const room = this.rooms.get(gameId);
     if (!room) return;
 
-    if (room.player1Id) {
+    // CRITICAL: Only emit if user is still in THIS game
+    if (room.player1Id && this.userToRoom.get(room.player1Id) === gameId) {
       this.connectionManager.emitToUser(room.player1Id, event, data);
     }
 
-    if (room.player2Id) {
+    if (room.player2Id && room.player2Id !== room.player1Id && 
+        this.userToRoom.get(room.player2Id) === gameId) {
       this.connectionManager.emitToUser(room.player2Id, event, data);
     }
   }

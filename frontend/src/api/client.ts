@@ -1,0 +1,176 @@
+import { API_BASE_URL, ERROR_MESSAGES } from '../constants';
+import { storage } from '../utils/storage';
+import { errorOverlay } from '../components/error-overlay';
+import type { ApiResponse } from '../types';
+
+class HttpClient {
+  private baseURL: string;
+  private consecutiveNetworkErrors = 0;
+  private maxConsecutiveErrors = 3;
+
+  constructor(baseURL: string) {
+    this.baseURL = baseURL;
+  }
+
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<ApiResponse<T>> {
+    const token = storage.getAuthToken();
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string>),
+    };
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(`${this.baseURL}${endpoint}`, {
+        ...options,
+        headers,
+      });
+
+      // Reset consecutive errors on successful connection
+      this.consecutiveNetworkErrors = 0;
+
+      // Handle auth errors
+      if (response.status === 401) {
+        this.handleAuthError();
+        return {
+          success: false,
+          error: 'Session expired. Please log in again.',
+        };
+      }
+
+      // Handle server errors
+      if (response.status >= 500) {
+        this.handleServerError(response.status);
+        return {
+          success: false,
+          error: 'Server error. Please try again later.',
+        };
+      }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.message || data.error || 'Request failed',
+        };
+      }
+
+      return {
+        success: true,
+        data: data.data || data,
+      };
+    } catch (error) {
+      console.error('HTTP request error:', error);
+      
+      // Track consecutive network errors
+      this.consecutiveNetworkErrors++;
+      
+      // Show overlay after multiple consecutive failures
+      if (this.consecutiveNetworkErrors >= this.maxConsecutiveErrors) {
+        this.showNetworkError();
+      }
+      
+      return {
+        success: false,
+        error: ERROR_MESSAGES.NETWORK_ERROR,
+      };
+    }
+  }
+
+  private handleAuthError(): void {
+    // Check if already showing auth error
+    if (errorOverlay.getCurrentType() === 'auth') return;
+    
+    storage.clearAll();
+    
+    errorOverlay.show({
+      type: 'auth',
+      canRetry: false,
+    });
+    
+    window.dispatchEvent(new CustomEvent('auth:logout'));
+  }
+
+  private handleServerError(status: number): void {
+    // Don't show overlay for every server error, just log it
+    console.error(`Server error: ${status}`);
+    
+    // Only show overlay for persistent server issues
+    // Could track consecutive 500s similar to network errors
+  }
+
+  private showNetworkError(): void {
+    // Don't show if already showing
+    if (errorOverlay.isShowing()) return;
+    
+    errorOverlay.show({
+      type: 'network',
+      canRetry: true,
+      onRetry: async () => {
+        // Try a simple health check request
+        try {
+          const response = await fetch(`${this.baseURL}/health`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+          });
+          
+          if (response.ok) {
+            this.consecutiveNetworkErrors = 0;
+            return true;
+          }
+          return false;
+        } catch {
+          return false;
+        }
+      },
+      onDismiss: () => {
+        // Reset error count when user dismisses
+        this.consecutiveNetworkErrors = 0;
+      },
+    });
+  }
+
+  // Reset error tracking (call after successful operations)
+  resetErrorTracking(): void {
+    this.consecutiveNetworkErrors = 0;
+  }
+
+  async get<T>(endpoint: string): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: 'GET' });
+  }
+
+  async post<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async put<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: 'DELETE' });
+  }
+
+  async patch<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  }
+}
+
+export const httpClient = new HttpClient(API_BASE_URL);

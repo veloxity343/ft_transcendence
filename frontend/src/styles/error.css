@@ -1,0 +1,438 @@
+.error-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.error-overlay.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.error-overlay.hiding {
+  opacity: 0;
+}
+
+.error-overlay-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 128, 0.85);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Scanline effect on backdrop */
+.error-overlay-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.1) 2px,
+    rgba(0, 0, 0, 0.1) 4px
+  );
+  pointer-events: none;
+}
+
+.error-overlay-content {
+  position: relative;
+  z-index: 1;
+  animation: windowOpen 0.3s ease-out;
+}
+
+@keyframes windowOpen {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.error-overlay.hiding .error-overlay-content {
+  animation: windowClose 0.3s ease-in forwards;
+}
+
+@keyframes windowClose {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+}
+
+/* Window Chrome - Windows 95/98 style */
+.error-overlay-window {
+  width: 480px;
+  max-width: 90vw;
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  box-shadow: 
+    inset 1px 1px 0 #dfdfdf,
+    inset -1px -1px 0 #0a0a0a,
+    4px 4px 0 rgba(0, 0, 0, 0.3);
+  font-family: 'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif;
+}
+
+/* Title Bar */
+.error-window-titlebar {
+  background: linear-gradient(90deg, #000080, #1084d0);
+  padding: 3px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.error-window-title {
+  color: white;
+  font-size: 13px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.3);
+}
+
+.error-window-icon {
+  font-size: 14px;
+}
+
+.error-window-controls {
+  display: flex;
+  gap: 2px;
+}
+
+.error-window-btn {
+  width: 16px;
+  height: 14px;
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  font-size: 10px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: black;
+}
+
+.error-window-btn:active {
+  border-color: #808080 #ffffff #ffffff #808080;
+}
+
+.error-window-btn.close:hover {
+  background: #c0c0c0;
+}
+
+/* Window Body */
+.error-window-body {
+  padding: 24px;
+  text-align: center;
+}
+
+.error-icon-container {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  color: #c00000;
+}
+
+.error-icon-container svg {
+  width: 100%;
+  height: 100%;
+}
+
+.error-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #000080;
+  margin: 0 0 8px 0;
+}
+
+.error-message {
+  font-size: 13px;
+  color: #000000;
+  margin: 0 0 16px 0;
+  line-height: 1.5;
+}
+
+.error-status {
+  font-size: 12px;
+  padding: 8px;
+  margin-bottom: 16px;
+  border: 1px solid;
+  min-height: 20px;
+}
+
+.error-status:empty {
+  display: none;
+}
+
+.error-status.connecting {
+  background: #ffffc0;
+  border-color: #808000;
+  color: #808000;
+}
+
+.error-status.connected {
+  background: #c0ffc0;
+  border-color: #008000;
+  color: #008000;
+}
+
+.error-status.error {
+  background: #ffc0c0;
+  border-color: #c00000;
+  color: #c00000;
+}
+
+.error-status.disconnected {
+  background: #e0e0e0;
+  border-color: #808080;
+  color: #808080;
+}
+
+/* Action Buttons */
+.error-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.error-btn {
+  min-width: 100px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.error-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error-btn-primary {
+  background: #c0c0c0;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  color: black;
+}
+
+.error-btn-primary:hover:not(:disabled) {
+  background: #d4d4d4;
+}
+
+.error-btn-primary:active:not(:disabled) {
+  border-color: #808080 #ffffff #ffffff #808080;
+  padding: 7px 15px 5px 17px;
+}
+
+.error-btn-secondary {
+  background: #c0c0c0;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  color: #404040;
+}
+
+.error-btn-secondary:hover:not(:disabled) {
+  background: #d4d4d4;
+}
+
+.error-btn-secondary:active:not(:disabled) {
+  border-color: #808080 #ffffff #ffffff #808080;
+}
+
+.error-btn .btn-spinner {
+  width: 14px;
+  height: 14px;
+}
+
+.error-btn .btn-spinner svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Details Section */
+.error-details {
+  border-top: 1px solid #808080;
+  padding-top: 12px;
+}
+
+.error-details-toggle {
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: #000080;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 auto;
+  padding: 4px 8px;
+}
+
+.error-details-toggle:hover {
+  text-decoration: underline;
+}
+
+.error-details-toggle svg {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.2s;
+}
+
+.error-details-content:not(.hidden) + .error-details-toggle svg,
+.error-details-toggle:has(+ .error-details-content:not(.hidden)) svg {
+  transform: rotate(180deg);
+}
+
+.error-details-content {
+  margin-top: 8px;
+  background: #ffffff;
+  border: 1px solid #808080;
+  padding: 8px;
+  text-align: left;
+}
+
+.error-details-content pre {
+  margin: 0;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #000000;
+  white-space: pre-wrap;
+}
+
+/* Status Bar */
+.error-window-statusbar {
+  background: #c0c0c0;
+  border-top: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  padding: 4px 8px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid #808080;
+}
+
+.status-indicator.disconnected {
+  background: #c00000;
+}
+
+.status-indicator.connecting {
+  background: #ffc000;
+  animation: pulse 1s infinite;
+}
+
+.status-indicator.connected {
+  background: #00c000;
+}
+
+.status-indicator.error {
+  background: #c00000;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Utility Classes */
+.hidden {
+  display: none !important;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* BSOD-style overlay for critical errors (optional, can be triggered separately) */
+.error-overlay.bsod .error-overlay-backdrop {
+  background: #0000aa;
+}
+
+.error-overlay.bsod .error-overlay-window {
+  background: #0000aa;
+  border: none;
+  box-shadow: none;
+  color: white;
+  max-width: 600px;
+  font-family: 'Courier New', monospace;
+}
+
+.error-overlay.bsod .error-window-titlebar {
+  background: #a0a0a0;
+  color: #0000aa;
+}
+
+.error-overlay.bsod .error-window-body {
+  color: white;
+  text-align: center;
+}
+
+.error-overlay.bsod .error-title {
+  color: white;
+  background: #a0a0a0;
+  padding: 2px 8px;
+  display: inline-block;
+}
+
+.error-overlay.bsod .error-message {
+  color: white;
+  font-size: 14px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 520px) {
+  .error-overlay-window {
+    margin: 16px;
+  }
+  
+  .error-window-body {
+    padding: 16px;
+  }
+  
+  .error-actions {
+    flex-direction: column;
+  }
+  
+  .error-btn {
+    width: 100%;
+  }
+}

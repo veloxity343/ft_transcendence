@@ -1,0 +1,258 @@
+/* Blue Glow Animations */
+@keyframes blue-glow {
+  0%, 100% {
+    text-shadow: 
+      0 0 8px rgba(74, 124, 201, 0.5),
+      0 0 16px rgba(74, 124, 201, 0.3),
+      0 0 24px rgba(74, 124, 201, 0.2);
+  }
+  50% {
+    text-shadow: 
+      0 0 12px rgba(74, 124, 201, 0.8),
+      0 0 24px rgba(74, 124, 201, 0.5),
+      0 0 36px rgba(74, 124, 201, 0.3);
+  }
+}
+
+.animate-glow {
+  animation: blue-glow 2s ease-in-out infinite;
+  color: var(--color-blue);
+}
+
+/* Box Glow */
+@keyframes box-glow {
+  0%, 100% {
+    box-shadow: 
+      0 0 10px rgba(74, 124, 201, 0.3),
+      0 0 20px rgba(74, 124, 201, 0.2);
+  }
+  50% {
+    box-shadow: 
+      0 0 15px rgba(74, 124, 201, 0.5),
+      0 0 30px rgba(74, 124, 201, 0.3);
+  }
+}
+
+.animate-box-glow {
+  animation: box-glow 2s ease-in-out infinite;
+}
+
+/* Scanline Effect - Only shown when body has .show-scanlines class */
+@keyframes scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100vh);
+  }
+}
+
+body.show-scanlines::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(74, 124, 201, 0.12),
+    transparent
+  );
+  pointer-events: none;
+  animation: scanline 6s linear infinite;
+  z-index: 9999;
+}
+
+/* CRT Scanlines Overlay (subtle) - Only shown when body has .show-scanlines class */
+body.show-scanlines::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.015) 2px,
+    rgba(0, 0, 0, 0.015) 4px
+  );
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* Pulse Animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Fade In */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Slide In */
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.slide-in-left {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+.slide-in-right {
+  animation: slideInRight 0.3s ease-out;
+}
+
+/* Hover Effects */
+.hover-lift {
+  transition: transform 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+}
+
+.hover-glow {
+  transition: all 0.3s ease;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(74, 124, 201, 0.4);
+}
+
+/* Focus Effects */
+.focus-glow:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(74, 124, 201, 0.3);
+}
+
+/* Loading Spinner */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  border: 3px solid rgba(74, 124, 201, 0.2);
+  border-top-color: var(--color-blue);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Text shimmer */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.text-shimmer {
+  background: linear-gradient(
+    to right,
+    var(--color-navy) 0%,
+    var(--color-blue) 50%,
+    var(--color-navy) 100%
+  );
+  background-size: 1000px 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 3s linear infinite;
+}
+
+/* Float Animation */
+@keyframes float-soft {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.float-animation {
+  animation: float-soft 6s ease-in-out infinite;
+}
+
+/* Transition utilities */
+.transition-all {
+  transition: all 0.3s ease;
+}
+
+.transition-fast {
+  transition: all 0.15s ease;
+}
+
+.transition-slow {
+  transition: all 0.5s ease;
+}
+
+/* Soft glow effects */
+.soft-glow {
+  box-shadow: 0 0 20px rgba(74, 124, 201, 0.2),
+              0 0 40px rgba(74, 124, 201, 0.1);
+}
+
+.soft-glow-hover:hover {
+  box-shadow: 0 0 25px rgba(74, 124, 201, 0.3),
+              0 0 50px rgba(74, 124, 201, 0.15);
+}
+
+/* Text glow */
+.text-glow {
+  text-shadow: 0 0 10px rgba(74, 124, 201, 0.4);
+}
+
+.text-glow-strong {
+  text-shadow: 
+    0 0 10px rgba(74, 124, 201, 0.5),
+    0 0 20px rgba(74, 124, 201, 0.3);
+}

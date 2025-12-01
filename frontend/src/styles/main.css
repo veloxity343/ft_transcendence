@@ -1,0 +1,131 @@
+@import "tailwindcss";
+@import "./base.css";
+@import "./components.css";
+@import "./layout.css";
+@import "./animations.css";
+@import "./utilities.css";
+@import "./glass.css";
+@import "./error.css";
+
+/* Navbar specific styles */
+nav {
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+nav a {
+  color: var(--color-navy);
+  transition: color 0.2s;
+}
+
+nav a:hover {
+  color: var(--color-blue);
+  text-shadow: 0 0 8px rgba(74, 124, 201, 0.3);
+}
+
+nav [id$="Menu"],
+nav [id$="menu"] {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+}
+
+nav [id$="Menu"] a:hover,
+nav [id$="menu"] a:hover {
+  background-color: rgba(74, 124, 201, 0.1);
+}
+
+/* Toast Notifications */
+.toast {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  font-weight: 600;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  animation: slideInRight 0.3s ease-out;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.toast-success {
+  background: rgba(16, 185, 129, 0.95);
+  color: white;
+  border: 1px solid rgba(16, 185, 129, 0.8);
+}
+
+.toast-error {
+  background: rgba(239, 68, 68, 0.95);
+  color: white;
+  border: 1px solid rgba(239, 68, 68, 0.8);
+}
+
+.toast-info {
+  background: rgba(74, 124, 201, 0.95);
+  color: white;
+  border: 1px solid rgba(74, 124, 201, 0.8);
+}
+
+.toast-warning {
+  background: rgba(245, 158, 11, 0.95);
+  color: white;
+  border: 1px solid rgba(245, 158, 11, 0.8);
+}
+
+/* Game accent colors */
+.text-accent {
+  color: var(--color-blue);
+}
+
+.bg-accent {
+  background-color: var(--color-blue);
+}
+
+.border-accent {
+  border-color: var(--color-blue);
+}
+
+/* Icon styles (replacing emojis) */
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+}
+
+.icon-lg {
+  width: 1.5em;
+  height: 1.5em;
+}
+
+.icon-xl {
+  width: 2em;
+  height: 2em;
+}
+
+/* Section labels */
+.section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-navy);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.section-label svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--color-blue);
+}

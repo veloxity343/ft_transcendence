@@ -1,0 +1,113 @@
+@import url('https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap');
+
+/* Theme Variables - Apple II Beige with Deep Blue Accents */
+:root {
+  /* Warm background palette */
+  --color-cream: #F5E6D3;
+  --color-beige: #E8D4B8;
+  --color-tan: #D4B896;
+  --color-brown: #8B7355;
+  
+  /* Deep blue accent palette - softer, richer tones */
+  --color-blue: #4A7CC9;
+  --color-blue-dark: #3A6AB5;
+  --color-blue-light: #6B9AD8;
+  --color-blue-muted: #7BA3D4;
+  --color-blue-glow: rgba(74, 124, 201, 0.5);
+  
+  /* Navy text colors */
+  --color-navy: #1E3A5F;
+  --color-navy-dark: #0F2847;
+  --color-navy-muted: #4A6B8A;
+  
+  /* Semantic mappings */
+  --color-bg: var(--color-cream);
+  --color-card: var(--color-beige);
+  --color-border: var(--color-tan);
+  --color-text: var(--color-navy);
+  --color-text-muted: var(--color-navy-muted);
+  --color-accent: var(--color-blue);
+  --color-accent-dark: var(--color-blue-dark);
+  --color-accent-light: var(--color-blue-light);
+  --color-accent-glow: var(--color-blue-glow);
+}
+
+/* Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  border-color: var(--color-tan);
+}
+
+body {
+  background-color: var(--color-cream);
+  background-image: 
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(139, 115, 85, 0.03) 2px,
+      rgba(139, 115, 85, 0.03) 4px
+    );
+  color: var(--color-navy);
+  font-family: 'Share Tech Mono', monospace;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-navy);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+p {
+  color: var(--color-navy-muted);
+}
+
+a {
+  color: var(--color-navy);
+  text-decoration: none;
+  transition: all 0.2s;
+  font-weight: 600;
+}
+
+a:hover {
+  color: var(--color-blue);
+  text-shadow: 0 0 8px var(--color-blue-glow);
+}
+
+/* Text utilities */
+.text-navy {
+  color: var(--color-navy);
+}
+
+.text-navy-muted {
+  color: var(--color-navy-muted);
+}
+
+.text-blue {
+  color: var(--color-blue);
+}
+
+.text-blue-dark {
+  color: var(--color-blue-dark);
+}
+
+.text-brown {
+  color: var(--color-brown);
+}
+
+/* Selection */
+::selection {
+  background-color: var(--color-blue);
+  color: white;
+}
+
+::-moz-selection {
+  background-color: var(--color-blue);
+  color: white;
+}
