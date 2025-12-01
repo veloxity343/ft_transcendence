@@ -1,0 +1,156 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  username  String   @unique
+  hash      String
+  avatar    String   @default("default-avatar.png")
+  
+  // 42 OAuth
+  id42      Int?     @unique
+  
+  // 2FA
+  twoFA         Boolean @default(false)
+  twoFAsecret   String?
+  
+  // JWT
+  hashedRtoken  String?
+  
+  // Game stats
+  score         Int @default(1200)
+  rank          Int @default(0)
+  gamesWon      Int @default(0)
+  gamesLost     Int @default(0)
+  gamesPlayed   Int @default(0)
+  winRate       Float @default(0)
+  playTime      Int @default(0)
+  gameHistory   String @default("[]") // JSON string for SQLite
+  
+  // Relationships (stored as JSON strings for SQLite)
+  friends       String @default("[]")
+  adding        String @default("[]")
+  added         String @default("[]")
+  blocks        String @default("[]")
+  blocking      String @default("[]")
+  blocked       String @default("[]")
+  
+  // Tournament relationships
+  tournamentsCreated Tournament[] @relation("TournamentCreator")
+  tournamentPlayers  TournamentPlayer[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Game {
+  id        Int      @id
+  player1   Int
+  player2   Int
+  score1    Int
+  score2    Int
+  duration  Int      @default(0)
+  
+  startTime DateTime
+  endTime   DateTime
+  createdAt DateTime @default(now())
+  
+  // Tournament reference
+  tournamentId     Int?
+  tournamentRound  Int?
+  tournamentMatch  String?
+  tournament       Tournament? @relation(fields: [tournamentId], references: [id])
+}
+
+model Tournament {
+  id          Int      @id @default(autoincrement())
+  name        String
+  creatorId   Int
+  creator     User     @relation("TournamentCreator", fields: [creatorId], references: [id])
+  
+  // Config
+  maxPlayers   Int
+  bracketType  String   @default("single_elimination") // single_elim/double_elim
+  
+  // Status
+  status          String   @default("registration")
+  currentPlayers  Int      @default(0)
+  currentRound    Int      @default(0)
+  totalRounds     Int
+  
+  // Winner
+  winnerId   Int?
+  winnerName String?
+  
+  // Relationships
+  players TournamentPlayer[]
+  matches TournamentMatch[]
+  games   Game[]
+  
+  // Timestamps
+  createdAt  DateTime  @default(now())
+  startedAt  DateTime?
+  finishedAt DateTime?
+  updatedAt  DateTime  @updatedAt
+  
+  @@map("tournaments")
+}
+
+model TournamentPlayer {
+  id           Int        @id @default(autoincrement())
+  tournamentId Int
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  
+  userId   Int
+  user     User   @relation(fields: [userId], references: [id])
+  username String
+  avatar   String
+  
+  seed              Int?
+  eliminatedInRound Int?
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([tournamentId, userId])
+  @@map("tournament_players")
+}
+
+model TournamentMatch {
+  id           Int        @id @default(autoincrement())
+  tournamentId Int
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  
+  matchId     String
+  round       Int
+  matchNumber Int
+  
+  // Players
+  player1Id   Int?
+  player1Name String?
+  player2Id   Int?
+  player2Name String?
+  
+  // Result
+  winnerId Int?
+  gameId   Int?
+  
+  // Status: "pending", "ready", "in_progress", "completed"
+  status String @default("pending")
+  
+  scheduledTime DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@unique([tournamentId, matchId])
+  @@map("tournament_matches")
+}
