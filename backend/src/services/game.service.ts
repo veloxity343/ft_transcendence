@@ -515,6 +515,102 @@ export class GameService {
     };
   }
 
+  // ==================== TOURNAMENT ====================
+
+  async createTournamentGame(
+    player1Id: number,
+    player2Id: number,
+    tournamentId: number,
+    round: number,
+    matchId: string
+  ): Promise<number> {
+    const gameId = await this.generateGameId();
+    
+    // Get player info
+    const [player1, player2] = await Promise.all([
+      this.userService.getUser(player1Id),
+      this.userService.getUser(player2Id),
+    ]);
+
+    const gameRoom: GameRoom = {
+      id: gameId,
+      player1Id,
+      player1Name: player1.username,
+      player1Avatar: player1.avatar,
+      player1Score: 0,
+      player1Disconnected: false,
+      paddleLeft: 45,
+      paddleLeftDirection: PaddleDirection.NONE,
+
+      player2Id,
+      player2Name: player2.username,
+      player2Avatar: player2.avatar,
+      player2Score: 0,
+      player2Disconnected: false,
+      paddleRight: 45,
+      paddleRightDirection: PaddleDirection.NONE,
+
+      ballX: 50,
+      ballY: 50,
+      ballSpeedX: 0,
+      ballSpeedY: 0,
+      ballSpeed: this.INITIAL_BALL_SPEED,
+
+      status: GameStatus.STARTING,
+      isPrivate: false,
+      lastUpdateTime: new Date(),
+    };
+
+    this.rooms.set(gameId, gameRoom);
+    this.userToRoom.set(player1Id, gameId);
+    this.userToRoom.set(player2Id, gameId);
+
+    this.connectionManager.setStatus(player1Id, UserStatus.IN_GAME);
+    this.connectionManager.setStatus(player2Id, UserStatus.IN_GAME);
+
+    // Notify both players
+    this.connectionManager.emitToUser(player1Id, 'game-starting', {
+      gameId,
+      player1: {
+        id: player1Id,
+        name: player1.username,
+        avatar: player1.avatar,
+      },
+      player2: {
+        id: player2Id,
+        name: player2.username,
+        avatar: player2.avatar,
+      },
+      tournamentId,
+      round,
+      matchId,
+    });
+
+    this.connectionManager.emitToUser(player2Id, 'game-starting', {
+      gameId,
+      player1: {
+        id: player1Id,
+        name: player1.username,
+        avatar: player1.avatar,
+      },
+      player2: {
+        id: player2Id,
+        name: player2.username,
+        avatar: player2.avatar,
+      },
+      tournamentId,
+      round,
+      matchId,
+    });
+
+    // Start game after countdown
+    setTimeout(() => {
+      this.startGame(gameId);
+    }, 3000);
+
+    return gameId;
+  }
+
   // ==================== GAME LOOP ====================
 
   private startGame(gameId: number) {
@@ -853,6 +949,12 @@ export class GameService {
 
     const duration = room.startTime ? Date.now() - room.startTime.getTime() : 0;
     
+    // Check if this is a tournament game
+    const gameInfo = await this.prisma.game.findUnique({
+      where: { id: gameId },
+      select: { tournamentId: true },
+    });
+
     await this.saveGame(
       gameId,
       room.player1Id,
@@ -882,6 +984,19 @@ export class GameService {
           },
         });
       }
+    }
+
+    if (gameInfo?.tournamentId) {
+      console.log(`Tournament game ${gameId} ended, notifying tournament service`);
+      this.connectionManager.broadcast('tournament:game-ended', {
+        gameId,
+        tournamentId: gameInfo.tournamentId,
+        winnerId,
+        player1Id: room.player1Id,
+        player2Id: room.player2Id,
+        score1: room.player1Score,
+        score2: room.player2Score,
+      });
     }
 
     this.connectionManager.setStatus(room.player1Id, UserStatus.ONLINE);
@@ -1008,6 +1123,9 @@ export class GameService {
     startTime: Date,
     endTime: Date,
     duration: number,
+    tournamentId?: number, // Add optional tournament param
+    tournamentRound?: number,
+    tournamentMatch?: string,
   ) {
     try {
       await this.prisma.game.create({
@@ -1020,6 +1138,9 @@ export class GameService {
           startTime,
           endTime,
           duration,
+          tournamentId,
+          tournamentRound,
+          tournamentMatch,
         },
       });
     } catch (error: any) {

@@ -179,21 +179,20 @@ export async function setupTournamentWebSocket(
           }
 
           case 'tournament:get-bracket': {
-            const { tournamentId } = message.data as GetTournamentMessage;
-
-            if (!tournamentId) {
-              throw new Error('Tournament ID is required');
-            }
-
+            const { tournamentId } = message.data;
+            
             try {
-              const bracket = tournamentService.getTournamentBracket(tournamentId);
+              const bracket = tournamentService.getBracketViewData(
+                tournamentId, 
+                userId
+              );
 
               if (!bracket) {
                 throw new Error('Tournament not found');
               }
 
               socket.send(JSON.stringify({
-                event: 'tournament:bracket',
+                event: 'tournament:bracket-update',
                 data: { bracket },
               }));
             } catch (error: any) {

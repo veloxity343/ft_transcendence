@@ -16,6 +16,7 @@ interface Connection {
 export class ConnectionManager {
   private connections = new Map<number, Connection>();
   private socketToUser = new Map<WebSocket, number>();
+  private eventHandlers = new Map<string, Set<Function>>();
 
   addConnection(userId: number, socket: WebSocket) {
     // Remove old connection if exists
@@ -48,6 +49,20 @@ export class ConnectionManager {
     return null;
   }
 
+  on(event: string, handler: Function): void {
+    if (!this.eventHandlers.has(event)) {
+      this.eventHandlers.set(event, new Set());
+    }
+    this.eventHandlers.get(event)!.add(handler);
+  }
+
+  off(event: string, handler: Function): void {
+    const handlers = this.eventHandlers.get(event);
+    if (handlers) {
+      handlers.delete(handler);
+    }
+  }
+
   setStatus(userId: number, status: UserStatus) {
     const conn = this.connections.get(userId);
     if (conn) {
@@ -78,11 +93,17 @@ export class ConnectionManager {
     return Array.from(this.connections.keys());
   }
 
-  broadcast(event: string, data: any) {
+  broadcast(event: string, data: any): void {
     const message = JSON.stringify({ event, data });
     this.connections.forEach(conn => {
       conn.socket.send(message);
     });
+
+    // Trigger internal event handlers
+    const handlers = this.eventHandlers.get(event);
+    if (handlers) {
+      handlers.forEach(handler => handler(data));
+    }
   }
 
   emitToUser(userId: number, event: string, data: any) {

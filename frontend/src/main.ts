@@ -8,6 +8,7 @@ import { wsClient } from './websocket/client';
 import { authApi } from './api/auth';
 import { storage } from './utils/storage';
 import { GameView } from './views/game';
+import { TournamentView } from './views/tournament';
 import { errorOverlay } from './components/error-overlay';
 import './utils/debug';
 
@@ -156,17 +157,7 @@ function registerRoutes(): void {
   router.registerRoute({
     path: '/tournament',
     title: 'Tournaments',
-    component: () => {
-      const div = document.createElement('div');
-      div.className = 'flex-1 flex items-center justify-center';
-      div.innerHTML = `
-        <div class="text-center">
-          <h1 class="text-4xl font-bold mb-4" style="color: var(--color-navy)">Tournaments</h1>
-          <p style="color: var(--color-navy-muted)">Tournament interface coming soon...</p>
-        </div>
-      `;
-      return div;
-    },
+    component: TournamentView,
     requiresAuth: true,
   });
 

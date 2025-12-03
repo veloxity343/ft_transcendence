@@ -45,7 +45,7 @@ export const authApi = {
 
   async logout(): Promise<void> {
     try {
-      await httpClient.post('/auth/signout');
+      await httpClient.post('/auth/signout', {});
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
