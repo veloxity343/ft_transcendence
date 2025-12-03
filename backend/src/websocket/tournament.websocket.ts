@@ -9,19 +9,7 @@ export interface CreateTournamentMessage {
   bracketType?: BracketType;
 }
 
-export interface JoinTournamentMessage {
-  tournamentId: number;
-}
-
-export interface LeaveTournamentMessage {
-  tournamentId: number;
-}
-
-export interface StartTournamentMessage {
-  tournamentId: number;
-}
-
-export interface GetTournamentMessage {
+export interface TournamentIdMessage {
   tournamentId: number;
 }
 
@@ -29,9 +17,6 @@ export async function setupTournamentWebSocket(
   fastify: FastifyInstance,
   tournamentService: TournamentService
 ) {
-  // Service is already decorated in app.ts, no need to decorate again
-  // Just use the passed tournamentService instance
-
   return {
     handleTournamentMessage: async (
       userId: number,
@@ -60,6 +45,7 @@ export async function setupTournamentWebSocket(
                 bracketType
               );
 
+              // Send confirmation to creator
               socket.send(JSON.stringify({
                 event: 'tournament:created',
                 data: {
@@ -83,7 +69,7 @@ export async function setupTournamentWebSocket(
           }
 
           case 'tournament:join': {
-            const { tournamentId } = message.data as JoinTournamentMessage;
+            const { tournamentId } = message.data as TournamentIdMessage;
 
             if (!tournamentId) {
               throw new Error('Tournament ID is required');
@@ -106,7 +92,7 @@ export async function setupTournamentWebSocket(
           }
 
           case 'tournament:leave': {
-            const { tournamentId } = message.data as LeaveTournamentMessage;
+            const { tournamentId } = message.data as TournamentIdMessage;
 
             if (!tournamentId) {
               throw new Error('Tournament ID is required');
@@ -129,7 +115,7 @@ export async function setupTournamentWebSocket(
           }
 
           case 'tournament:start': {
-            const { tournamentId } = message.data as StartTournamentMessage;
+            const { tournamentId } = message.data as TournamentIdMessage;
 
             if (!tournamentId) {
               throw new Error('Tournament ID is required');
@@ -137,11 +123,8 @@ export async function setupTournamentWebSocket(
 
             try {
               await tournamentService.startTournament(tournamentId, userId);
-
-              socket.send(JSON.stringify({
-                event: 'tournament:start-initiated',
-                data: { success: true, tournamentId },
-              }));
+              // Note: tournament:started is broadcast by the service to all participants
+              // No need to send a separate confirmation here
             } catch (error: any) {
               socket.send(JSON.stringify({
                 event: 'tournament:error',
@@ -152,14 +135,14 @@ export async function setupTournamentWebSocket(
           }
 
           case 'tournament:get': {
-            const { tournamentId } = message.data as GetTournamentMessage;
+            const { tournamentId } = message.data as TournamentIdMessage;
 
             if (!tournamentId) {
               throw new Error('Tournament ID is required');
             }
 
             try {
-              const tournament = tournamentService.getTournament(tournamentId);
+              const tournament = await tournamentService.getTournamentFromCacheOrDb(tournamentId);
 
               if (!tournament) {
                 throw new Error('Tournament not found');
@@ -179,11 +162,15 @@ export async function setupTournamentWebSocket(
           }
 
           case 'tournament:get-bracket': {
-            const { tournamentId } = message.data;
-            
+            const { tournamentId } = message.data as TournamentIdMessage;
+
+            if (!tournamentId) {
+              throw new Error('Tournament ID is required');
+            }
+
             try {
               const bracket = tournamentService.getBracketViewData(
-                tournamentId, 
+                tournamentId,
                 userId
               );
 
@@ -191,8 +178,9 @@ export async function setupTournamentWebSocket(
                 throw new Error('Tournament not found');
               }
 
+              // Fixed: Send 'tournament:bracket' to match frontend expectation
               socket.send(JSON.stringify({
-                event: 'tournament:bracket-update',
+                event: 'tournament:bracket',
                 data: { bracket },
               }));
             } catch (error: any) {
@@ -217,6 +205,9 @@ export async function setupTournamentWebSocket(
                     maxPlayers: t.maxPlayers,
                     currentPlayers: t.currentPlayers,
                     status: t.status,
+                    creatorId: t.creatorId,
+                    currentRound: t.currentRound,
+                    totalRounds: t.totalRounds,
                     createdAt: t.createdAt,
                   })),
                 },
@@ -259,7 +250,7 @@ export async function setupTournamentWebSocket(
           }
 
           case 'tournament:cancel': {
-            const { tournamentId } = message.data as { tournamentId: number };
+            const { tournamentId } = message.data as TournamentIdMessage;
 
             if (!tournamentId) {
               throw new Error('Tournament ID is required');
@@ -269,7 +260,7 @@ export async function setupTournamentWebSocket(
               await tournamentService.cancelTournament(tournamentId, userId);
 
               socket.send(JSON.stringify({
-                event: 'tournament:cancelled-confirmed',
+                event: 'tournament:cancelled',
                 data: { success: true, tournamentId },
               }));
             } catch (error: any) {

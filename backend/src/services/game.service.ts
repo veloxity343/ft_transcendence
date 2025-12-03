@@ -568,25 +568,24 @@ export class GameService {
     this.connectionManager.setStatus(player1Id, UserStatus.IN_GAME);
     this.connectionManager.setStatus(player2Id, UserStatus.IN_GAME);
 
-    // Notify both players
-    this.connectionManager.emitToUser(player1Id, 'game-starting', {
-      gameId,
-      player1: {
-        id: player1Id,
-        name: player1.username,
-        avatar: player1.avatar,
+    await this.prisma.game.create({
+      data: {
+        id: gameId,
+        player1: player1Id,
+        player2: player2Id,
+        score1: 0,
+        score2: 0,
+        startTime: new Date(),
+        endTime: new Date(),
+        duration: 0,
+        tournamentId,
+        tournamentRound: round,
+        tournamentMatch: matchId,
       },
-      player2: {
-        id: player2Id,
-        name: player2.username,
-        avatar: player2.avatar,
-      },
-      tournamentId,
-      round,
-      matchId,
     });
 
-    this.connectionManager.emitToUser(player2Id, 'game-starting', {
+    // Notify both players
+    const gameStartingPayload = {
       gameId,
       player1: {
         id: player1Id,
@@ -601,7 +600,10 @@ export class GameService {
       tournamentId,
       round,
       matchId,
-    });
+    };
+
+    this.connectionManager.emitToUser(player1Id, 'game-starting', gameStartingPayload);
+    this.connectionManager.emitToUser(player2Id, 'game-starting', gameStartingPayload);
 
     // Start game after countdown
     setTimeout(() => {
@@ -992,6 +994,7 @@ export class GameService {
         gameId,
         tournamentId: gameInfo.tournamentId,
         winnerId,
+        loserId,
         player1Id: room.player1Id,
         player2Id: room.player2Id,
         score1: room.player1Score,
@@ -999,6 +1002,7 @@ export class GameService {
       });
     }
 
+    // Cleanup
     this.connectionManager.setStatus(room.player1Id, UserStatus.ONLINE);
     if (!room.isLocal && room.player2Id !== room.player1Id) {
       this.connectionManager.setStatus(room.player2Id, UserStatus.ONLINE);

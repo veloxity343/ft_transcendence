@@ -1,4 +1,5 @@
 import { wsClient } from '../websocket/client';
+import { router } from '../router';
 import { showToast } from '../utils/toast';
 import { storage } from '../utils/storage';
 
@@ -36,9 +37,17 @@ const icons = {
     <path d="M2 12l5-5 5 5 5-5 5 5v7H2v-7z"></path>
     <path d="M12 12v7"></path>
   </svg>`,
+  refresh: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <polyline points="23 4 23 10 17 10"></polyline>
+    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+  </svg>`,
   spinner: `<svg class="w-6 h-6 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
     <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
     <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
+  </svg>`,
+  eye: `<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+    <circle cx="12" cy="12" r="3"></circle>
   </svg>`
 };
 
@@ -60,20 +69,53 @@ interface Tournament {
 interface TournamentPlayer {
   userId: number;
   username: string;
-  avatar: string;
+  avatar?: string;
   seed?: number;
+  eliminated?: boolean;
+  eliminatedInRound?: number;
 }
 
 interface TournamentMatch {
   matchId: string;
   round: number;
   matchNumber: number;
-  player1Id: number | null;
-  player2Id: number | null;
-  player1Name?: string;
-  player2Name?: string;
+  player1?: { id: number; name: string; isWinner?: boolean } | null;
+  player2?: { id: number; name: string; isWinner?: boolean } | null;
   winnerId?: number;
   status: string;
+  gameId?: number;
+  canSpectate?: boolean;
+}
+
+interface BracketViewData {
+  tournament: {
+    id: number;
+    name: string;
+    status: string;
+    currentRound: number;
+    totalRounds: number;
+    currentPlayers: number;
+    maxPlayers: number;
+    creatorId: number;
+    winnerId?: number;
+    winnerName?: string;
+  };
+  players: TournamentPlayer[];
+  rounds: {
+    roundNumber: number;
+    roundName: string;
+    completed: boolean;
+    matches: TournamentMatch[];
+  }[];
+  myMatches: {
+    matchId: string;
+    round: number;
+    status: string;
+    opponentId?: number;
+    opponentName?: string;
+    gameId?: number;
+    isWinner?: boolean;
+  }[];
 }
 
 export function TournamentView(): HTMLElement {
@@ -83,8 +125,13 @@ export function TournamentView(): HTMLElement {
   // State
   let currentView: 'list' | 'create' | 'bracket' = 'list';
   let tournaments: Tournament[] = [];
-  let selectedTournament: Tournament | null = null;
+  let selectedTournamentId: number | null = null;
+  let bracketData: BracketViewData | null = null;
   const unsubscribers: (() => void)[] = [];
+
+  // Get current user
+  const currentUser = storage.getUserData();
+  const currentUserId = currentUser ? parseInt(currentUser.id) : 0;
 
   // Initial HTML
   container.innerHTML = `
@@ -98,19 +145,27 @@ export function TournamentView(): HTMLElement {
 
       <!-- Tournament List View -->
       <div id="tournamentList" class="space-y-6">
-        <div class="flex justify-center mb-6">
+        <div class="flex justify-center gap-4 mb-6">
           <button id="createTournamentBtn" class="btn-primary px-6 py-3">
             ${icons.plus}
             <span>Create Tournament</span>
           </button>
+          <button id="refreshListBtn" class="btn-outline px-4 py-3">
+            ${icons.refresh}
+          </button>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="tournamentCards">
+        <div id="loadingState" class="glass-card p-12 text-center">
+          <div class="flex justify-center mb-4">${icons.spinner}</div>
+          <p class="text-navy-muted">Loading tournaments...</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 hidden" id="tournamentCards">
           <!-- Tournament cards will be inserted here -->
         </div>
 
         <div id="emptyState" class="hidden glass-card p-12 text-center">
-          <div class="text-6xl mb-4">${icons.trophy}</div>
+          <div class="text-6xl mb-4 flex justify-center">${icons.trophy}</div>
           <h3 class="text-xl font-bold text-navy mb-2">No Active Tournaments</h3>
           <p class="text-navy-muted mb-6">Be the first to create a tournament!</p>
           <button id="createFirstBtn" class="btn-primary">
@@ -141,17 +196,18 @@ export function TournamentView(): HTMLElement {
             <div>
               <label class="block text-sm font-medium mb-2 text-navy">Max Players</label>
               <select id="maxPlayers" class="input-glass w-full">
-                <option value="4">4 Players</option>
-                <option value="8">8 Players</option>
-                <option value="16">16 Players</option>
-                <option value="32">32 Players</option>
+                <option value="4">4 Players (2 rounds)</option>
+                <option value="8" selected>8 Players (3 rounds)</option>
+                <option value="16">16 Players (4 rounds)</option>
+                <option value="32">32 Players (5 rounds)</option>
               </select>
+              <p class="text-xs text-navy-muted mt-1">Tournament will start when full or manually by creator</p>
             </div>
 
             <div id="createError" class="text-red-500 text-sm hidden"></div>
 
             <div class="flex gap-4">
-              <button type="submit" class="btn-primary flex-1">Create</button>
+              <button type="submit" class="btn-primary flex-1">Create Tournament</button>
               <button type="button" id="cancelCreateBtn" class="btn-outline">
                 ${icons.back} Cancel
               </button>
@@ -168,6 +224,9 @@ export function TournamentView(): HTMLElement {
               ${icons.back} Back to Tournaments
             </button>
             <div class="flex items-center gap-4">
+              <button id="refreshBracketBtn" class="btn-outline px-3 py-2">
+                ${icons.refresh}
+              </button>
               <div id="tournamentStatus" class="text-sm font-semibold px-4 py-2 rounded-full"></div>
             </div>
           </div>
@@ -190,9 +249,18 @@ export function TournamentView(): HTMLElement {
             <!-- Action buttons will be inserted here -->
           </div>
 
+          <!-- My Match Alert -->
+          <div id="myMatchAlert" class="hidden bg-blue-50 border-2 border-blue rounded-xl p-4 text-center mb-6">
+            <h4 class="font-bold text-blue mb-2">Your Match is Ready!</h4>
+            <p id="myMatchInfo" class="text-navy-muted mb-3"></p>
+            <button id="goToMyMatchBtn" class="btn-primary">
+              ${icons.play} Go to Match
+            </button>
+          </div>
+
           <div id="winnerBanner" class="hidden bg-gradient-to-r from-yellow-100 to-yellow-50 border-2 border-yellow-400 rounded-xl p-6 text-center mb-6">
-            <div class="text-4xl mb-2">${icons.crown}</div>
-            <h3 class="text-2xl font-bold text-yellow-900 mb-1">Tournament Winner!</h3>
+            <div class="text-4xl mb-2 flex justify-center">${icons.crown}</div>
+            <h3 class="text-2xl font-bold text-yellow-900 mb-1">Tournament Champion!</h3>
             <p id="winnerName" class="text-xl text-yellow-800"></p>
           </div>
         </div>
@@ -201,6 +269,14 @@ export function TournamentView(): HTMLElement {
         <div id="bracketContainer" class="glass-card p-6">
           <div id="bracketContent" class="overflow-x-auto">
             <!-- Bracket rounds will be inserted here -->
+          </div>
+        </div>
+
+        <!-- Players List -->
+        <div id="playersSection" class="glass-card p-6 mt-6">
+          <h3 class="text-xl font-bold text-navy mb-4">Players</h3>
+          <div id="playersList" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <!-- Players will be inserted here -->
           </div>
         </div>
       </div>
@@ -229,11 +305,17 @@ export function TournamentView(): HTMLElement {
         border-radius: 9999px;
         font-size: 0.75rem;
         font-weight: 600;
+        text-transform: uppercase;
       }
       .status-registration {
         background: rgba(16, 185, 129, 0.2);
         color: #059669;
         border: 1px solid #059669;
+      }
+      .status-starting {
+        background: rgba(251, 191, 36, 0.2);
+        color: #d97706;
+        border: 1px solid #d97706;
       }
       .status-in_progress {
         background: rgba(59, 130, 246, 0.2);
@@ -245,14 +327,19 @@ export function TournamentView(): HTMLElement {
         color: #4b5563;
         border: 1px solid #4b5563;
       }
+      .status-cancelled {
+        background: rgba(239, 68, 68, 0.2);
+        color: #dc2626;
+        border: 1px solid #dc2626;
+      }
       .bracket-round {
         display: flex;
         flex-direction: column;
         gap: 2rem;
-        min-width: 250px;
+        min-width: 220px;
       }
       .bracket-match {
-        background: rgba(255, 255, 255, 0.5);
+        background: rgba(255, 255, 255, 0.6);
         border: 2px solid rgba(212, 184, 150, 0.5);
         border-radius: 12px;
         padding: 0.75rem;
@@ -261,12 +348,24 @@ export function TournamentView(): HTMLElement {
       .bracket-match:hover {
         border-color: var(--color-blue);
       }
+      .bracket-match.pending {
+        opacity: 0.6;
+      }
+      .bracket-match.ready {
+        border-color: #fbbf24;
+        box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.1);
+      }
       .bracket-match.in_progress {
         border-color: #3b82f6;
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        animation: pulse-border 2s infinite;
       }
       .bracket-match.completed {
         border-color: #059669;
+      }
+      .bracket-match.my-match {
+        border-color: var(--color-blue);
+        box-shadow: 0 0 0 4px rgba(74, 124, 201, 0.2);
       }
       .bracket-player {
         display: flex;
@@ -277,33 +376,65 @@ export function TournamentView(): HTMLElement {
         transition: background 0.2s;
       }
       .bracket-player.winner {
-        background: rgba(16, 185, 129, 0.1);
+        background: rgba(16, 185, 129, 0.15);
         font-weight: 600;
       }
       .bracket-player.loser {
         opacity: 0.5;
+        text-decoration: line-through;
+      }
+      .bracket-player.current-user {
+        background: rgba(74, 124, 201, 0.1);
       }
       .bracket-connector {
-        position: relative;
-        width: 40px;
-        height: 100%;
         display: flex;
         align-items: center;
+        width: 40px;
       }
       .bracket-connector::before {
         content: '';
-        position: absolute;
-        left: 0;
-        right: 0;
+        width: 100%;
         height: 2px;
         background: var(--color-tan);
       }
-      @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
+      .player-card {
+        background: rgba(255, 255, 255, 0.5);
+        border: 1px solid rgba(212, 184, 150, 0.3);
+        border-radius: 8px;
+        padding: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
       }
-      .animate-pulse {
-        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      .player-card.eliminated {
+        opacity: 0.5;
+      }
+      .player-card.current-user {
+        border-color: var(--color-blue);
+        background: rgba(74, 124, 201, 0.1);
+      }
+      .player-seed {
+        background: var(--color-tan);
+        color: var(--color-navy);
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+      @keyframes pulse-border {
+        0%, 100% { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        50% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.2); }
+      }
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      .animate-spin {
+        animation: spin 1s linear infinite;
       }
     </style>
   `;
@@ -314,9 +445,10 @@ export function TournamentView(): HTMLElement {
   const bracketView = container.querySelector('#bracketView') as HTMLElement;
   const tournamentCards = container.querySelector('#tournamentCards') as HTMLElement;
   const emptyState = container.querySelector('#emptyState') as HTMLElement;
+  const loadingState = container.querySelector('#loadingState') as HTMLElement;
   const createTournamentForm = container.querySelector('#createTournamentForm') as HTMLFormElement;
-  const tournamentName = container.querySelector('#tournamentName') as HTMLInputElement;
-  const maxPlayers = container.querySelector('#maxPlayers') as HTMLSelectElement;
+  const tournamentNameInput = container.querySelector('#tournamentName') as HTMLInputElement;
+  const maxPlayersSelect = container.querySelector('#maxPlayers') as HTMLSelectElement;
   const createError = container.querySelector('#createError') as HTMLElement;
 
   // View switching
@@ -328,16 +460,24 @@ export function TournamentView(): HTMLElement {
 
     if (view === 'list') {
       loadTournaments();
+    } else if (view === 'create') {
+      tournamentNameInput.value = '';
+      createError.classList.add('hidden');
     }
   };
 
   // Load tournaments
   const loadTournaments = () => {
+    loadingState.classList.remove('hidden');
+    tournamentCards.classList.add('hidden');
+    emptyState.classList.add('hidden');
     wsClient.send('tournament:list-active');
   };
 
   // Render tournament cards
   const renderTournaments = () => {
+    loadingState.classList.add('hidden');
+
     if (tournaments.length === 0) {
       tournamentCards.classList.add('hidden');
       emptyState.classList.remove('hidden');
@@ -347,33 +487,43 @@ export function TournamentView(): HTMLElement {
     tournamentCards.classList.remove('hidden');
     emptyState.classList.add('hidden');
 
-    tournamentCards.innerHTML = tournaments.map(t => `
-      <div class="tournament-card" data-tournament-id="${t.id}">
-        <div class="flex items-start justify-between mb-4">
-          <h3 class="text-xl font-bold text-navy">${escapeHtml(t.name)}</h3>
-          <span class="status-badge status-${t.status}">
-            ${t.status === 'registration' ? 'Open' : t.status === 'in_progress' ? 'In Progress' : 'Finished'}
-          </span>
-        </div>
-        
-        <div class="space-y-2 text-sm text-navy-muted mb-4">
-          <div class="flex items-center gap-2">
-            ${icons.users}
-            <span>${t.currentPlayers} / ${t.maxPlayers} Players</span>
-          </div>
-          ${t.status === 'in_progress' ? `
-            <div class="flex items-center gap-2">
-              ${icons.trophy}
-              <span>Round ${t.currentRound || 0} of ${t.totalRounds || 0}</span>
-            </div>
-          ` : ''}
-        </div>
+    tournamentCards.innerHTML = tournaments.map(t => {
+      const isParticipant = t.players?.some(p => p.userId === currentUserId);
+      const isCreator = t.creatorId === currentUserId;
 
-        <button class="btn-primary w-full view-bracket-btn" data-tournament-id="${t.id}">
-          ${t.status === 'registration' ? 'Join Tournament' : 'View Bracket'}
-        </button>
-      </div>
-    `).join('');
+      return `
+        <div class="tournament-card" data-tournament-id="${t.id}">
+          <div class="flex items-start justify-between mb-4">
+            <div>
+              <h3 class="text-xl font-bold text-navy">${escapeHtml(t.name)}</h3>
+              ${isCreator ? '<span class="text-xs text-blue">(You created this)</span>' : ''}
+              ${isParticipant && !isCreator ? '<span class="text-xs text-green-600">(You joined)</span>' : ''}
+            </div>
+            <span class="status-badge status-${t.status}">
+              ${getStatusText(t.status)}
+            </span>
+          </div>
+          
+          <div class="space-y-2 text-sm text-navy-muted mb-4">
+            <div class="flex items-center gap-2">
+              ${icons.users}
+              <span>${t.currentPlayers} / ${t.maxPlayers} Players</span>
+              ${t.currentPlayers === t.maxPlayers ? '<span class="text-xs text-yellow-600">(Full)</span>' : ''}
+            </div>
+            ${t.status === 'in_progress' && t.currentRound ? `
+              <div class="flex items-center gap-2">
+                ${icons.trophy}
+                <span>Round ${t.currentRound} of ${t.totalRounds}</span>
+              </div>
+            ` : ''}
+          </div>
+
+          <button class="btn-primary w-full view-bracket-btn" data-tournament-id="${t.id}">
+            ${t.status === 'registration' && !isParticipant ? `${icons.plus} Join Tournament` : 'View Bracket'}
+          </button>
+        </div>
+      `;
+    }).join('');
 
     // Add click handlers
     container.querySelectorAll('.view-bracket-btn').forEach(btn => {
@@ -385,20 +535,34 @@ export function TournamentView(): HTMLElement {
     });
   };
 
+  const getStatusText = (status: string): string => {
+    switch (status) {
+      case 'registration': return 'Open';
+      case 'starting': return 'Starting';
+      case 'in_progress': return 'In Progress';
+      case 'finished': return 'Completed';
+      case 'cancelled': return 'Cancelled';
+      default: return status;
+    }
+  };
+
   // View tournament bracket
   const viewTournament = (tournamentId: number) => {
-    selectedTournament = tournaments.find(t => t.id === tournamentId) || null;
-    if (!selectedTournament) return;
+    selectedTournamentId = tournamentId;
+    bracketData = null;
 
     // Request detailed tournament data
-    wsClient.send('tournament:get', { tournamentId });
     wsClient.send('tournament:get-bracket', { tournamentId });
-    
+
     showView('bracket');
   };
 
   // Render tournament bracket
-  const renderBracket = (tournament: Tournament) => {
+  const renderBracket = () => {
+    if (!bracketData) return;
+
+    const { tournament, players, rounds, myMatches } = bracketData;
+
     const bracketTitle = container.querySelector('#bracketTitle') as HTMLElement;
     const playerCount = container.querySelector('#playerCount') as HTMLElement;
     const roundInfo = container.querySelector('#roundInfo') as HTMLElement;
@@ -407,18 +571,20 @@ export function TournamentView(): HTMLElement {
     const winnerBanner = container.querySelector('#winnerBanner') as HTMLElement;
     const winnerName = container.querySelector('#winnerName') as HTMLElement;
     const bracketContent = container.querySelector('#bracketContent') as HTMLElement;
+    const playersList = container.querySelector('#playersList') as HTMLElement;
+    const myMatchAlert = container.querySelector('#myMatchAlert') as HTMLElement;
+    const myMatchInfo = container.querySelector('#myMatchInfo') as HTMLElement;
 
     // Update header
     bracketTitle.textContent = tournament.name;
     playerCount.textContent = `${tournament.currentPlayers} / ${tournament.maxPlayers} Players`;
-    roundInfo.textContent = tournament.status === 'registration' 
-      ? 'Waiting to start' 
+    roundInfo.textContent = tournament.status === 'registration'
+      ? 'Waiting to start'
       : `Round ${tournament.currentRound || 0} of ${tournament.totalRounds || 0}`;
 
     // Update status badge
     tournamentStatus.className = `status-badge status-${tournament.status}`;
-    tournamentStatus.textContent = tournament.status === 'registration' ? 'Registration' : 
-                                     tournament.status === 'in_progress' ? 'In Progress' : 'Completed';
+    tournamentStatus.textContent = getStatusText(tournament.status);
 
     // Show/hide winner banner
     if (tournament.status === 'finished' && tournament.winnerName) {
@@ -428,13 +594,26 @@ export function TournamentView(): HTMLElement {
       winnerBanner.classList.add('hidden');
     }
 
+    // Check for my active match
+    const myActiveMatch = myMatches.find(m => m.status === 'in_progress' || m.status === 'ready');
+    if (myActiveMatch) {
+      myMatchAlert.classList.remove('hidden');
+      if (myActiveMatch.status === 'in_progress' && myActiveMatch.gameId) {
+        myMatchInfo.textContent = `Your match against ${myActiveMatch.opponentName || 'opponent'} is in progress!`;
+        (container.querySelector('#goToMyMatchBtn') as HTMLElement).textContent = `${icons.play} Continue Match`;
+      } else {
+        myMatchInfo.textContent = `Your Round ${myActiveMatch.round} match against ${myActiveMatch.opponentName || 'opponent'} is ready!`;
+      }
+    } else {
+      myMatchAlert.classList.add('hidden');
+    }
+
     // Render action buttons
-    const user = storage.getUserData();
-    const isCreator = user && tournament.creatorId === parseInt(user.id);
-    const isParticipant = tournament.players?.some(p => p.userId === parseInt(user?.id || '0'));
+    const isCreator = tournament.creatorId === currentUserId;
+    const isParticipant = players.some(p => p.userId === currentUserId);
 
     tournamentActions.innerHTML = '';
-    
+
     if (tournament.status === 'registration') {
       if (!isParticipant) {
         tournamentActions.innerHTML = `
@@ -449,59 +628,70 @@ export function TournamentView(): HTMLElement {
           </button>
         `;
       }
-      
-      if (isCreator && tournament.currentPlayers >= 4) {
+
+      if (isCreator && tournament.currentPlayers >= 2) {
+        const canStart = tournament.currentPlayers >= 2;
+        const isPowerOf2 = (tournament.currentPlayers & (tournament.currentPlayers - 1)) === 0;
+        
         tournamentActions.innerHTML += `
-          <button id="startTournamentBtn" class="btn-primary px-6 py-3">
+          <button id="startTournamentBtn" class="btn-primary px-6 py-3" ${!canStart ? 'disabled' : ''}>
             ${icons.play} Start Tournament
           </button>
         `;
+        
+        if (!isPowerOf2 && canStart) {
+          tournamentActions.innerHTML += `
+            <span class="text-xs text-navy-muted">(Will adjust to ${nextPowerOfTwo(tournament.currentPlayers)} slots with byes)</span>
+          `;
+        }
       }
     }
 
-    // Render bracket
-    if (tournament.matches && tournament.matches.length > 0) {
-      const rounds: TournamentMatch[][] = [];
-      const maxRound = Math.max(...tournament.matches.map(m => m.round));
-      
-      for (let r = 1; r <= maxRound; r++) {
-        rounds.push(tournament.matches.filter(m => m.round === r));
-      }
+    if (tournament.status !== 'finished' && tournament.status !== 'cancelled' && isCreator) {
+      tournamentActions.innerHTML += `
+        <button id="cancelTournamentBtn" class="btn-outline text-red-500 px-4 py-3">
+          Cancel Tournament
+        </button>
+      `;
+    }
 
+    // Render bracket
+    if (rounds && rounds.length > 0) {
       bracketContent.innerHTML = `
-        <div class="flex gap-8 justify-center items-center">
+        <div class="flex gap-6 justify-start items-stretch min-w-fit py-4">
           ${rounds.map((round, roundIndex) => `
-            <div class="bracket-round">
+            <div class="bracket-round" style="justify-content: space-around;">
               <div class="text-center mb-4">
-                <h4 class="font-bold text-navy">
-                  ${roundIndex === maxRound - 1 ? 'Finals' : 
-                    roundIndex === maxRound - 2 ? 'Semi-Finals' : 
-                    `Round ${roundIndex + 1}`}
-                </h4>
+                <h4 class="font-bold text-navy text-sm">${round.roundName}</h4>
+                ${round.completed ? '<span class="text-xs text-green-600">✓ Complete</span>' : ''}
               </div>
-              ${round.map(match => `
-                <div class="bracket-match ${match.status}">
-                  <div class="space-y-2">
-                    <div class="bracket-player ${match.winnerId === match.player1Id ? 'winner' : match.winnerId ? 'loser' : ''}">
-                      <span class="text-sm ${!match.player1Name ? 'text-navy-muted italic' : 'text-navy font-medium'}">
-                        ${match.player1Name || 'TBD'}
-                      </span>
-                      ${match.winnerId === match.player1Id ? `<span class="text-green-500">${icons.crown}</span>` : ''}
+              ${round.matches.map(match => {
+                const isMyMatch = match.player1?.id === currentUserId || match.player2?.id === currentUserId;
+                return `
+                  <div class="bracket-match ${match.status} ${isMyMatch ? 'my-match' : ''}">
+                    <div class="space-y-1">
+                      ${renderBracketPlayer(match.player1, match.winnerId, match.status)}
+                      <div class="h-px bg-gray-200 my-1"></div>
+                      ${renderBracketPlayer(match.player2, match.winnerId, match.status)}
                     </div>
-                    <div class="bracket-player ${match.winnerId === match.player2Id ? 'winner' : match.winnerId ? 'loser' : ''}">
-                      <span class="text-sm ${!match.player2Name ? 'text-navy-muted italic' : 'text-navy font-medium'}">
-                        ${match.player2Name || 'TBD'}
-                      </span>
-                      ${match.winnerId === match.player2Id ? `<span class="text-green-500">${icons.crown}</span>` : ''}
-                    </div>
+                    ${match.status === 'in_progress' ? `
+                      <div class="text-center mt-2">
+                        <span class="text-xs text-blue font-semibold animate-pulse">LIVE</span>
+                        ${match.canSpectate ? `
+                          <button class="spectate-btn ml-2 text-xs text-blue hover:underline" data-game-id="${match.gameId}">
+                            ${icons.eye} Watch
+                          </button>
+                        ` : ''}
+                      </div>
+                    ` : ''}
+                    ${match.status === 'ready' ? `
+                      <div class="text-center mt-2">
+                        <span class="text-xs text-yellow-600 font-semibold">Waiting</span>
+                      </div>
+                    ` : ''}
                   </div>
-                  ${match.status === 'in_progress' ? `
-                    <div class="text-center mt-2 text-xs text-blue-600 font-semibold animate-pulse">
-                      IN PROGRESS
-                    </div>
-                  ` : ''}
-                </div>
-              `).join('')}
+                `;
+              }).join('')}
             </div>
             ${roundIndex < rounds.length - 1 ? '<div class="bracket-connector"></div>' : ''}
           `).join('')}
@@ -510,127 +700,274 @@ export function TournamentView(): HTMLElement {
     } else if (tournament.status === 'registration') {
       bracketContent.innerHTML = `
         <div class="text-center py-12">
-          <p class="text-navy-muted mb-4">Waiting for more players to join...</p>
-          <div class="glass-card inline-block p-6">
-            <h4 class="font-bold text-navy mb-4">Current Players</h4>
-            <div class="space-y-2">
-              ${tournament.players?.map(p => `
-                <div class="flex items-center gap-2 px-4 py-2 bg-white/30 rounded-lg">
-                  <span class="text-navy font-medium">${escapeHtml(p.username)}</span>
-                </div>
-              `).join('') || '<p class="text-navy-muted italic">No players yet</p>'}
-            </div>
-          </div>
+          <p class="text-navy-muted mb-4">Tournament bracket will be generated when the tournament starts.</p>
+          <p class="text-sm text-navy-muted">Minimum 2 players required. Currently: ${tournament.currentPlayers}</p>
         </div>
       `;
     }
 
+    // Render players list
+    playersList.innerHTML = players.map(player => {
+      const isMe = player.userId === currentUserId;
+      return `
+        <div class="player-card ${player.eliminated ? 'eliminated' : ''} ${isMe ? 'current-user' : ''}">
+          ${player.seed ? `<span class="player-seed">${player.seed}</span>` : ''}
+          <span class="text-sm text-navy font-medium flex-1">${escapeHtml(player.username)}</span>
+          ${isMe ? '<span class="text-xs text-blue">(You)</span>' : ''}
+          ${player.eliminated ? '<span class="text-xs text-red-500">Out R${player.eliminatedInRound}</span>' : ''}
+        </div>
+      `;
+    }).join('');
+
     // Setup action button handlers
-    setupBracketActions(tournament);
+    setupBracketActions();
+  };
+
+  const renderBracketPlayer = (
+    player: { id: number; name: string; isWinner?: boolean } | null | undefined,
+    winnerId: number | undefined,
+    matchStatus: string
+  ): string => {
+    if (!player) {
+      return `
+        <div class="bracket-player">
+          <span class="text-sm text-navy-muted italic">TBD</span>
+        </div>
+      `;
+    }
+
+    const isWinner = winnerId === player.id;
+    const isLoser = winnerId && winnerId !== player.id;
+    const isMe = player.id === currentUserId;
+
+    return `
+      <div class="bracket-player ${isWinner ? 'winner' : ''} ${isLoser ? 'loser' : ''} ${isMe ? 'current-user' : ''}">
+        <span class="text-sm ${isMe ? 'text-blue' : 'text-navy'} font-medium">
+          ${escapeHtml(player.name)}
+          ${isMe ? ' (You)' : ''}
+        </span>
+        ${isWinner ? `<span class="text-green-500">${icons.crown}</span>` : ''}
+      </div>
+    `;
   };
 
   // Setup bracket action handlers
-  const setupBracketActions = (tournament: Tournament) => {
+  const setupBracketActions = () => {
     const joinBtn = container.querySelector('#joinTournamentBtn');
     const leaveBtn = container.querySelector('#leaveTournamentBtn');
     const startBtn = container.querySelector('#startTournamentBtn');
+    const cancelBtn = container.querySelector('#cancelTournamentBtn');
+    const goToMatchBtn = container.querySelector('#goToMyMatchBtn');
 
     joinBtn?.addEventListener('click', () => {
-      wsClient.send('tournament:join', { tournamentId: tournament.id });
+      if (selectedTournamentId) {
+        wsClient.send('tournament:join', { tournamentId: selectedTournamentId });
+      }
     });
 
     leaveBtn?.addEventListener('click', () => {
-      wsClient.send('tournament:leave', { tournamentId: tournament.id });
+      if (selectedTournamentId) {
+        wsClient.send('tournament:leave', { tournamentId: selectedTournamentId });
+      }
     });
 
     startBtn?.addEventListener('click', () => {
-      wsClient.send('tournament:start', { tournamentId: tournament.id });
+      if (selectedTournamentId) {
+        wsClient.send('tournament:start', { tournamentId: selectedTournamentId });
+      }
+    });
+
+    cancelBtn?.addEventListener('click', () => {
+      if (selectedTournamentId && confirm('Are you sure you want to cancel this tournament?')) {
+        wsClient.send('tournament:cancel', { tournamentId: selectedTournamentId });
+      }
+    });
+
+    goToMatchBtn?.addEventListener('click', () => {
+      // Navigate to game view - the game should already be set up
+      router.navigateTo('/game');
+    });
+
+    // Spectate buttons
+    container.querySelectorAll('.spectate-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const gameId = (btn as HTMLElement).dataset.gameId;
+        if (gameId) {
+          // TODO: Implement spectator mode navigation
+          showToast('Spectator mode coming soon!', 'info');
+        }
+      });
     });
   };
 
   // Setup WebSocket handlers
   const setupWSHandlers = () => {
+    // Tournament list
     unsubscribers.push(wsClient.on('tournament:active-list', (msg) => {
       tournaments = msg.data.tournaments || [];
-      renderTournaments();
-    }));
-
-    unsubscribers.push(wsClient.on('tournament:created', (msg) => {
-      showToast('Tournament created successfully!', 'success');
-      selectedTournament = msg.data.tournament;
-      if (selectedTournament) {
-        viewTournament(selectedTournament.id);
+      if (currentView === 'list') {
+        renderTournaments();
       }
     }));
 
+    // Tournament created (broadcast to all)
+    unsubscribers.push(wsClient.on('tournament:created', (msg) => {
+      const newTournament = msg.data.tournament;
+      if (newTournament) {
+        // If this is our newly created tournament, view it
+        if (newTournament.creatorId === currentUserId) {
+          showToast('Tournament created successfully!', 'success');
+          viewTournament(newTournament.id);
+        } else {
+          // Just refresh the list
+          loadTournaments();
+        }
+      }
+    }));
+
+    // Joined tournament
     unsubscribers.push(wsClient.on('tournament:joined', (msg) => {
       showToast('Joined tournament!', 'success');
-      // Refresh tournament data
-      if (selectedTournament) {
-        wsClient.send('tournament:get', { tournamentId: selectedTournament.id });
+      // Refresh bracket view
+      if (selectedTournamentId) {
+        wsClient.send('tournament:get-bracket', { tournamentId: selectedTournamentId });
       }
     }));
 
+    // Left tournament
     unsubscribers.push(wsClient.on('tournament:left', (msg) => {
       showToast('Left tournament', 'info');
       showView('list');
     }));
 
+    // Player joined (broadcast to tournament participants)
     unsubscribers.push(wsClient.on('tournament:player-joined', (msg) => {
-      // Refresh tournament data
-      if (selectedTournament && selectedTournament.id === msg.data.tournamentId) {
-        wsClient.send('tournament:get', { tournamentId: selectedTournament.id });
+      if (selectedTournamentId === msg.data.tournamentId && currentView === 'bracket') {
+        wsClient.send('tournament:get-bracket', { tournamentId: selectedTournamentId });
+      }
+      // Also refresh list
+      if (currentView === 'list') {
+        loadTournaments();
       }
     }));
 
+    // Player left
+    unsubscribers.push(wsClient.on('tournament:player-left', (msg) => {
+      if (selectedTournamentId === msg.data.tournamentId && currentView === 'bracket') {
+        wsClient.send('tournament:get-bracket', { tournamentId: selectedTournamentId });
+      }
+    }));
+
+    // Tournament started
     unsubscribers.push(wsClient.on('tournament:started', (msg) => {
       showToast('Tournament started!', 'success');
-      // Refresh bracket
-      if (selectedTournament) {
-        wsClient.send('tournament:get-bracket', { tournamentId: selectedTournament.id });
+      if (selectedTournamentId === msg.data.tournamentId && currentView === 'bracket') {
+        wsClient.send('tournament:get-bracket', { tournamentId: selectedTournamentId });
       }
     }));
 
+    // Round started
     unsubscribers.push(wsClient.on('tournament:round-started', (msg) => {
-      showToast(`Round ${msg.data.round} started!`, 'info');
+      showToast(`Round ${msg.data.round} has started!`, 'info');
+      if (selectedTournamentId === msg.data.tournamentId && currentView === 'bracket') {
+        wsClient.send('tournament:get-bracket', { tournamentId: selectedTournamentId });
+      }
     }));
 
-    unsubscribers.push(wsClient.on('tournament:match-ready', (msg) => {
-      showToast(`Your match is ready! Round ${msg.data.round} vs ${msg.data.opponent.name}`, 'info');
+    // Match starting - THIS IS IMPORTANT: navigates player to game
+    unsubscribers.push(wsClient.on('tournament:match-starting', (msg) => {
+      showToast(`Tournament match starting: vs ${msg.data.opponent?.name}!`, 'info');
+      // The game-starting event from GameService will handle the actual game UI
+      // This just notifies us it's a tournament match
     }));
 
+    // Match completed
     unsubscribers.push(wsClient.on('tournament:match-completed', (msg) => {
+      const isMyMatch = bracketData?.myMatches.some(m => m.matchId === msg.data.matchId);
+      if (isMyMatch) {
+        if (msg.data.winnerId === currentUserId) {
+          showToast('You won the match! Advancing to next round.', 'success');
+        } else {
+          showToast('Match completed. Better luck next time!', 'info');
+        }
+      }
       // Refresh bracket
-      if (selectedTournament) {
-        wsClient.send('tournament:get-bracket', { tournamentId: selectedTournament.id });
+      if (selectedTournamentId === msg.data.tournamentId && currentView === 'bracket') {
+        wsClient.send('tournament:get-bracket', { tournamentId: selectedTournamentId });
       }
     }));
 
+    // Round progress
+    unsubscribers.push(wsClient.on('tournament:round-progress', (msg) => {
+      if (selectedTournamentId === msg.data.tournamentId && currentView === 'bracket') {
+        wsClient.send('tournament:get-bracket', { tournamentId: selectedTournamentId });
+      }
+    }));
+
+    // Round completed
+    unsubscribers.push(wsClient.on('tournament:round-completed', (msg) => {
+      showToast(`Round ${msg.data.round} completed! Next round starting soon.`, 'info');
+    }));
+
+    // Tournament completed
     unsubscribers.push(wsClient.on('tournament:completed', (msg) => {
-      showToast(`Tournament complete! Winner: ${msg.data.winnerName}`, 'success');
-      // Refresh tournament
-      if (selectedTournament) {
-        wsClient.send('tournament:get', { tournamentId: selectedTournament.id });
+      const isWinner = msg.data.winnerId === currentUserId;
+      if (isWinner) {
+        showToast('🏆 Congratulations! You won the tournament!', 'success');
+      } else {
+        showToast(`Tournament complete! Winner: ${msg.data.winnerName}`, 'info');
+      }
+      if (selectedTournamentId === msg.data.tournamentId && currentView === 'bracket') {
+        wsClient.send('tournament:get-bracket', { tournamentId: selectedTournamentId });
       }
     }));
 
-    unsubscribers.push(wsClient.on('tournament:data', (msg) => {
-      selectedTournament = msg.data.tournament;
-      if (selectedTournament && currentView === 'bracket') {
-        renderBracket(selectedTournament);
+    // Tournament cancelled
+    unsubscribers.push(wsClient.on('tournament:cancelled', (msg) => {
+      showToast('Tournament has been cancelled', 'info');
+      if (selectedTournamentId === msg.data.tournamentId) {
+        showView('list');
       }
     }));
 
+    // Bracket data received
     unsubscribers.push(wsClient.on('tournament:bracket', (msg) => {
-      if (selectedTournament && msg.data.bracket) {
-        selectedTournament.matches = msg.data.bracket.rounds?.flatMap((r: any) => r.matches) || [];
-        renderBracket(selectedTournament);
+      if (msg.data.bracket) {
+        bracketData = msg.data.bracket;
+        if (currentView === 'bracket') {
+          renderBracket();
+        }
       }
     }));
 
+    // Tournament data (fallback)
+    unsubscribers.push(wsClient.on('tournament:data', (msg) => {
+      // If we get raw tournament data, request bracket format
+      if (msg.data.tournament && selectedTournamentId === msg.data.tournament.id) {
+        wsClient.send('tournament:get-bracket', { tournamentId: selectedTournamentId });
+      }
+    }));
+
+    // Error handling
     unsubscribers.push(wsClient.on('tournament:error', (msg) => {
       showToast(msg.data.message || 'Tournament error', 'error');
     }));
+  };
+
+  // Helper functions
+  const escapeHtml = (text: string): string => {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  };
+
+  const nextPowerOfTwo = (n: number): number => {
+    let power = 1;
+    while (power < n) {
+      power *= 2;
+    }
+    return power;
   };
 
   // Button handlers
@@ -647,8 +984,19 @@ export function TournamentView(): HTMLElement {
   });
 
   container.querySelector('#backToBrowseBtn')?.addEventListener('click', () => {
-    selectedTournament = null;
+    selectedTournamentId = null;
+    bracketData = null;
     showView('list');
+  });
+
+  container.querySelector('#refreshListBtn')?.addEventListener('click', () => {
+    loadTournaments();
+  });
+
+  container.querySelector('#refreshBracketBtn')?.addEventListener('click', () => {
+    if (selectedTournamentId) {
+      wsClient.send('tournament:get-bracket', { tournamentId: selectedTournamentId });
+    }
   });
 
   // Form submission
@@ -656,8 +1004,8 @@ export function TournamentView(): HTMLElement {
     e.preventDefault();
     createError.classList.add('hidden');
 
-    const name = tournamentName.value.trim();
-    const max = parseInt(maxPlayers.value);
+    const name = tournamentNameInput.value.trim();
+    const max = parseInt(maxPlayersSelect.value);
 
     if (name.length < 3) {
       createError.textContent = 'Tournament name must be at least 3 characters';
@@ -665,22 +1013,18 @@ export function TournamentView(): HTMLElement {
       return;
     }
 
+    if (name.length > 50) {
+      createError.textContent = 'Tournament name must be 50 characters or less';
+      createError.classList.remove('hidden');
+      return;
+    }
+
     wsClient.send('tournament:create', {
       name,
       maxPlayers: max,
-      bracketType: 'single_elimination'
+      bracketType: 'single_elimination',
     });
-
-    // Reset form
-    createTournamentForm.reset();
   });
-
-  // HTML escape helper
-  const escapeHtml = (text: string) => {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  };
 
   // Initialize
   setupWSHandlers();

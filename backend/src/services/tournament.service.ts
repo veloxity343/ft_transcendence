@@ -15,7 +15,8 @@ import {
 
 export class TournamentService {
   private activeCache = new Map<number, Tournament>();
-  private activeTournamentGames = new Map<number, number>();
+  // Track which games belong to which tournaments
+  private gameToTournament = new Map<number, { tournamentId: number; matchId: string }>();
 
   constructor(
     private prisma: PrismaClient,
@@ -30,25 +31,38 @@ export class TournamentService {
   // ==================== INITIALIZATION ====================
 
   private async loadActiveTournaments() {
-    // Load active tournaments from database into cache on startup
-    const activeTournaments = await this.prisma.tournament.findMany({
-      where: {
-        status: {
-          in: ['registration', 'starting', 'in_progress'],
+    try {
+      const activeTournaments = await this.prisma.tournament.findMany({
+        where: {
+          status: {
+            in: ['registration', 'starting', 'in_progress'],
+          },
         },
-      },
-      include: {
-        players: true,
-        matches: true,
-      },
-    });
+        include: {
+          players: true,
+          matches: true,
+        },
+      });
 
-    for (const dbTournament of activeTournaments) {
-      const tournament = this.dbToTournament(dbTournament);
-      this.activeCache.set(tournament.id, tournament);
+      for (const dbTournament of activeTournaments) {
+        const tournament = this.dbToTournament(dbTournament);
+        this.activeCache.set(tournament.id, tournament);
+        
+        // Rebuild gameToTournament mapping for in-progress games
+        for (const match of tournament.matches) {
+          if (match.gameId && match.status === 'in_progress') {
+            this.gameToTournament.set(match.gameId, {
+              tournamentId: tournament.id,
+              matchId: match.matchId,
+            });
+          }
+        }
+      }
+
+      console.log(`Loaded ${activeTournaments.length} active tournaments from database`);
+    } catch (error) {
+      console.error('Failed to load active tournaments:', error);
     }
-
-    console.log(`Loaded ${activeTournaments.length} active tournaments from database`);
   }
 
   // ==================== DATABASE CONVERSION ====================
@@ -132,11 +146,11 @@ export class TournamentService {
     });
 
     const tournament = this.dbToTournament(dbTournament);
-    
+
     // Add to cache
     this.activeCache.set(tournament.id, tournament);
 
-    // Broadcast tournament created
+    // Broadcast tournament created to all connected users
     this.connectionManager.broadcast('tournament:created', {
       tournament: {
         id: tournament.id,
@@ -145,7 +159,7 @@ export class TournamentService {
         currentPlayers: tournament.currentPlayers,
         status: tournament.status,
         creatorId: tournament.creatorId,
-      }
+      },
     });
 
     return tournament;
@@ -203,20 +217,22 @@ export class TournamentService {
     tournament.players.push(player);
     tournament.currentPlayers++;
 
-    // Broadcast player joined
+    // Broadcast player joined to all tournament participants
     this.broadcastToTournament(tournamentId, 'tournament:player-joined', {
       tournamentId,
       player,
       currentPlayers: tournament.currentPlayers,
+      maxPlayers: tournament.maxPlayers,
     });
 
     // Auto-start if full
     if (tournament.currentPlayers === tournament.maxPlayers) {
+      console.log(`Tournament ${tournamentId} is full, auto-starting in 5 seconds`);
       setTimeout(() => {
         this.startTournament(tournamentId, tournament.creatorId).catch(err => {
           console.error('Auto-start tournament error:', err);
         });
-      }, 3000);
+      }, 5000);
     }
   }
 
@@ -285,7 +301,7 @@ export class TournamentService {
       throw new Error('Need at least 2 players to start tournament');
     }
 
-    // If not full, adjust bracket size
+    // If not full, adjust bracket size to nearest power of 2
     if (tournament.currentPlayers < tournament.maxPlayers) {
       const nextPowerOfTwo = this.nextPowerOfTwo(tournament.currentPlayers);
       tournament.maxPlayers = nextPowerOfTwo;
@@ -306,7 +322,7 @@ export class TournamentService {
     tournament.status = TournamentStatus.STARTING;
     tournament.startedAt = new Date();
 
-    // Seed players
+    // Seed players randomly
     this.seedPlayers(tournament);
 
     // Update player seeds in database
@@ -337,13 +353,18 @@ export class TournamentService {
     tournament.status = TournamentStatus.IN_PROGRESS;
     tournament.currentRound = 1;
 
+    // Broadcast tournament started with bracket info
     this.broadcastToTournament(tournamentId, 'tournament:started', {
       tournamentId,
       bracket: this.getTournamentBracket(tournamentId),
+      currentRound: 1,
+      totalRounds: tournament.totalRounds,
     });
 
-    // Start first round matches
-    await this.startRoundMatches(tournamentId, 1);
+    // Start first round matches after a short delay
+    setTimeout(() => {
+      this.startRoundMatches(tournamentId, 1);
+    }, 3000);
   }
 
   // ==================== BRACKET GENERATION ====================
@@ -435,105 +456,172 @@ export class TournamentService {
     );
 
     if (roundMatches.length === 0) {
+      // No matches ready, check if round is complete
       await this.checkRoundCompletion(tournamentId, round);
       return;
     }
 
-    // 🎯 FIX 1: Create actual game instances for each match
-    for (const match of roundMatches) {
-      if (match.player1Id && match.player2Id) {
-        try {
-          // Create a game room through GameService
-          const gameId = await this.gameService.createTournamentGame(
-            match.player1Id,
-            match.player2Id,
-            tournamentId,
-            round,
-            match.matchId
-          );
-
-          // Link game to match
-          match.gameId = gameId;
-          match.status = 'in_progress';
-
-          // Update in database
-          await this.prisma.tournamentMatch.updateMany({
-            where: {
-              tournamentId,
-              matchId: match.matchId,
-            },
-            data: {
-              gameId,
-              status: 'in_progress',
-            },
-          });
-
-          // Notify both players their match is starting
-          this.connectionManager.emitToUser(match.player1Id, 'tournament:match-starting', {
-            tournamentId,
-            matchId: match.matchId,
-            gameId,
-            round: match.round,
-            opponent: {
-              id: match.player2Id,
-              name: match.player2Name,
-            },
-          });
-
-          this.connectionManager.emitToUser(match.player2Id, 'tournament:match-starting', {
-            tournamentId,
-            matchId: match.matchId,
-            gameId,
-            round: match.round,
-            opponent: {
-              id: match.player1Id,
-              name: match.player1Name,
-            },
-          });
-
-          console.log(`Started tournament match ${match.matchId} as game ${gameId}`);
-        } catch (error) {
-          console.error(`Failed to start match ${match.matchId}:`, error);
-        }
-      }
-    }
-
-    // Broadcast that round has started (all matches now in progress)
+    // Broadcast round starting
     this.broadcastToTournament(tournamentId, 'tournament:round-started', {
       tournamentId,
       round,
-      matches: roundMatches.map(m => ({
-        matchId: m.matchId,
-        gameId: m.gameId,
-        player1Name: m.player1Name,
-        player2Name: m.player2Name,
-        status: m.status,
-      })),
+      matchCount: roundMatches.length,
     });
+
+    // Start each match - they will run simultaneously as independent games
+    for (const match of roundMatches) {
+      if (match.player1Id && match.player2Id) {
+        await this.startTournamentMatch(tournament, match);
+      }
+    }
   }
 
-  async recordMatchResult(
-    tournamentId: number,
+  /**
+   * Start a single tournament match by creating a game through the GameService.
+   * This reuses the normal game flow - players will receive game-starting events
+   * and can play using the normal game view.
+   */
+  private async startTournamentMatch(tournament: Tournament, match: TournamentMatch): Promise<void> {
+    if (!match.player1Id || !match.player2Id) {
+      console.error(`Cannot start match ${match.matchId}: missing players`);
+      return;
+    }
+
+    try {
+      // Create a game using the existing GameService
+      // This will handle all the game room setup and player notifications
+      const gameId = await this.gameService.createTournamentGame(
+        match.player1Id,
+        match.player2Id,
+        tournament.id,
+        match.round,
+        match.matchId
+      );
+
+      // Update match with game ID
+      match.gameId = gameId;
+      match.status = 'in_progress';
+
+      // Track this game -> tournament mapping
+      this.gameToTournament.set(gameId, {
+        tournamentId: tournament.id,
+        matchId: match.matchId,
+      });
+
+      // Update match in database
+      await this.prisma.tournamentMatch.updateMany({
+        where: {
+          tournamentId: tournament.id,
+          matchId: match.matchId,
+        },
+        data: {
+          gameId,
+          status: 'in_progress',
+        },
+      });
+
+      // Notify both players about their tournament match
+      const matchInfo = {
+        tournamentId: tournament.id,
+        tournamentName: tournament.name,
+        matchId: match.matchId,
+        gameId,
+        round: match.round,
+        totalRounds: tournament.totalRounds,
+      };
+
+      this.connectionManager.emitToUser(match.player1Id, 'tournament:match-starting', {
+        ...matchInfo,
+        opponent: {
+          id: match.player2Id,
+          name: match.player2Name,
+        },
+      });
+
+      this.connectionManager.emitToUser(match.player2Id, 'tournament:match-starting', {
+        ...matchInfo,
+        opponent: {
+          id: match.player1Id,
+          name: match.player1Name,
+        },
+      });
+
+      console.log(`Started tournament match ${match.matchId} as game ${gameId}`);
+    } catch (error) {
+      console.error(`Failed to start tournament match ${match.matchId}:`, error);
+      
+      // Notify players of failure
+      if (match.player1Id) {
+        this.connectionManager.emitToUser(match.player1Id, 'tournament:error', {
+          message: 'Failed to start match. Please contact tournament admin.',
+          matchId: match.matchId,
+        });
+      }
+      if (match.player2Id) {
+        this.connectionManager.emitToUser(match.player2Id, 'tournament:error', {
+          message: 'Failed to start match. Please contact tournament admin.',
+          matchId: match.matchId,
+        });
+      }
+    }
+  }
+
+  /**
+   * Handle game end event from GameService.
+   * This is called when any game ends - we check if it's a tournament game
+   * and update the bracket accordingly.
+   */
+  async handleGameEnd(
     gameId: number,
     winnerId: number,
+    player1Id: number,
+    player2Id: number,
+    score1: number,
+    score2: number
+  ): Promise<void> {
+    // Check if this game is part of a tournament
+    const tournamentInfo = this.gameToTournament.get(gameId);
+    if (!tournamentInfo) {
+      return; // Not a tournament game
+    }
+
+    const { tournamentId, matchId } = tournamentInfo;
+    
+    // Clean up tracking
+    this.gameToTournament.delete(gameId);
+
+    // Record the result
+    await this.recordMatchResult(tournamentId, matchId, winnerId, score1, score2);
+  }
+
+  private async recordMatchResult(
+    tournamentId: number,
+    matchId: string,
+    winnerId: number,
+    score1: number,
+    score2: number
   ): Promise<void> {
     const tournament = await this.getTournamentFromCacheOrDb(tournamentId);
 
     if (!tournament) {
-      console.error(`Tournament ${tournamentId} not found for game ${gameId}`);
+      console.error(`Tournament ${tournamentId} not found for match ${matchId}`);
       return;
     }
 
-    // Find the match associated with this game
-    const match = tournament.matches.find(m => m.gameId === gameId);
+    // Find the match
+    const match = tournament.matches.find(m => m.matchId === matchId);
 
     if (!match) {
-      console.error(`Match not found for game ${gameId} in tournament ${tournamentId}`);
+      console.error(`Match ${matchId} not found in tournament ${tournamentId}`);
       return;
     }
 
+    // Update match
     match.winnerId = winnerId;
     match.status = 'completed';
+
+    // Determine loser
+    const loserId = match.player1Id === winnerId ? match.player2Id : match.player1Id;
 
     // Update match in database
     await this.prisma.tournamentMatch.updateMany({
@@ -547,15 +635,39 @@ export class TournamentService {
       },
     });
 
+    // Update eliminated player in database
+    if (loserId) {
+      await this.prisma.tournamentPlayer.updateMany({
+        where: {
+          tournamentId,
+          userId: loserId,
+        },
+        data: {
+          eliminatedInRound: match.round,
+        },
+      });
+
+      // Update cache
+      const player = tournament.players.find(p => p.userId === loserId);
+      if (player) {
+        player.eliminatedInRound = match.round;
+      }
+    }
+
+    const winnerName = tournament.players.find(p => p.userId === winnerId)?.username || 'Unknown';
+
     // Broadcast match completed to all tournament participants
     this.broadcastToTournament(tournamentId, 'tournament:match-completed', {
       tournamentId,
-      matchId: match.matchId,
+      matchId,
       winnerId,
+      winnerName,
+      loserId,
       round: match.round,
-      winnerName: tournament.players.find(p => p.userId === winnerId)?.username,
+      score: { player1: score1, player2: score2 },
     });
 
+    // Check if round is complete
     await this.checkRoundCompletion(tournamentId, match.round);
   }
 
@@ -568,30 +680,24 @@ export class TournamentService {
 
     if (!allCompleted) {
       const completedCount = roundMatches.filter(m => m.status === 'completed').length;
-      console.log(`Round ${round}: ${completedCount}/${roundMatches.length} matches completed`);
-      
+      console.log(`Tournament ${tournamentId} Round ${round}: ${completedCount}/${roundMatches.length} matches completed`);
+
       // Broadcast progress update
       this.broadcastToTournament(tournamentId, 'tournament:round-progress', {
         tournamentId,
         round,
         completedMatches: completedCount,
         totalMatches: roundMatches.length,
-        matches: roundMatches.map(m => ({
-          matchId: m.matchId,
-          status: m.status,
-          player1Name: m.player1Name,
-          player2Name: m.player2Name,
-          winnerId: m.winnerId,
-        })),
       });
       return;
     }
 
-    console.log(`Round ${round} completed in tournament ${tournamentId}`);
+    console.log(`Tournament ${tournamentId} Round ${round} completed`);
 
     if (round < tournament.totalRounds) {
+      // Advance winners to next round
       await this.advanceWinners(tournament, round);
-      
+
       // Update current round in database
       await this.prisma.tournament.update({
         where: { id: tournamentId },
@@ -608,7 +714,7 @@ export class TournamentService {
         nextRound: round + 1,
       });
 
-      // Start next round after delay (all matches simultaneously)
+      // Start next round after delay
       setTimeout(() => {
         this.startRoundMatches(tournamentId, round + 1);
       }, 5000);
@@ -616,33 +722,6 @@ export class TournamentService {
       // Tournament is complete
       await this.completeTournament(tournamentId);
     }
-  }
-
-  async handleTournamentGameEnd(
-    gameId: number,
-    winnerId: number,
-    player1Id: number,
-    player2Id: number,
-    score1: number,
-    score2: number,
-    tournamentId: number
-  ): Promise<void> {
-    const tournament = this.activeCache.get(tournamentId);
-    if (!tournament) {
-      console.error(`Tournament ${tournamentId} not found`);
-      return;
-    }
-
-    // Find which match this game belongs to
-    const match = tournament.matches.find(m => m.gameId === gameId);
-
-    if (!match) {
-      console.error(`No tournament match found for game ${gameId}`);
-      return;
-    }
-
-    // Record match result
-    await this.recordMatchResult(tournament.id, gameId, winnerId);
   }
 
   private async advanceWinners(tournament: Tournament, completedRound: number): Promise<void> {
@@ -675,6 +754,7 @@ export class TournamentService {
         if (nextMatch.player1Id && nextMatch.player2Id) {
           nextMatch.status = 'ready';
         } else if (nextMatch.player1Id && !nextMatch.player2Id) {
+          // Bye
           nextMatch.winnerId = nextMatch.player1Id;
           nextMatch.status = 'completed';
         }
@@ -731,12 +811,38 @@ export class TournamentService {
       tournamentId,
       winnerId: tournament.winnerId,
       winnerName: tournament.winnerName,
+      finalStandings: this.getFinalStandings(tournament),
     });
 
     // Remove from active cache after 1 hour
     setTimeout(() => {
       this.activeCache.delete(tournamentId);
     }, 3600000);
+  }
+
+  private getFinalStandings(tournament: Tournament): { userId: number; username: string; placement: number }[] {
+    const standings: { userId: number; username: string; placement: number }[] = [];
+    
+    // Winner is 1st place
+    if (tournament.winnerId) {
+      const winner = tournament.players.find(p => p.userId === tournament.winnerId);
+      if (winner) {
+        standings.push({ userId: winner.userId, username: winner.username, placement: 1 });
+      }
+    }
+
+    // Sort remaining players by elimination round (later = better)
+    const eliminated = tournament.players
+      .filter(p => p.userId !== tournament.winnerId && p.eliminatedInRound)
+      .sort((a, b) => (b.eliminatedInRound || 0) - (a.eliminatedInRound || 0));
+
+    let placement = 2;
+    for (const player of eliminated) {
+      standings.push({ userId: player.userId, username: player.username, placement });
+      placement++;
+    }
+
+    return standings;
   }
 
   // ==================== QUERIES ====================
@@ -758,7 +864,7 @@ export class TournamentService {
     if (!dbTournament) return null;
 
     const tournament = this.dbToTournament(dbTournament);
-    
+
     // Cache if active
     if (['registration', 'starting', 'in_progress'].includes(tournament.status)) {
       this.activeCache.set(tournamentId, tournament);
@@ -771,29 +877,14 @@ export class TournamentService {
     return this.activeCache.get(tournamentId);
   }
 
-  async getAllTournamentsFromDb(limit: number = 100): Promise<Tournament[]> {
-    const dbTournaments = await this.prisma.tournament.findMany({
-      include: {
-        players: true,
-        matches: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: limit,
-    });
-
-    return dbTournaments.map(t => this.dbToTournament(t));
-  }
-
   getAllTournaments(): Tournament[] {
     return Array.from(this.activeCache.values());
   }
 
   getActiveTournaments(): Tournament[] {
     return Array.from(this.activeCache.values()).filter(
-      t => t.status === TournamentStatus.REGISTRATION || 
-           t.status === TournamentStatus.IN_PROGRESS
+      t => t.status === TournamentStatus.REGISTRATION ||
+        t.status === TournamentStatus.IN_PROGRESS
     );
   }
 
@@ -837,9 +928,22 @@ export class TournamentService {
         status: bracket.tournament.status,
         currentRound: bracket.tournament.currentRound,
         totalRounds: bracket.tournament.totalRounds,
+        currentPlayers: bracket.tournament.currentPlayers,
+        maxPlayers: bracket.tournament.maxPlayers,
+        creatorId: bracket.tournament.creatorId,
+        winnerId: bracket.tournament.winnerId,
+        winnerName: bracket.tournament.winnerName,
       },
+      players: bracket.tournament.players.map(p => ({
+        userId: p.userId,
+        username: p.username,
+        seed: p.seed,
+        eliminated: p.eliminatedInRound !== undefined,
+        eliminatedInRound: p.eliminatedInRound,
+      })),
       rounds: bracket.rounds.map(round => ({
         roundNumber: round.roundNumber,
+        roundName: this.getRoundName(round.roundNumber, bracket.tournament.totalRounds),
         completed: round.completed,
         matches: round.matches.map(match => ({
           matchId: match.matchId,
@@ -848,29 +952,41 @@ export class TournamentService {
           player1: match.player1Id ? {
             id: match.player1Id,
             name: match.player1Name,
+            isWinner: match.winnerId === match.player1Id,
           } : null,
           player2: match.player2Id ? {
             id: match.player2Id,
             name: match.player2Name,
+            isWinner: match.winnerId === match.player2Id,
           } : null,
-          winner: match.winnerId ? {
-            id: match.winnerId,
-            name: bracket.tournament.players.find(p => p.userId === match.winnerId)?.username,
-          } : null,
+          winnerId: match.winnerId,
           gameId: match.gameId,
-          // This tells clients if they can spectate or if game is pending
-          canSpectate: match.status === 'in_progress' && match.gameId !== null,
-          isWaiting: match.status === 'in_progress' && match.gameId === null,
+          canSpectate: match.status === 'in_progress' && match.gameId !== undefined,
         })),
       })),
-      // If user ID provided, show their specific matches
-      myMatches: requestingUserId ? bracket.rounds.flatMap(r => 
-        r.matches.filter(m => 
-          m.player1Id === requestingUserId || 
+      myMatches: requestingUserId ? bracket.rounds.flatMap(r =>
+        r.matches.filter(m =>
+          m.player1Id === requestingUserId ||
           m.player2Id === requestingUserId
-        )
+        ).map(m => ({
+          matchId: m.matchId,
+          round: m.round,
+          status: m.status,
+          opponentId: m.player1Id === requestingUserId ? m.player2Id : m.player1Id,
+          opponentName: m.player1Id === requestingUserId ? m.player2Name : m.player1Name,
+          gameId: m.gameId,
+          isWinner: m.winnerId === requestingUserId,
+        }))
       ) : [],
     };
+  }
+
+  private getRoundName(round: number, totalRounds: number): string {
+    const fromFinal = totalRounds - round;
+    if (fromFinal === 0) return 'Finals';
+    if (fromFinal === 1) return 'Semi-Finals';
+    if (fromFinal === 2) return 'Quarter-Finals';
+    return `Round ${round}`;
   }
 
   getTournamentStats(tournamentId: number): TournamentStats | null {
@@ -882,12 +998,9 @@ export class TournamentService {
       m => m.status === 'completed'
     ).length;
 
-    const playersRemaining = new Set(
-      tournament.matches
-        .filter(m => m.status !== 'completed')
-        .flatMap(m => [m.player1Id, m.player2Id])
-        .filter(id => id !== null)
-    ).size;
+    const playersRemaining = tournament.players.filter(
+      p => p.eliminatedInRound === undefined
+    ).length;
 
     return {
       tournamentId,
@@ -902,16 +1015,15 @@ export class TournamentService {
   // ==================== UTILITIES ====================
 
   private setupGameEndListener(): void {
-    // Listen for game end events (replaces direct dependency)
+    // Listen for game end events from GameService via ConnectionManager
     this.connectionManager.on('tournament:game-ended', async (data: any) => {
-      await this.handleTournamentGameEnd(
+      await this.handleGameEnd(
         data.gameId,
         data.winnerId,
         data.player1Id,
         data.player2Id,
         data.score1,
-        data.score2,
-        data.tournamentId
+        data.score2
       );
     });
   }
@@ -954,6 +1066,15 @@ export class TournamentService {
       throw new Error('Cannot cancel finished tournament');
     }
 
+    // Cancel any in-progress games
+    for (const match of tournament.matches) {
+      if (match.status === 'in_progress' && match.gameId) {
+        // Clean up game tracking
+        this.gameToTournament.delete(match.gameId);
+        // Note: Games will end naturally or players can leave
+      }
+    }
+
     tournament.status = TournamentStatus.CANCELLED;
 
     // Update in database
@@ -966,6 +1087,7 @@ export class TournamentService {
 
     this.broadcastToTournament(tournamentId, 'tournament:cancelled', {
       tournamentId,
+      message: 'Tournament has been cancelled by the creator',
     });
 
     // Remove from cache after 5 minutes

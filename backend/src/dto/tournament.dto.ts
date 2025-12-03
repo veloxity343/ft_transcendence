@@ -29,26 +29,21 @@ export class CreateTournamentDto {
   bracketType?: BracketType;
 }
 
-export class JoinTournamentDto {
+// Generic DTO for tournament actions that only need tournament ID
+export class TournamentIdDto {
   @IsNumber()
   @IsNotEmpty()
   tournamentId: number;
 }
 
-export class LeaveTournamentDto {
-  @IsNumber()
-  @IsNotEmpty()
-  tournamentId: number;
-}
+// Aliases for semantic clarity (all use the same validation)
+export const JoinTournamentDto = TournamentIdDto;
+export const LeaveTournamentDto = TournamentIdDto;
+export const StartTournamentDto = TournamentIdDto;
+export const CancelTournamentDto = TournamentIdDto;
 
-export class StartTournamentDto {
-  @IsNumber()
-  @IsNotEmpty()
-  tournamentId: number;
-}
-
-export class TournamentActionDto {
-  @IsNumber()
-  @IsNotEmpty()
-  tournamentId: number;
-}
+// Type exports for TypeScript
+export type JoinTournamentDto = TournamentIdDto;
+export type LeaveTournamentDto = TournamentIdDto;
+export type StartTournamentDto = TournamentIdDto;
+export type CancelTournamentDto = TournamentIdDto;

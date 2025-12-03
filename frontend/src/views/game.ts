@@ -3,6 +3,7 @@ import { GameRenderer } from '../game/renderer';
 import { GAME_THEMES } from '../game/themes';
 import { showToast } from '../utils/toast';
 import { storage } from '../utils/storage';
+import { router } from '../router';
 
 // SVG Icons
 const icons = {
@@ -160,6 +161,12 @@ export function GameView(): HTMLElement {
   const unsubscribers: (() => void)[] = [];
   let lastScore1 = 0;
   let lastScore2 = 0;
+  let tournamentContext: {
+    tournamentId: number;
+    tournamentName?: string;
+    round: number;
+    matchId: string;
+  } | null = null;
 
   // Elements
   const gameModeSelection = container.querySelector('#gameModeSelection') as HTMLElement;
@@ -333,6 +340,7 @@ export function GameView(): HTMLElement {
     gameId = null;
     playerNumber = null;
     isLocalGame = false;
+    tournamentContext = null;
     currentDirection = 0;
     currentDirectionP1 = 0;
     currentDirectionP2 = 0;
@@ -421,6 +429,20 @@ export function GameView(): HTMLElement {
       
       if (msg.data.isLocal) isLocalGame = true;
       if (msg.data.vsAI) isLocalGame = false;
+
+      // Capture tournament context if present
+      if (msg.data.tournamentId) {
+        tournamentContext = {
+          tournamentId: msg.data.tournamentId,
+          tournamentName: msg.data.tournamentName,
+          round: msg.data.round,
+          matchId: msg.data.matchId,
+        };
+        // Show tournament indicator
+        updateStatus(`Tournament Round ${msg.data.round}`, 'waiting');
+      } else {
+        tournamentContext = null;
+      }
       
       // Highlight current player's name
       if (!isLocalGame) {
@@ -480,20 +502,36 @@ export function GameView(): HTMLElement {
       // Determine winner
       let won = false;
       if (msg.data.isLocal) {
-        // For local games, just show who won
         const winner = finalScore.player1 > finalScore.player2 ? 'Player 1' : 'Player 2';
         showToast(`${winner} Wins!`, 'info');
       } else {
-        // For remote games, check if current user won
         won = msg.data.winnerId?.toString() === user?.id?.toString();
         showToast(won ? 'You Won!' : 'You Lost!', won ? 'success' : 'error');
       }
       
-      // Return to menu after delay
-      setTimeout(() => { 
-        resetGame(); 
-        showScreen('menu'); 
-      }, 3000);
+      if (tournamentContext) {
+        const tournamentId = tournamentContext.tournamentId;
+        setTimeout(() => {
+          // Show tournament return option
+          const returnToTournament = confirm(
+            `${won ? 'Congratulations!' : 'Game over!'}\n\nReturn to tournament bracket?`
+          );
+          
+          resetGame();
+          if (returnToTournament) {
+            router.navigateTo('/tournament');
+            // TODO: Deep link to specific tournament/match
+          } else {
+            showScreen('menu');
+          }
+        }, 2000);
+      } else {
+        // Regular game - just return to menu
+        setTimeout(() => { 
+          resetGame(); 
+          showScreen('menu'); 
+        }, 3000);
+      }
     }));
 
     // Handle game cancelled
