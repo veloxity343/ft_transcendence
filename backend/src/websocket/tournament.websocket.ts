@@ -13,6 +13,11 @@ export interface TournamentIdMessage {
   tournamentId: number;
 }
 
+export interface ReadyForMatchMessage {
+  tournamentId: number;
+  matchId: string;
+}
+
 export async function setupTournamentWebSocket(
   fastify: FastifyInstance,
   tournamentService: TournamentService
@@ -125,6 +130,40 @@ export async function setupTournamentWebSocket(
               await tournamentService.startTournament(tournamentId, userId);
               // Note: tournament:started is broadcast by the service to all participants
               // No need to send a separate confirmation here
+            } catch (error: any) {
+              socket.send(JSON.stringify({
+                event: 'tournament:error',
+                data: { message: error.message },
+              }));
+            }
+            break;
+          }
+
+          // ==================== READY FOR MATCH ====================
+          case 'tournament:ready': {
+            const { tournamentId, matchId } = message.data as ReadyForMatchMessage;
+
+            if (!tournamentId || !matchId) {
+              socket.send(JSON.stringify({
+                event: 'tournament:error',
+                data: { message: 'Tournament ID and Match ID are required' },
+              }));
+              break;
+            }
+
+            try {
+              await tournamentService.playerReady(userId, tournamentId, matchId);
+
+              // Send confirmation to the player
+              socket.send(JSON.stringify({
+                event: 'tournament:ready-confirmed',
+                data: { 
+                  success: true, 
+                  tournamentId, 
+                  matchId,
+                  message: 'You are ready! Waiting for opponent...',
+                },
+              }));
             } catch (error: any) {
               socket.send(JSON.stringify({
                 event: 'tournament:error',

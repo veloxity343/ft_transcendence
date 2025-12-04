@@ -139,6 +139,8 @@ model TournamentMatch {
   player1Name String?
   player2Id   Int?
   player2Name String?
+  player1Ready  Boolean @default(false)
+  player2Ready  Boolean @default(false)
   
   // Result
   winnerId Int?

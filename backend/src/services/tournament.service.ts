@@ -84,6 +84,8 @@ export class TournamentService {
       player1Name: m.player1Name,
       player2Id: m.player2Id,
       player2Name: m.player2Name,
+      player1Ready: m.player1Ready || false,
+      player2Ready: m.player2Ready || false,
       winnerId: m.winnerId,
       gameId: m.gameId,
       status: m.status as 'pending' | 'ready' | 'in_progress' | 'completed',
@@ -361,9 +363,9 @@ export class TournamentService {
       totalRounds: tournament.totalRounds,
     });
 
-    // Start first round matches after a short delay
+    // Notify players about ready matches (don't auto-start)
     setTimeout(() => {
-      this.startRoundMatches(tournamentId, 1);
+      this.notifyReadyMatches(tournamentId, 1);
     }, 3000);
   }
 
@@ -394,6 +396,8 @@ export class TournamentService {
           matchNumber: matchNum,
           player1Id: null,
           player2Id: null,
+          player1Ready: false,
+          player2Ready: false,
           status: 'pending',
         };
 
@@ -412,7 +416,7 @@ export class TournamentService {
             match.player2Name = tournament.players[player2Index].username;
           }
 
-          // If both players exist, match is ready
+          // If both players exist, match is ready (waiting for players to ready up)
           if (match.player1Id && match.player2Id) {
             match.status = 'ready';
           } else if (match.player1Id && !match.player2Id) {
@@ -435,6 +439,8 @@ export class TournamentService {
             player1Name: match.player1Name,
             player2Id: match.player2Id,
             player2Name: match.player2Name,
+            player1Ready: match.player1Ready,
+            player2Ready: match.player2Ready,
             winnerId: match.winnerId,
             status: match.status,
           },
@@ -445,9 +451,104 @@ export class TournamentService {
     tournament.matches = matches;
   }
 
+  // ==================== READY SYSTEM ====================
+
+  /**
+   * Mark a player as ready for their match.
+   * When both players are ready, the match starts automatically.
+   */
+  async playerReady(userId: number, tournamentId: number, matchId: string): Promise<void> {
+    const tournament = await this.getTournamentFromCacheOrDb(tournamentId);
+
+    if (!tournament) {
+      throw new Error('Tournament not found');
+    }
+
+    if (tournament.status !== TournamentStatus.IN_PROGRESS) {
+      throw new Error('Tournament is not in progress');
+    }
+
+    // Find the match
+    const match = tournament.matches.find(m => m.matchId === matchId);
+
+    if (!match) {
+      throw new Error('Match not found');
+    }
+
+    if (match.status !== 'ready') {
+      throw new Error('Match is not ready for players');
+    }
+
+    if (match.round !== tournament.currentRound) {
+      throw new Error('This match is not in the current round');
+    }
+
+    // Check if user is a player in this match
+    const isPlayer1 = match.player1Id === userId;
+    const isPlayer2 = match.player2Id === userId;
+
+    if (!isPlayer1 && !isPlayer2) {
+      throw new Error('You are not a player in this match');
+    }
+
+    // Set ready state
+    if (isPlayer1) {
+      if (match.player1Ready) {
+        throw new Error('You are already ready');
+      }
+      match.player1Ready = true;
+    } else {
+      if (match.player2Ready) {
+        throw new Error('You are already ready');
+      }
+      match.player2Ready = true;
+    }
+
+    // Update in database
+    await this.prisma.tournamentMatch.updateMany({
+      where: {
+        tournamentId,
+        matchId,
+      },
+      data: {
+        player1Ready: match.player1Ready,
+        player2Ready: match.player2Ready,
+      },
+    });
+
+    // Broadcast ready state update
+    this.broadcastToTournament(tournamentId, 'tournament:player-ready', {
+      tournamentId,
+      matchId,
+      oderId: userId,
+      player1Ready: match.player1Ready,
+      player2Ready: match.player2Ready,
+    });
+
+    // Check if both players are ready
+    if (match.player1Ready && match.player2Ready) {
+      console.log(`Both players ready for match ${matchId}, starting game...`);
+      
+      // Notify both players that match is starting
+      this.broadcastToTournament(tournamentId, 'tournament:match-ready', {
+        tournamentId,
+        matchId,
+      });
+
+      // Start the match after a short delay
+      setTimeout(() => {
+        this.startTournamentMatch(tournament, match);
+      }, 1500);
+    }
+  }
+
   // ==================== MATCH MANAGEMENT ====================
 
-  private async startRoundMatches(tournamentId: number, round: number): Promise<void> {
+  /**
+   * Notify players about matches that are ready in a round.
+   * Does NOT auto-start games - waits for players to ready up.
+   */
+  private async notifyReadyMatches(tournamentId: number, round: number): Promise<void> {
     const tournament = await this.getTournamentFromCacheOrDb(tournamentId);
     if (!tournament) return;
 
@@ -456,22 +557,45 @@ export class TournamentService {
     );
 
     if (roundMatches.length === 0) {
-      // No matches ready, check if round is complete
+      // No matches ready, check if round is complete (all byes)
       await this.checkRoundCompletion(tournamentId, round);
       return;
     }
 
-    // Broadcast round starting
+    // Broadcast round starting - players need to ready up
     this.broadcastToTournament(tournamentId, 'tournament:round-started', {
       tournamentId,
       round,
       matchCount: roundMatches.length,
+      message: 'Click Ready when you are prepared for your match!',
     });
 
-    // Start each match - they will run simultaneously as independent games
+    // Notify each player about their specific match
     for (const match of roundMatches) {
-      if (match.player1Id && match.player2Id) {
-        await this.startTournamentMatch(tournament, match);
+      if (match.player1Id) {
+        this.connectionManager.emitToUser(match.player1Id, 'tournament:match-waiting', {
+          tournamentId,
+          tournamentName: tournament.name,
+          matchId: match.matchId,
+          round: match.round,
+          opponent: {
+            id: match.player2Id,
+            name: match.player2Name,
+          },
+        });
+      }
+
+      if (match.player2Id) {
+        this.connectionManager.emitToUser(match.player2Id, 'tournament:match-waiting', {
+          tournamentId,
+          tournamentName: tournament.name,
+          matchId: match.matchId,
+          round: match.round,
+          opponent: {
+            id: match.player1Id,
+            name: match.player1Name,
+          },
+        });
       }
     }
   }
@@ -484,6 +608,12 @@ export class TournamentService {
   private async startTournamentMatch(tournament: Tournament, match: TournamentMatch): Promise<void> {
     if (!match.player1Id || !match.player2Id) {
       console.error(`Cannot start match ${match.matchId}: missing players`);
+      return;
+    }
+
+    // Double-check both players are ready
+    if (!match.player1Ready || !match.player2Ready) {
+      console.error(`Cannot start match ${match.matchId}: players not ready`);
       return;
     }
 
@@ -550,16 +680,31 @@ export class TournamentService {
     } catch (error) {
       console.error(`Failed to start tournament match ${match.matchId}:`, error);
       
+      // Reset ready state so players can try again
+      match.player1Ready = false;
+      match.player2Ready = false;
+      
+      await this.prisma.tournamentMatch.updateMany({
+        where: {
+          tournamentId: tournament.id,
+          matchId: match.matchId,
+        },
+        data: {
+          player1Ready: false,
+          player2Ready: false,
+        },
+      });
+      
       // Notify players of failure
       if (match.player1Id) {
         this.connectionManager.emitToUser(match.player1Id, 'tournament:error', {
-          message: 'Failed to start match. Please contact tournament admin.',
+          message: 'Failed to start match. Please ready up again.',
           matchId: match.matchId,
         });
       }
       if (match.player2Id) {
         this.connectionManager.emitToUser(match.player2Id, 'tournament:error', {
-          message: 'Failed to start match. Please contact tournament admin.',
+          message: 'Failed to start match. Please ready up again.',
           matchId: match.matchId,
         });
       }
@@ -619,6 +764,9 @@ export class TournamentService {
     // Update match
     match.winnerId = winnerId;
     match.status = 'completed';
+    // Reset ready state for cleanup
+    match.player1Ready = false;
+    match.player2Ready = false;
 
     // Determine loser
     const loserId = match.player1Id === winnerId ? match.player2Id : match.player1Id;
@@ -632,6 +780,8 @@ export class TournamentService {
       data: {
         winnerId,
         status: 'completed',
+        player1Ready: false,
+        player2Ready: false,
       },
     });
 
@@ -714,9 +864,9 @@ export class TournamentService {
         nextRound: round + 1,
       });
 
-      // Start next round after delay
+      // Notify players about next round matches (don't auto-start)
       setTimeout(() => {
-        this.startRoundMatches(tournamentId, round + 1);
+        this.notifyReadyMatches(tournamentId, round + 1);
       }, 5000);
     } else {
       // Tournament is complete
@@ -743,12 +893,14 @@ export class TournamentService {
         nextMatch.player1Name = tournament.players.find(
           p => p.userId === match1.winnerId
         )?.username;
+        nextMatch.player1Ready = false;
 
         if (match2) {
           nextMatch.player2Id = match2.winnerId || null;
           nextMatch.player2Name = tournament.players.find(
             p => p.userId === match2.winnerId
           )?.username;
+          nextMatch.player2Ready = false;
         }
 
         if (nextMatch.player1Id && nextMatch.player2Id) {
@@ -768,8 +920,10 @@ export class TournamentService {
           data: {
             player1Id: nextMatch.player1Id,
             player1Name: nextMatch.player1Name,
+            player1Ready: nextMatch.player1Ready,
             player2Id: nextMatch.player2Id,
             player2Name: nextMatch.player2Name,
+            player2Ready: nextMatch.player2Ready,
             winnerId: nextMatch.winnerId,
             status: nextMatch.status,
           },
@@ -953,11 +1107,13 @@ export class TournamentService {
             id: match.player1Id,
             name: match.player1Name,
             isWinner: match.winnerId === match.player1Id,
+            isReady: match.player1Ready,
           } : null,
           player2: match.player2Id ? {
             id: match.player2Id,
             name: match.player2Name,
             isWinner: match.winnerId === match.player2Id,
+            isReady: match.player2Ready,
           } : null,
           winnerId: match.winnerId,
           gameId: match.gameId,
@@ -968,15 +1124,20 @@ export class TournamentService {
         r.matches.filter(m =>
           m.player1Id === requestingUserId ||
           m.player2Id === requestingUserId
-        ).map(m => ({
-          matchId: m.matchId,
-          round: m.round,
-          status: m.status,
-          opponentId: m.player1Id === requestingUserId ? m.player2Id : m.player1Id,
-          opponentName: m.player1Id === requestingUserId ? m.player2Name : m.player1Name,
-          gameId: m.gameId,
-          isWinner: m.winnerId === requestingUserId,
-        }))
+        ).map(m => {
+          const isPlayer1 = m.player1Id === requestingUserId;
+          return {
+            matchId: m.matchId,
+            round: m.round,
+            status: m.status,
+            opponentId: isPlayer1 ? m.player2Id : m.player1Id,
+            opponentName: isPlayer1 ? m.player2Name : m.player1Name,
+            gameId: m.gameId,
+            isWinner: m.winnerId === requestingUserId,
+            iAmReady: isPlayer1 ? m.player1Ready : m.player2Ready,
+            opponentReady: isPlayer1 ? m.player2Ready : m.player1Ready,
+          };
+        })
       ) : [],
     };
   }

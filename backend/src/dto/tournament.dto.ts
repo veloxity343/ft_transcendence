@@ -36,14 +36,27 @@ export class TournamentIdDto {
   tournamentId: number;
 }
 
+// DTO for ready action - needs both tournament ID and match ID
+export class ReadyForMatchDto {
+  @IsNumber()
+  @IsNotEmpty()
+  tournamentId: number;
+
+  @IsString()
+  @IsNotEmpty()
+  matchId: string;
+}
+
 // Aliases for semantic clarity (all use the same validation)
 export const JoinTournamentDto = TournamentIdDto;
 export const LeaveTournamentDto = TournamentIdDto;
 export const StartTournamentDto = TournamentIdDto;
 export const CancelTournamentDto = TournamentIdDto;
+export const TournamentActionDto = TournamentIdDto;
 
 // Type exports for TypeScript
 export type JoinTournamentDto = TournamentIdDto;
 export type LeaveTournamentDto = TournamentIdDto;
 export type StartTournamentDto = TournamentIdDto;
 export type CancelTournamentDto = TournamentIdDto;
+export type TournamentActionDto = TournamentIdDto;

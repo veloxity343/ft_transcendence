@@ -29,6 +29,8 @@ export interface TournamentMatch {
   player2Id: number | null;
   player1Name?: string;
   player2Name?: string;
+  player1Ready?: boolean;
+  player2Ready?: boolean;
   winnerId?: number;
   gameId?: number;
   status: 'pending' | 'ready' | 'in_progress' | 'completed';

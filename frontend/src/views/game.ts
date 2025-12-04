@@ -32,8 +32,13 @@ export function GameView(): HTMLElement {
   const container = document.createElement('div');
   container.className = 'flex-1 p-4 md:p-8 flex flex-col items-center';
 
+  // Check for tournament theme preference first, then fall back to saved game theme
+  const tournamentTheme = localStorage.getItem('tournamentTheme');
+  const savedGameTheme = localStorage.getItem('gameTheme') || 'atari';
+  const initialTheme = tournamentTheme || savedGameTheme;
+
   const themeOptions = Object.entries(GAME_THEMES).map(([key, theme]) => 
-    `<option value="${key}">${theme.name}</option>`
+    `<option value="${key}" ${key === initialTheme ? 'selected' : ''}>${theme.name}</option>`
   ).join('');
 
   container.innerHTML = `
@@ -185,7 +190,7 @@ export function GameView(): HTMLElement {
   let gameId: number | null = null;
   let playerNumber: 1 | 2 | null = null;
   let renderer: GameRenderer | null = null;
-  let currentTheme = 'atari';
+  let currentTheme = initialTheme;
   let isLocalGame = false;
   let currentDirection = 0;
   let currentDirectionP1 = 0;
@@ -463,6 +468,9 @@ export function GameView(): HTMLElement {
     player1Score.textContent = '0';
     player2Score.textContent = '0';
     hideOpponentDisconnected();
+    
+    // Clear tournament theme preference after game ends
+    localStorage.removeItem('tournamentTheme');
   };
 
   // Helper to send message with connection check
@@ -849,6 +857,8 @@ export function GameView(): HTMLElement {
   // Theme change
   themeSelect.addEventListener('change', () => {
     currentTheme = themeSelect.value;
+    // Save as the general game theme preference
+    localStorage.setItem('gameTheme', currentTheme);
     if (renderer) {
       renderer.setTheme(currentTheme);
       renderer.drawIdleScreen();
