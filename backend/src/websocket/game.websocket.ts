@@ -237,10 +237,95 @@ export async function setupGameWebSocket(
 
           case 'game:leave': {
             try {
-              gameService.handleDisconnect(userId);
+              gameService.leaveGame(userId);
+              // Note: The service will send 'game:left-with-reconnect' for in-progress games
+              // or we send 'game:left' for non-in-progress games
               socket.send(JSON.stringify({
                 event: 'game:left',
                 data: { success: true },
+              }));
+            } catch (error: any) {
+              socket.send(JSON.stringify({
+                event: 'game:error',
+                data: { message: error.message },
+              }));
+            }
+            break;
+          }
+
+          // ==================== NEW: FORFEIT ====================
+          case 'game:forfeit': {
+            try {
+              const result = gameService.forfeitGame(userId);
+              
+              if (result.success) {
+                socket.send(JSON.stringify({
+                  event: 'game:forfeited',
+                  data: { success: true },
+                }));
+              } else {
+                socket.send(JSON.stringify({
+                  event: 'game:error',
+                  data: { message: result.error || 'Failed to forfeit' },
+                }));
+              }
+            } catch (error: any) {
+              socket.send(JSON.stringify({
+                event: 'game:error',
+                data: { message: error.message },
+              }));
+            }
+            break;
+          }
+
+          // ==================== NEW: REJOIN ====================
+          case 'game:rejoin': {
+            try {
+              const { gameId } = message.data || {};
+              
+              if (!gameId || typeof gameId !== 'number') {
+                throw new Error('Invalid gameId');
+              }
+
+              const playerInfo = await gameService.rejoinGame(userId, gameId);
+              
+              if (playerInfo) {
+                // Get current game state for the rejoining player
+                const gameState = await gameService.spectateGame(gameId);
+                const gameInfo = gameService.getGameInfo(gameId);
+                
+                socket.send(JSON.stringify({
+                  event: 'game:rejoined',
+                  data: {
+                    ...playerInfo,
+                    gameState,
+                    player1Name: gameInfo?.player1Name,
+                    player2Name: gameInfo?.player2Name,
+                  },
+                }));
+              } else {
+                socket.send(JSON.stringify({
+                  event: 'game:error',
+                  data: { message: 'Cannot rejoin game - game ended or timeout expired' },
+                }));
+              }
+            } catch (error: any) {
+              socket.send(JSON.stringify({
+                event: 'game:error',
+                data: { message: error.message },
+              }));
+            }
+            break;
+          }
+
+          // ==================== NEW: CHECK RECONNECTABLE ====================
+          case 'game:check-reconnectable': {
+            try {
+              const reconnectable = gameService.getReconnectableGame(userId);
+              
+              socket.send(JSON.stringify({
+                event: 'game:reconnectable-game',
+                data: reconnectable || { gameId: null },
               }));
             } catch (error: any) {
               socket.send(JSON.stringify({
@@ -258,9 +343,15 @@ export async function setupGameWebSocket(
               const gameId = gameService.getUserGameId(userId);
               
               if (!gameId) {
+                // Also check for reconnectable games
+                const reconnectable = gameService.getReconnectableGame(userId);
+                
                 socket.send(JSON.stringify({
                   event: 'game:active-state',
-                  data: { inGame: false },
+                  data: { 
+                    inGame: false,
+                    reconnectable: reconnectable || null,
+                  },
                 }));
                 break;
               }

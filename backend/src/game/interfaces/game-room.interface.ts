@@ -8,6 +8,7 @@ export interface GameRoom {
   player1Avatar: string;
   player1Score: number;
   player1Disconnected: boolean;
+  player1DisconnectedAt?: Date;
   paddleLeft: number;
   paddleLeftDirection: PaddleDirection;
 
@@ -16,6 +17,7 @@ export interface GameRoom {
   player2Avatar?: string;
   player2Score: number;
   player2Disconnected: boolean;
+  player2DisconnectedAt?: Date;
   paddleRight: number;
   paddleRightDirection: PaddleDirection;
 
@@ -28,6 +30,7 @@ export interface GameRoom {
   status: GameStatus;
   isPrivate: boolean;
   isLocal?: boolean;
+  vsAI?: boolean;
   startTime?: Date;
   lastUpdateTime: Date;
 

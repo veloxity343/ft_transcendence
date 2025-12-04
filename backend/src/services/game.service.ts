@@ -29,38 +29,234 @@ export class GameService {
   private readonly SPIN_INFLUENCE = 0.8;
   private readonly BALL_SPEED_DECAY = 0.9995;
 
+  // Reconnection timeout (30 seconds)
+  private readonly RECONNECT_TIMEOUT = 30000;
+
   constructor(
     private prisma: PrismaClient,
     private userService: UserService,
     private connectionManager: ConnectionManager,
   ) {}
 
+  // ==================== FORFEIT ====================
+
   /**
-   * SYNCHRONOUSLY release user from game - they can immediately join a new game.
-   * Cleanup happens asynchronously in the background and CANNOT touch the user afterward.
+   * Forfeit the current game - opponent wins immediately.
+   * This is permanent and cannot be undone.
+   */
+  forfeitGame(userId: number): { success: boolean; error?: string } {
+    const gameId = this.userToRoom.get(userId);
+    
+    if (!gameId) {
+      return { success: false, error: 'Not in a game' };
+    }
+
+    const room = this.rooms.get(gameId);
+    
+    if (!room) {
+      this.userToRoom.delete(userId);
+      return { success: false, error: 'Game not found' };
+    }
+
+    if (room.status !== GameStatus.IN_PROGRESS) {
+      return { success: false, error: 'Game is not in progress' };
+    }
+
+    // For local games, just end the game
+    if (room.isLocal) {
+      return this.endLocalGameForfeit(gameId, userId);
+    }
+
+    // Determine winner (opponent of forfeiting player)
+    const isPlayer1 = room.player1Id === userId;
+    const winnerId = isPlayer1 ? room.player2Id : room.player1Id;
+    const loserId = userId;
+
+    if (!winnerId) {
+      return { success: false, error: 'No opponent to forfeit to' };
+    }
+
+    // Stop game loop immediately
+    if (room.intervalId) {
+      clearInterval(room.intervalId);
+      room.intervalId = undefined;
+    }
+
+    room.status = GameStatus.FINISHED;
+
+    // Set final scores - winner gets WIN_SCORE, loser keeps current score
+    if (isPlayer1) {
+      room.player2Score = this.WIN_SCORE;
+    } else {
+      room.player1Score = this.WIN_SCORE;
+    }
+
+    const duration = room.startTime ? Date.now() - room.startTime.getTime() : 0;
+
+    // Emit game ended to both players
+    this.emitToRoom(gameId, 'game-ended', {
+      gameId,
+      winnerId,
+      finalScore: {
+        player1: room.player1Score,
+        player2: room.player2Score,
+      },
+      forfeit: true,
+      forfeitedBy: userId,
+      isLocal: false,
+    });
+
+    // Save game and update stats
+    this.saveGame(
+      gameId,
+      room.player1Id,
+      room.player2Id!,
+      room.player1Score,
+      room.player2Score,
+      room.startTime || new Date(),
+      new Date(),
+      duration
+    ).catch(err => console.error('Failed to save forfeit game:', err));
+
+    this.updateGameStats(winnerId, loserId, gameId, duration)
+      .catch(err => console.error('Failed to update forfeit stats:', err));
+
+    // Handle tournament game
+    this.handleTournamentGameEnd(gameId, winnerId, loserId, room);
+
+    // Cleanup
+    this.cleanupAfterGameEnd(gameId, room);
+
+    return { success: true };
+  }
+
+  private endLocalGameForfeit(gameId: number, userId: number): { success: boolean; error?: string } {
+    const room = this.rooms.get(gameId);
+    if (!room) return { success: false, error: 'Game not found' };
+
+    if (room.intervalId) {
+      clearInterval(room.intervalId);
+      room.intervalId = undefined;
+    }
+
+    room.status = GameStatus.FINISHED;
+
+    this.connectionManager.emitToUser(userId, 'game-ended', {
+      gameId,
+      finalScore: {
+        player1: room.player1Score,
+        player2: room.player2Score,
+      },
+      forfeit: true,
+      isLocal: true,
+    });
+
+    // Cleanup
+    this.userToRoom.delete(userId);
+    this.connectionManager.setStatus(userId, UserStatus.ONLINE);
+    this.rooms.delete(gameId);
+
+    return { success: true };
+  }
+
+  // ==================== LEAVE (with reconnection) ====================
+
+  /**
+   * Leave the current game temporarily. For in-progress games, 
+   * allows reconnection within RECONNECT_TIMEOUT.
+   * For waiting/starting games, cancels the game.
    */
   leaveGame(userId: number): boolean {
     const gameId = this.userToRoom.get(userId);
     
     if (!gameId) {
-      return false; // User not in any game
+      return false;
     }
 
     const room = this.rooms.get(gameId);
 
-    // ========== SYNCHRONOUS USER RELEASE ==========
-    // This MUST happen first, making the user immediately available for new games
-    this.userToRoom.delete(userId);
-    this.connectionManager.setStatus(userId, UserStatus.ONLINE);
-    
-    // User is now FREE - they can join a new game immediately
-    // Everything below this point CANNOT affect this user anymore
-
     if (!room) {
-      return true; // Room already gone
+      this.userToRoom.delete(userId);
+      this.connectionManager.setStatus(userId, UserStatus.ONLINE);
+      return true;
     }
 
-    // Mark that this user left - used by game loop to detect abandonment
+    // For local games, leaving means ending the game
+    if (room.isLocal) {
+      return this.immediateLeaveCleanup(userId, gameId, room);
+    }
+
+    // For AI games, leaving means ending the game
+    if (room.vsAI) {
+      return this.immediateLeaveCleanup(userId, gameId, room);
+    }
+
+    // For games not in progress, do immediate cleanup (cancel)
+    if (room.status === GameStatus.WAITING || room.status === GameStatus.STARTING) {
+      return this.immediateLeaveCleanup(userId, gameId, room);
+    }
+
+    // For in-progress games, allow reconnection
+    if (room.status === GameStatus.IN_PROGRESS) {
+      return this.leaveWithReconnection(userId, gameId, room);
+    }
+
+    // Game is finished, just cleanup
+    return this.immediateLeaveCleanup(userId, gameId, room);
+  }
+
+  /**
+   * Leave an in-progress game with reconnection capability
+   */
+  private leaveWithReconnection(userId: number, gameId: number, room: GameRoom): boolean {
+    const isPlayer1 = room.player1Id === userId;
+    const now = new Date();
+
+    // Mark player as disconnected with timestamp
+    if (isPlayer1) {
+      room.player1Disconnected = true;
+      room.player1DisconnectedAt = now;
+    } else if (room.player2Id === userId) {
+      room.player2Disconnected = true;
+      room.player2DisconnectedAt = now;
+    } else {
+      return false;
+    }
+
+    // Remove from userToRoom mapping
+    this.userToRoom.delete(userId);
+    this.connectionManager.setStatus(userId, UserStatus.ONLINE);
+
+    // Notify the user they left and can rejoin
+    const reconnectDeadline = new Date(now.getTime() + this.RECONNECT_TIMEOUT);
+    this.connectionManager.emitToUser(userId, 'game:left-with-reconnect', {
+      gameId,
+      reconnectDeadline,
+      reconnectTimeoutMs: this.RECONNECT_TIMEOUT,
+    });
+
+    // Notify opponent that player disconnected
+    const opponentId = isPlayer1 ? room.player2Id : room.player1Id;
+    if (opponentId && this.userToRoom.get(opponentId) === gameId) {
+      this.connectionManager.emitToUser(opponentId, 'game:opponent-disconnected', {
+        gameId,
+        reconnectDeadline,
+        reconnectTimeoutMs: this.RECONNECT_TIMEOUT,
+      });
+    }
+
+    return true;
+  }
+
+  /**
+   * Immediate leave/cancel without reconnection option
+   */
+  private immediateLeaveCleanup(userId: number, gameId: number, room: GameRoom): boolean {
+    // Remove user immediately
+    this.userToRoom.delete(userId);
+    this.connectionManager.setStatus(userId, UserStatus.ONLINE);
+
+    // Mark that this user left
     if (room.player1Id === userId) {
       (room as any).player1Left = true;
     }
@@ -68,54 +264,203 @@ export class GameService {
       (room as any).player2Left = true;
     }
 
-    // Stop game loop immediately to prevent it from running on stale data
+    // Stop game loop
     if (room.intervalId) {
       clearInterval(room.intervalId);
       room.intervalId = undefined;
     }
 
-    // ========== ASYNC BACKGROUND CLEANUP ==========
-    // This runs later and is ISOLATED from the user who left
+    // Schedule cleanup
     this.scheduleGameCleanup(gameId, userId);
 
     return true;
   }
 
+  // ==================== REJOIN ====================
+
   /**
-   * Schedule cleanup to run asynchronously in the background.
-   * This cleanup is FULLY ISOLATED and cannot touch users who have moved on.
+   * Rejoin an in-progress game after disconnecting
+   */
+  async rejoinGame(userId: number, gameId: number): Promise<PlayerInfo | null> {
+    // Check if user is already in a game
+    const currentGameId = this.userToRoom.get(userId);
+    if (currentGameId) {
+      if (currentGameId === gameId) {
+        const room = this.rooms.get(gameId);
+        if (room) {
+          const isPlayer1 = room.player1Id === userId;
+          const user = await this.userService.getUser(userId);
+          return {
+            playerId: userId,
+            playerName: user.username,
+            playerAvatar: user.avatar,
+            playerNumber: isPlayer1 ? 1 : 2,
+            gameId,
+          };
+        }
+      }
+      return null;
+    }
+
+    const room = this.rooms.get(gameId);
+    if (!room) {
+      return null;
+    }
+
+    if (room.status !== GameStatus.IN_PROGRESS) {
+      return null;
+    }
+
+    // Verify user was a player in this game
+    const isPlayer1 = room.player1Id === userId;
+    const isPlayer2 = room.player2Id === userId;
+
+    if (!isPlayer1 && !isPlayer2) {
+      return null;
+    }
+
+    // Check if within reconnection window
+    const disconnectedAt = isPlayer1 ? room.player1DisconnectedAt : room.player2DisconnectedAt;
+    const wasDisconnected = isPlayer1 ? room.player1Disconnected : room.player2Disconnected;
+
+    if (!wasDisconnected) {
+      return null;
+    }
+
+    if (disconnectedAt) {
+      const elapsed = Date.now() - disconnectedAt.getTime();
+      if (elapsed > this.RECONNECT_TIMEOUT) {
+        return null;
+      }
+    }
+
+    // Mark as reconnected
+    if (isPlayer1) {
+      room.player1Disconnected = false;
+      room.player1DisconnectedAt = undefined;
+    } else {
+      room.player2Disconnected = false;
+      room.player2DisconnectedAt = undefined;
+    }
+
+    // Re-add to userToRoom mapping
+    this.userToRoom.set(userId, gameId);
+    this.connectionManager.setStatus(userId, UserStatus.IN_GAME);
+
+    // Notify opponent
+    const opponentId = isPlayer1 ? room.player2Id : room.player1Id;
+    if (opponentId && this.userToRoom.get(opponentId) === gameId) {
+      this.connectionManager.emitToUser(opponentId, 'game:opponent-reconnected', { gameId });
+    }
+
+    const user = await this.userService.getUser(userId);
+    return {
+      playerId: userId,
+      playerName: user.username,
+      playerAvatar: user.avatar,
+      playerNumber: isPlayer1 ? 1 : 2,
+      gameId,
+    };
+  }
+
+  /**
+   * Get reconnectable games for a user
+   */
+  getReconnectableGame(userId: number): { gameId: number; timeRemainingMs: number } | null {
+    for (const [gameId, room] of this.rooms.entries()) {
+      if (room.status !== GameStatus.IN_PROGRESS) continue;
+
+      const isPlayer1 = room.player1Id === userId;
+      const isPlayer2 = room.player2Id === userId;
+
+      if (!isPlayer1 && !isPlayer2) continue;
+
+      const disconnected = isPlayer1 ? room.player1Disconnected : room.player2Disconnected;
+      const disconnectedAt = isPlayer1 ? room.player1DisconnectedAt : room.player2DisconnectedAt;
+
+      if (disconnected && disconnectedAt) {
+        const elapsed = Date.now() - disconnectedAt.getTime();
+        const remaining = this.RECONNECT_TIMEOUT - elapsed;
+        
+        if (remaining > 0) {
+          return { gameId, timeRemainingMs: remaining };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  // ==================== HELPER METHODS ====================
+
+  private async handleTournamentGameEnd(
+    gameId: number, 
+    winnerId: number, 
+    loserId: number, 
+    room: GameRoom
+  ): Promise<void> {
+    try {
+      const gameInfo = await this.prisma.game.findUnique({
+        where: { id: gameId },
+        select: { tournamentId: true },
+      });
+
+      if (gameInfo?.tournamentId) {
+        console.log(`Tournament game ${gameId} ended, notifying tournament service`);
+        this.connectionManager.broadcast('tournament:game-ended', {
+          gameId,
+          tournamentId: gameInfo.tournamentId,
+          winnerId,
+          loserId,
+          player1Id: room.player1Id,
+          player2Id: room.player2Id,
+          score1: room.player1Score,
+          score2: room.player2Score,
+        });
+      }
+    } catch (err) {
+      console.error('Error checking tournament game:', err);
+    }
+  }
+
+  private cleanupAfterGameEnd(gameId: number, room: GameRoom): void {
+    if (room.player1Id) {
+      this.userToRoom.delete(room.player1Id);
+      this.connectionManager.setStatus(room.player1Id, UserStatus.ONLINE);
+    }
+    if (room.player2Id && room.player2Id !== room.player1Id) {
+      this.userToRoom.delete(room.player2Id);
+      this.connectionManager.setStatus(room.player2Id, UserStatus.ONLINE);
+    }
+    this.rooms.delete(gameId);
+  }
+
+  /**
+   * Schedule cleanup to run asynchronously
    */
   private scheduleGameCleanup(gameId: number, leavingUserId: number) {
     setTimeout(() => {
       const room = this.rooms.get(gameId);
-      if (!room) return; // Already cleaned up
+      if (!room) return;
 
-      // Determine cleanup type based on game state
       if (room.status === GameStatus.WAITING || room.status === GameStatus.STARTING) {
         this.cleanupCancelledGame(gameId, leavingUserId);
       } else if (room.status === GameStatus.IN_PROGRESS) {
         this.cleanupForfeitedGame(gameId, leavingUserId);
       } else {
-        // Game already finished, just remove room
         this.finalizeRoomCleanup(gameId);
       }
     }, 0);
   }
 
-  /**
-   * Cleanup for games that were cancelled before starting
-   */
   private cleanupCancelledGame(gameId: number, leavingUserId: number) {
     const room = this.rooms.get(gameId);
     if (!room) return;
 
-    // Notify remaining player ONLY if they're still in THIS game
     const otherPlayerId = room.player1Id === leavingUserId ? room.player2Id : room.player1Id;
     
     if (otherPlayerId && this.userToRoom.get(otherPlayerId) === gameId) {
-      // This player is still waiting in this game - notify them
       this.connectionManager.emitToUser(otherPlayerId, 'game-cancelled', { gameId });
-      // Release them too
       this.userToRoom.delete(otherPlayerId);
       this.connectionManager.setStatus(otherPlayerId, UserStatus.ONLINE);
     }
@@ -123,25 +468,18 @@ export class GameService {
     this.finalizeRoomCleanup(gameId);
   }
 
-  /**
-   * Cleanup for games where a player forfeited during gameplay
-   */
   private cleanupForfeitedGame(gameId: number, forfeitingUserId: number) {
     const room = this.rooms.get(gameId);
     if (!room) return;
 
     room.status = GameStatus.FINISHED;
 
-    // Handle local games
     if (room.isLocal) {
-      // Local game - just remove room, user already released
       this.finalizeRoomCleanup(gameId);
       return;
     }
 
-    // Handle remote games
     if (!room.player2Id) {
-      // No opponent, just cleanup
       this.finalizeRoomCleanup(gameId);
       return;
     }
@@ -149,14 +487,12 @@ export class GameService {
     const winnerId = room.player1Id === forfeitingUserId ? room.player2Id : room.player1Id;
     const loserId = forfeitingUserId;
 
-    // Set final scores
     if (room.player1Id === winnerId) {
       room.player1Score = this.WIN_SCORE;
     } else {
       room.player2Score = this.WIN_SCORE;
     }
 
-    // CRITICAL: Only emit to winner if they're still in THIS game
     if (this.userToRoom.get(winnerId) === gameId) {
       this.connectionManager.emitToUser(winnerId, 'game-ended', {
         gameId,
@@ -169,12 +505,10 @@ export class GameService {
         forfeit: true,
       });
 
-      // Release winner too
       this.userToRoom.delete(winnerId);
       this.connectionManager.setStatus(winnerId, UserStatus.ONLINE);
     }
 
-    // Save game stats asynchronously (don't block)
     const duration = room.startTime ? Date.now() - room.startTime.getTime() : 0;
     
     this.saveGame(
@@ -189,16 +523,10 @@ export class GameService {
     this.finalizeRoomCleanup(gameId);
   }
 
-  /**
-   * Final room cleanup - removes room and any lingering user mappings
-   * ONLY if they're still pointing to this game
-   */
   private finalizeRoomCleanup(gameId: number) {
     const room = this.rooms.get(gameId);
     if (!room) return;
 
-    // Clean up any users still mapped to this game
-    // (They might have disconnected without proper cleanup)
     if (room.player1Id && this.userToRoom.get(room.player1Id) === gameId) {
       this.userToRoom.delete(room.player1Id);
       this.connectionManager.setStatus(room.player1Id, UserStatus.ONLINE);
@@ -209,7 +537,6 @@ export class GameService {
       this.connectionManager.setStatus(room.player2Id, UserStatus.ONLINE);
     }
 
-    // Remove room
     this.rooms.delete(gameId);
   }
 
@@ -228,19 +555,17 @@ export class GameService {
   // ==================== MATCHMAKING ====================
 
   async joinMatchmaking(userId: number): Promise<PlayerInfo> {
-    // Release from any previous game (synchronous)
     if (this.userToRoom.has(userId)) {
       this.leaveGame(userId);
     }
 
     const user = await this.userService.getUser(userId);
 
-    // Find waiting room (skip any that are being cleaned up)
     const waitingRoom = Array.from(this.rooms.values()).find(
       room => room.status === GameStatus.WAITING && 
               !room.isPrivate && 
               !room.player2Id &&
-              room.intervalId !== undefined // Room is still active
+              room.intervalId !== undefined
     );
 
     if (waitingRoom) {
@@ -391,7 +716,6 @@ export class GameService {
       throw new Error('Cannot join your own game');
     }
 
-    // Check if room is still active
     if (room.status === GameStatus.FINISHED || !room.intervalId) {
       throw new Error('Game is no longer available');
     }
@@ -526,7 +850,6 @@ export class GameService {
   ): Promise<number> {
     const gameId = await this.generateGameId();
     
-    // Get player info
     const [player1, player2] = await Promise.all([
       this.userService.getUser(player1Id),
       this.userService.getUser(player2Id),
@@ -584,7 +907,6 @@ export class GameService {
       },
     });
 
-    // Notify both players
     const gameStartingPayload = {
       gameId,
       player1: {
@@ -605,7 +927,6 @@ export class GameService {
     this.connectionManager.emitToUser(player1Id, 'game-starting', gameStartingPayload);
     this.connectionManager.emitToUser(player2Id, 'game-starting', gameStartingPayload);
 
-    // Start game after countdown
     setTimeout(() => {
       this.startGame(gameId);
     }, 3000);
@@ -626,12 +947,10 @@ export class GameService {
       return;
     }
 
-    // Verify both players are still in THIS game before starting
     const player1StillHere = this.userToRoom.get(room.player1Id) === gameId;
     const player2StillHere = this.userToRoom.get(room.player2Id) === gameId;
 
     if (!player1StillHere || !player2StillHere) {
-      // One or both players left before game started, don't start
       this.finalizeRoomCleanup(gameId);
       return;
     }
@@ -654,7 +973,6 @@ export class GameService {
       return;
     }
 
-    // Stop if game ended
     if (room.status === GameStatus.FINISHED) {
       if (room.intervalId) {
         clearInterval(room.intervalId);
@@ -663,11 +981,37 @@ export class GameService {
       return;
     }
 
-    // CRITICAL: Check if either player is no longer in THIS game
-    const player1StillHere = room.player1Id && this.userToRoom.get(room.player1Id) === gameId;
-    const player2StillHere = room.player2Id && this.userToRoom.get(room.player2Id) === gameId;
+    const now = Date.now();
 
-    // If both players left or moved to different games, stop this game
+    // Check reconnection timeouts
+    if (room.player1Disconnected && room.player1DisconnectedAt) {
+      const elapsed = now - room.player1DisconnectedAt.getTime();
+      if (elapsed > this.RECONNECT_TIMEOUT) {
+        console.log(`Player 1 reconnect timeout - auto-forfeiting game ${gameId}`);
+        room.player2Score = this.WIN_SCORE;
+      }
+    }
+    
+    if (room.player2Disconnected && room.player2DisconnectedAt) {
+      const elapsed = now - room.player2DisconnectedAt.getTime();
+      if (elapsed > this.RECONNECT_TIMEOUT) {
+        console.log(`Player 2 reconnect timeout - auto-forfeiting game ${gameId}`);
+        room.player1Score = this.WIN_SCORE;
+      }
+    }
+
+    // Check if players are still here (including disconnected within window)
+    const player1StillHere = room.player1Id && (
+      this.userToRoom.get(room.player1Id) === gameId || 
+      (room.player1Disconnected && room.player1DisconnectedAt && 
+       (now - room.player1DisconnectedAt.getTime()) <= this.RECONNECT_TIMEOUT)
+    );
+    const player2StillHere = room.player2Id && (
+      this.userToRoom.get(room.player2Id) === gameId ||
+      (room.player2Disconnected && room.player2DisconnectedAt &&
+       (now - room.player2DisconnectedAt.getTime()) <= this.RECONNECT_TIMEOUT)
+    );
+
     if (!player1StillHere && !player2StillHere) {
       if (room.intervalId) {
         clearInterval(room.intervalId);
@@ -678,26 +1022,30 @@ export class GameService {
       return;
     }
 
-    // If only one player left, they forfeit
-    if (!player1StillHere || !player2StillHere) {
-      if (room.intervalId) {
-        clearInterval(room.intervalId);
-        room.intervalId = undefined;
+    // Update paddles (only for connected players)
+    if (!room.player1Disconnected) {
+      if (room.paddleLeftDirection === PaddleDirection.UP) {
+        room.paddleLeft = Math.max(0, room.paddleLeft - this.PADDLE_SPEED);
+      } else if (room.paddleLeftDirection === PaddleDirection.DOWN) {
+        room.paddleLeft = Math.min(90, room.paddleLeft + this.PADDLE_SPEED);
       }
-      room.status = GameStatus.FINISHED;
-      // Don't emit to players who left - they're in new games
-      this.finalizeRoomCleanup(gameId);
-      return;
+    }
+    
+    if (!room.player2Disconnected) {
+      if (room.paddleRightDirection === PaddleDirection.UP) {
+        room.paddleRight = Math.max(0, room.paddleRight - this.PADDLE_SPEED);
+      } else if (room.paddleRightDirection === PaddleDirection.DOWN) {
+        room.paddleRight = Math.min(90, room.paddleRight + this.PADDLE_SPEED);
+      }
     }
 
-    if (room.player1Disconnected) {
-      room.player2Score = this.WIN_SCORE;
-    } else if (room.player2Disconnected) {
-      room.player1Score = this.WIN_SCORE;
-    } else {
-      this.updatePaddles(room);
-      this.updateBall(room);
-    }
+    // Store paddle velocities for momentum
+    (room as any).paddleLeftVelocity = room.paddleLeftDirection === PaddleDirection.UP ? -this.PADDLE_SPEED : 
+                                        room.paddleLeftDirection === PaddleDirection.DOWN ? this.PADDLE_SPEED : 0;
+    (room as any).paddleRightVelocity = room.paddleRightDirection === PaddleDirection.UP ? -this.PADDLE_SPEED : 
+                                         room.paddleRightDirection === PaddleDirection.DOWN ? this.PADDLE_SPEED : 0;
+
+    this.updateBall(room);
 
     const state: GameState = {
       gameId: room.id,
@@ -728,7 +1076,6 @@ export class GameService {
     room.ballSpeedX = direction * this.INITIAL_BALL_SPEED * Math.cos(angle);
     room.ballSpeedY = this.INITIAL_BALL_SPEED * Math.sin(angle);
     
-    // Store previous position for collision detection
     (room as any).prevBallX = room.ballX;
     (room as any).prevBallY = room.ballY;
   }
@@ -754,16 +1101,13 @@ export class GameService {
   }
 
   private updateBall(room: GameRoom) {
-    // Store previous position BEFORE any updates
     const prevBallX = room.ballX;
     const prevBallY = room.ballY;
     
-    // Apply speed decay
     room.ballSpeedX *= this.BALL_SPEED_DECAY;
     room.ballSpeedY *= this.BALL_SPEED_DECAY;
     room.ballSpeed *= this.BALL_SPEED_DECAY;
 
-    // Calculate new position
     let newBallX = room.ballX + room.ballSpeedX;
     let newBallY = room.ballY + room.ballSpeedY;
     
@@ -776,7 +1120,6 @@ export class GameService {
       return;
     }
 
-    // Ball collision with top/bottom walls
     if (newBallY <= this.BALL_RADIUS) {
       newBallY = this.BALL_RADIUS;
       room.ballSpeedY *= -1;
@@ -787,20 +1130,16 @@ export class GameService {
 
     const ballRadius = this.BALL_RADIUS / this.GAME_ASPECT_RATIO;
     
-    // Paddle collision boundaries
     const leftPaddleX = this.LEFT_PADDLE_X + this.PADDLE_WIDTH;
     const rightPaddleX = this.RIGHT_PADDLE_X - this.PADDLE_WIDTH;
     
     const COLLISION_TOLERANCE = 3;
     
-    // Left paddle collision - ball moving left
     if (room.ballSpeedX < 0) {
       const ballLeftEdgeNow = newBallX - ballRadius;
       const ballLeftEdgePrev = prevBallX - ballRadius;
       
-      // Check if ball crossed or reached the paddle line this frame
       if (ballLeftEdgeNow <= leftPaddleX && ballLeftEdgePrev > ballLeftEdgeNow) {
-        // Interpolate to find Y position at moment of crossing
         let collisionY: number;
         if (ballLeftEdgePrev !== ballLeftEdgeNow) {
           const t = Math.max(0, Math.min(1, (leftPaddleX - ballLeftEdgePrev) / (ballLeftEdgeNow - ballLeftEdgePrev)));
@@ -809,7 +1148,6 @@ export class GameService {
           collisionY = newBallY;
         }
         
-        // Check paddle coverage with tolerance
         const paddleTop = room.paddleLeft - COLLISION_TOLERANCE;
         const paddleBottom = room.paddleLeft + this.PADDLE_HEIGHT + COLLISION_TOLERANCE;
         
@@ -820,14 +1158,11 @@ export class GameService {
       }
     }
     
-    // Right paddle collision - ball moving right  
     if (room.ballSpeedX > 0) {
       const ballRightEdgeNow = newBallX + ballRadius;
       const ballRightEdgePrev = prevBallX + ballRadius;
       
-      // Check if ball crossed or reached the paddle line this frame
       if (ballRightEdgeNow >= rightPaddleX && ballRightEdgePrev < ballRightEdgeNow) {
-        // Interpolate to find Y position at moment of crossing
         let collisionY: number;
         if (ballRightEdgePrev !== ballRightEdgeNow) {
           const t = Math.max(0, Math.min(1, (rightPaddleX - ballRightEdgePrev) / (ballRightEdgeNow - ballRightEdgePrev)));
@@ -836,7 +1171,6 @@ export class GameService {
           collisionY = newBallY;
         }
         
-        // Check paddle coverage with tolerance
         const paddleTop = room.paddleRight - COLLISION_TOLERANCE;
         const paddleBottom = room.paddleRight + this.PADDLE_HEIGHT + COLLISION_TOLERANCE;
         
@@ -847,11 +1181,9 @@ export class GameService {
       }
     }
 
-    // Update ball position
     room.ballX = newBallX;
     room.ballY = newBallY;
 
-    // Score points - ball must be clearly past the goal line
     if (room.ballX <= -ballRadius) {
       room.player2Score++;
       this.initializeBall(room);
@@ -864,7 +1196,6 @@ export class GameService {
   private handlePaddleCollision(room: GameRoom, isLeftPaddle: boolean, collisionY?: number) {
     const ballRadius = this.BALL_RADIUS / this.GAME_ASPECT_RATIO;
     
-    // Position ball at paddle edge to prevent sticking
     if (isLeftPaddle) {
       room.ballX = this.LEFT_PADDLE_X + this.PADDLE_WIDTH + ballRadius + 0.5;
     } else {
@@ -874,7 +1205,7 @@ export class GameService {
     const paddleY = isLeftPaddle ? room.paddleLeft : room.paddleRight;
     const hitY = collisionY !== undefined ? collisionY : room.ballY;
     const hitPosition = (hitY - paddleY) / this.PADDLE_HEIGHT;
-    const normalizedHit = Math.max(-1, Math.min(1, (hitPosition - 0.5) * 2)); // Clamp -1 to 1
+    const normalizedHit = Math.max(-1, Math.min(1, (hitPosition - 0.5) * 2));
 
     const paddleVelocity = isLeftPaddle 
       ? (room as any).paddleLeftVelocity || 0
@@ -951,7 +1282,6 @@ export class GameService {
 
     const duration = room.startTime ? Date.now() - room.startTime.getTime() : 0;
     
-    // Check if this is a tournament game
     const gameInfo = await this.prisma.game.findUnique({
       where: { id: gameId },
       select: { tournamentId: true },
@@ -1002,18 +1332,7 @@ export class GameService {
       });
     }
 
-    // Cleanup
-    this.connectionManager.setStatus(room.player1Id, UserStatus.ONLINE);
-    if (!room.isLocal && room.player2Id !== room.player1Id) {
-      this.connectionManager.setStatus(room.player2Id, UserStatus.ONLINE);
-    }
-
-    this.userToRoom.delete(room.player1Id);
-    if (!room.isLocal && room.player2Id !== room.player1Id) {
-      this.userToRoom.delete(room.player2Id);
-    }
-
-    this.rooms.delete(gameId);
+    this.cleanupAfterGameEnd(gameId, room);
   }
 
   // ==================== PLAYER ACTIONS ====================
@@ -1030,7 +1349,6 @@ export class GameService {
       throw new Error('Game not found');
     }
 
-    // Verify user is actually in THIS game
     if (this.userToRoom.get(userId) !== gameId) {
       throw new Error('Not in this game');
     }
@@ -1085,14 +1403,10 @@ export class GameService {
 
   // ==================== UTILITY ====================
 
-  /**
-   * Emit events only to players who are still in THIS specific game
-   */
   private emitToRoom(gameId: number, event: string, data: any) {
     const room = this.rooms.get(gameId);
     if (!room) return;
 
-    // CRITICAL: Only emit if user is still in THIS game
     if (room.player1Id && this.userToRoom.get(room.player1Id) === gameId) {
       this.connectionManager.emitToUser(room.player1Id, event, data);
     }
@@ -1119,7 +1433,7 @@ export class GameService {
   // ==================== DATABASE ====================
 
   private async saveGame(
-    gameId: number,
+    roomId: number,
     player1Id: number,
     player2Id: number,
     score1: number,
@@ -1127,14 +1441,13 @@ export class GameService {
     startTime: Date,
     endTime: Date,
     duration: number,
-    tournamentId?: number, // Add optional tournament param
+    tournamentId?: number,
     tournamentRound?: number,
     tournamentMatch?: string,
-  ) {
+  ): Promise<number | null> {
     try {
-      await this.prisma.game.create({
+      const game = await this.prisma.game.create({
         data: {
-          id: gameId,
           player1: player1Id,
           player2: player2Id,
           score1,
@@ -1147,8 +1460,11 @@ export class GameService {
           tournamentMatch,
         },
       });
+      console.log(`Saved game ${game.id} (room ${roomId})`);
+      return game.id;
     } catch (error: any) {
-      console.error(`Failed to save game ${gameId}:`, error);
+      console.error(`Failed to save game for room ${roomId}:`, error);
+      return null;
     }
   }
 

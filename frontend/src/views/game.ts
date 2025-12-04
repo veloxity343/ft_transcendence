@@ -13,7 +13,9 @@ const icons = {
   local: `<svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`,
   back: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg>`,
   copy: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`,
-  spinner: `<svg class="w-6 h-6 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path></svg>`
+  spinner: `<svg class="w-6 h-6 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path></svg>`,
+  forfeit: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>`,
+  reconnect: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>`,
 };
 
 // Helper to wait for WebSocket connection
@@ -22,7 +24,6 @@ async function waitForConnection(timeout = 5000): Promise<boolean> {
     return true;
   }
   
-  // connect() returns Promise<boolean>
   const connected = await wsClient.connect();
   return connected;
 }
@@ -36,6 +37,25 @@ export function GameView(): HTMLElement {
   ).join('');
 
   container.innerHTML = `
+    <!-- Reconnect Banner -->
+    <div id="reconnectBanner" class="hidden fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 max-w-lg w-full px-4">
+      <div class="glass-card p-4 border-2 border-yellow-500 shadow-xl bg-yellow-50/95">
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <div class="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
+            <div>
+              <div class="font-bold text-yellow-700">You still have a game in progress</div>
+              <div class="text-sm text-yellow-600">Time remaining: <span id="reconnectTimer" class="font-mono font-bold">30s</span></div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="reconnectBtn" class="btn-primary flex items-center gap-2 text-sm">${icons.reconnect} Rejoin</button>
+            <button id="dismissReconnectBtn" class="btn-outline text-sm px-2 py-1 hover:bg-red-50 hover:text-red-500" title="Forfeit game">✕</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="gameModeSelection" class="max-w-4xl w-full">
       <div class="text-center mb-8">
         <h1 class="text-4xl font-bold mb-2">
@@ -110,14 +130,26 @@ export function GameView(): HTMLElement {
             </div>
           </div>
           <div class="arcade-screen-frame">
-            <div id="canvasContainer" class="arcade-screen" tabindex="0">
+            <div id="canvasContainer" class="arcade-screen relative" tabindex="0">
               <canvas id="gameCanvas"></canvas>
+              <!-- Opponent Disconnected Overlay -->
+              <div id="opponentDisconnectedOverlay" class="hidden absolute inset-0 bg-black/60 flex items-center justify-center z-40">
+                <div class="glass-card p-6 text-center bg-white/90">
+                  <h3 class="text-xl font-bold text-yellow-600 mb-2">⚠️ Opponent Disconnected</h3>
+                  <p class="text-navy-muted mb-2">Waiting for them to reconnect...</p>
+                  <div id="opponentReconnectTimer" class="text-3xl font-mono font-bold text-navy">30</div>
+                  <p class="text-xs text-navy-muted mt-2">Auto-win if they don't return</p>
+                </div>
+              </div>
             </div>
           </div>
           <div id="gameStatusBar" class="arcade-status"><span class="status-text">Ready</span></div>
         </div>
         <div class="arcade-controls-info"><div id="controlsDisplay" class="flex justify-center gap-8"><div class="control-group"><kbd>W</kbd><kbd>S</kbd><span class="control-label">or</span><kbd>↑</kbd><kbd>↓</kbd></div></div></div>
-        <div class="arcade-controls"><button id="leaveGameBtn" class="btn-outline">${icons.back} Leave Game</button></div>
+        <div class="arcade-controls">
+          <button id="leaveGameBtn" class="btn-outline">${icons.back} Leave</button>
+          <button id="forfeitGameBtn" class="btn-outline text-red-500 hover:bg-red-50">${icons.forfeit} Forfeit</button>
+        </div>
       </div>
     </div>
 
@@ -138,11 +170,12 @@ export function GameView(): HTMLElement {
       .status-text{color:#4a4a5a;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em}
       .status-text.playing{color:#4ade80}
       .status-text.waiting{color:#fbbf24}
+      .status-text.disconnected{color:#ef4444}
       .arcade-controls-info{padding:1rem;text-align:center}
       .control-group{display:flex;align-items:center;gap:0.25rem}
       .control-group kbd{background:#3a3a45;color:#9a9aaa;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem;border:1px solid #4a4a55}
       .control-label{color:#5a5a6a;font-size:0.75rem;margin:0 0.25rem}
-      .arcade-controls{display:flex;justify-content:center;padding:1rem}
+      .arcade-controls{display:flex;justify-content:center;gap:1rem;padding:1rem}
       @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
       .animate-spin{animation:spin 1s linear infinite}
     </style>
@@ -169,6 +202,12 @@ export function GameView(): HTMLElement {
   } | null = null;
   let hasCheckedActiveGame = false;
 
+  // Reconnection state
+  let reconnectableGameId: number | null = null;
+  let reconnectDeadline: Date | null = null;
+  let reconnectTimerInterval: ReturnType<typeof setInterval> | null = null;
+  let opponentReconnectTimerInterval: ReturnType<typeof setInterval> | null = null;
+
   // Elements
   const gameModeSelection = container.querySelector('#gameModeSelection') as HTMLElement;
   const waitingScreen = container.querySelector('#waitingScreen') as HTMLElement;
@@ -190,6 +229,75 @@ export function GameView(): HTMLElement {
   const privateGameInfo = container.querySelector('#privateGameInfo') as HTMLElement;
   const gameIdDisplay = container.querySelector('#gameIdDisplay') as HTMLElement;
   const joinGameIdInput = container.querySelector('#joinGameIdInput') as HTMLInputElement;
+  
+  // Reconnection elements
+  const reconnectBanner = container.querySelector('#reconnectBanner') as HTMLElement;
+  const reconnectTimer = container.querySelector('#reconnectTimer') as HTMLElement;
+  const opponentDisconnectedOverlay = container.querySelector('#opponentDisconnectedOverlay') as HTMLElement;
+  const opponentReconnectTimer = container.querySelector('#opponentReconnectTimer') as HTMLElement;
+
+  // Reconnection helper functions
+  const showReconnectBanner = (gameIdToReconnect: number, deadline: Date) => {
+    reconnectableGameId = gameIdToReconnect;
+    reconnectDeadline = deadline;
+    reconnectBanner.classList.remove('hidden');
+    
+    updateReconnectTimer();
+    if (reconnectTimerInterval) clearInterval(reconnectTimerInterval);
+    reconnectTimerInterval = setInterval(updateReconnectTimer, 1000);
+  };
+
+  const hideReconnectBanner = () => {
+    reconnectBanner.classList.add('hidden');
+    reconnectableGameId = null;
+    reconnectDeadline = null;
+    if (reconnectTimerInterval) {
+      clearInterval(reconnectTimerInterval);
+      reconnectTimerInterval = null;
+    }
+  };
+
+  const updateReconnectTimer = () => {
+    if (!reconnectDeadline) return;
+    
+    const remaining = Math.max(0, reconnectDeadline.getTime() - Date.now());
+    const seconds = Math.ceil(remaining / 1000);
+    
+    reconnectTimer.textContent = `${seconds}s`;
+    
+    if (remaining <= 0) {
+      hideReconnectBanner();
+      showToast('Reconnection window expired', 'error');
+    }
+  };
+
+  const showOpponentDisconnected = (deadline: Date) => {
+    opponentDisconnectedOverlay.classList.remove('hidden');
+    updateStatus('Opponent disconnected', 'disconnected');
+    
+    const updateTimer = () => {
+      const remaining = Math.max(0, deadline.getTime() - Date.now());
+      const seconds = Math.ceil(remaining / 1000);
+      opponentReconnectTimer.textContent = seconds.toString();
+      
+      if (remaining <= 0) {
+        hideOpponentDisconnected();
+      }
+    };
+    
+    updateTimer();
+    if (opponentReconnectTimerInterval) clearInterval(opponentReconnectTimerInterval);
+    opponentReconnectTimerInterval = setInterval(updateTimer, 1000);
+  };
+
+  const hideOpponentDisconnected = () => {
+    opponentDisconnectedOverlay.classList.add('hidden');
+    if (opponentReconnectTimerInterval) {
+      clearInterval(opponentReconnectTimerInterval);
+      opponentReconnectTimerInterval = null;
+    }
+    updateStatus('Playing', 'playing');
+  };
 
   // Update connection status display
   const updateConnectionStatus = () => {
@@ -354,6 +462,7 @@ export function GameView(): HTMLElement {
     player2Label.textContent = 'Player 2';
     player1Score.textContent = '0';
     player2Score.textContent = '0';
+    hideOpponentDisconnected();
   };
 
   // Helper to send message with connection check
@@ -437,9 +546,10 @@ export function GameView(): HTMLElement {
       if (msg.data.inGame && msg.data.gameId) {
         // User is in an active game - restore it
         restoreFromActiveState(msg.data);
-      } else {
-        // No active game - show menu (already default)
-        console.log('No active game found');
+      } else if (msg.data.reconnectable && msg.data.reconnectable.gameId) {
+        // User has a reconnectable game
+        const deadline = new Date(Date.now() + msg.data.reconnectable.timeRemainingMs);
+        showReconnectBanner(msg.data.reconnectable.gameId, deadline);
       }
     }));
     
@@ -451,14 +561,11 @@ export function GameView(): HTMLElement {
       isLocalGame = msg.data.isLocal || false;
       
       // Only show waiting if we're player 1 in matchmaking waiting for opponent
-      // game-starting event will handle showing the actual game screen
       if (!isLocalGame && playerNumber === 1) {
         showWaiting('Waiting for opponent...', 'You will be matched soon');
       } else if (!isLocalGame && playerNumber === 2) {
-        // Second player joined - game will start, just show toast
         showToast(`Joined game as Player ${playerNumber}`, 'success');
       }
-      // For local games, game-starting will handle it
     }));
 
     // Handle private/local game creation
@@ -469,34 +576,28 @@ export function GameView(): HTMLElement {
       isLocalGame = msg.data.isLocal || false;
       
       if (isLocalGame) {
-        // Local game - game-starting will show the game screen
         showToast('Local game created!', 'success');
-        // Don't call showWaiting - game-starting handles it
       } else {
-        // Private game - show game ID for sharing, need to wait for opponent
         showToast('Private game created!', 'success');
         showWaiting('Waiting for opponent...', 'Share the Game ID with your friend', true, gameId!);
       }
     }));
 
-    // Handle AI game creation - don't show waiting, game-starting handles the screen
+    // Handle AI game creation
     unsubscribers.push(wsClient.on('game:ai-created', (msg) => {
       console.log('game:ai-created', msg.data);
       gameId = msg.data.gameId;
       playerNumber = msg.data.playerNumber;
       isLocalGame = false;
       showToast(`AI game created (${msg.data.difficulty})!`, 'success');
-      // Don't call showWaiting here - game-starting event handles showing the game screen
     }));
 
-    // Handle game starting (countdown phase) - THIS IS THE AUTHORITATIVE EVENT FOR SHOWING GAME SCREEN
+    // Handle game starting (countdown phase)
     unsubscribers.push(wsClient.on('game-starting', (msg) => {
       console.log('game-starting', msg.data);
       
-      // Update game ID and player number if provided
       if (msg.data.gameId) gameId = msg.data.gameId;
       
-      // Determine player number from player data if not already set
       const user = storage.getUserData();
       if (!playerNumber && user) {
         const userId = parseInt(user.id);
@@ -512,7 +613,6 @@ export function GameView(): HTMLElement {
       if (msg.data.isLocal) isLocalGame = true;
       if (msg.data.vsAI) isLocalGame = false;
 
-      // Capture tournament context if present
       if (msg.data.tournamentId) {
         tournamentContext = {
           tournamentId: msg.data.tournamentId,
@@ -520,17 +620,18 @@ export function GameView(): HTMLElement {
           round: msg.data.round,
           matchId: msg.data.matchId,
         };
-        // Show tournament indicator
         updateStatus(`Tournament Round ${msg.data.round}`, 'waiting');
       } else {
         tournamentContext = null;
       }
       
-      // Highlight current player's name
       if (!isLocalGame) {
         if (playerNumber === 1) player1Label.style.color = '#4A7CC9';
         else if (playerNumber === 2) player2Label.style.color = '#4A7CC9';
       }
+      
+      // Hide reconnect banner if shown
+      hideReconnectBanner();
       
       showScreen('game');
       updateStatus('Starting...', 'waiting');
@@ -541,11 +642,9 @@ export function GameView(): HTMLElement {
       if (!renderer) return;
       const data = msg.data;
       
-      // Update score display
       player1Score.textContent = data.player1Score.toString();
       player2Score.textContent = data.player2Score.toString();
       
-      // Update status
       if (data.status === 'in_progress') {
         updateStatus('Playing', 'playing');
       } else if (data.status === 'starting') {
@@ -554,14 +653,12 @@ export function GameView(): HTMLElement {
         updateStatus('Waiting...', 'waiting');
       }
       
-      // Log score changes
       if (data.player1Score !== lastScore1 || data.player2Score !== lastScore2) {
         console.log(`Score: ${data.player1Score} - ${data.player2Score}`);
         lastScore1 = data.player1Score;
         lastScore2 = data.player2Score;
       }
       
-      // Render game state
       renderer.drawFromBackendState({
         paddleLeft: data.paddleLeft,
         paddleRight: data.paddleRight,
@@ -577,24 +674,32 @@ export function GameView(): HTMLElement {
     unsubscribers.push(wsClient.on('game-ended', (msg) => {
       console.log('game-ended', msg.data);
       updateStatus('Game Over!', '');
+      hideOpponentDisconnected();
       
       const user = storage.getUserData();
       const finalScore = msg.data.finalScore;
       
-      // Determine winner
       let won = false;
       if (msg.data.isLocal) {
         const winner = finalScore.player1 > finalScore.player2 ? 'Player 1' : 'Player 2';
         showToast(`${winner} Wins!`, 'info');
       } else {
         won = msg.data.winnerId?.toString() === user?.id?.toString();
-        showToast(won ? 'You Won!' : 'You Lost!', won ? 'success' : 'error');
+        
+        if (msg.data.forfeit) {
+          if (msg.data.forfeitedBy?.toString() === user?.id?.toString()) {
+            showToast('You forfeited the match', 'info');
+          } else {
+            showToast('Opponent forfeited - You Win!', 'success');
+          }
+        } else {
+          showToast(won ? 'You Won!' : 'You Lost!', won ? 'success' : 'error');
+        }
       }
       
       if (tournamentContext) {
         const tournamentId = tournamentContext.tournamentId;
         setTimeout(() => {
-          // Show tournament return option
           const returnToTournament = confirm(
             `${won ? 'Congratulations!' : 'Game over!'}\n\nReturn to tournament bracket?`
           );
@@ -602,13 +707,11 @@ export function GameView(): HTMLElement {
           resetGame();
           if (returnToTournament) {
             router.navigateTo('/tournament');
-            // TODO: Deep link to specific tournament/match
           } else {
             showScreen('menu');
           }
         }, 2000);
       } else {
-        // Regular game - just return to menu
         setTimeout(() => { 
           resetGame(); 
           showScreen('menu'); 
@@ -627,9 +730,88 @@ export function GameView(): HTMLElement {
     // Handle game left confirmation
     unsubscribers.push(wsClient.on('game:left', () => {
       console.log('game:left');
-      resetGame();
-      showScreen('menu');
+      // Note: game:left-with-reconnect will be sent for in-progress games instead
     }));
+
+    // ==================== RECONNECTION HANDLERS ====================
+
+    // Handle leaving with reconnection option
+    unsubscribers.push(wsClient.on('game:left-with-reconnect', (msg) => {
+      console.log('game:left-with-reconnect', msg.data);
+      const { gameId: leftGameId, reconnectDeadline: deadlineStr } = msg.data;
+      
+      // Store tournament context before resetting
+      const wasTournamentGame = tournamentContext !== null;
+      
+      showReconnectBanner(leftGameId, new Date(deadlineStr));
+      resetGame();
+      
+      if (wasTournamentGame) {
+        // Redirect to tournament page - the reconnect banner will follow
+        showToast('You left the match. Rejoin within 30 seconds!', 'warning');
+        router.navigateTo('/tournament');
+      } else {
+        showScreen('menu');
+        showToast('You left the game. Rejoin within 30 seconds!', 'warning');
+      }
+    }));
+
+    // Handle opponent disconnected
+    unsubscribers.push(wsClient.on('game:opponent-disconnected', (msg) => {
+      console.log('game:opponent-disconnected', msg.data);
+      const { reconnectDeadline: deadlineStr } = msg.data;
+      showOpponentDisconnected(new Date(deadlineStr));
+    }));
+
+    // Handle opponent reconnected
+    unsubscribers.push(wsClient.on('game:opponent-reconnected', (msg) => {
+      console.log('game:opponent-reconnected', msg.data);
+      hideOpponentDisconnected();
+      showToast('Opponent reconnected!', 'success');
+    }));
+
+    // Handle successful rejoin
+    unsubscribers.push(wsClient.on('game:rejoined', (msg) => {
+      console.log('game:rejoined', msg.data);
+      hideReconnectBanner();
+      
+      const { gameId: rejoinedGameId, playerNumber: rejoinedPlayerNumber, gameState, player1Name, player2Name } = msg.data;
+      
+      gameId = rejoinedGameId;
+      playerNumber = rejoinedPlayerNumber;
+      
+      player1Label.textContent = player1Name || 'Player 1';
+      player2Label.textContent = player2Name || 'Player 2';
+      
+      if (gameState) {
+        player1Score.textContent = gameState.player1Score?.toString() || '0';
+        player2Score.textContent = gameState.player2Score?.toString() || '0';
+      }
+      
+      if (playerNumber === 1) player1Label.style.color = '#4A7CC9';
+      else if (playerNumber === 2) player2Label.style.color = '#4A7CC9';
+      
+      showScreen('game');
+      updateStatus('Playing', 'playing');
+      showToast('Rejoined game!', 'success');
+    }));
+
+    // Handle forfeit confirmation
+    unsubscribers.push(wsClient.on('game:forfeited', (msg) => {
+      console.log('game:forfeited', msg.data);
+      // game-ended will handle the actual end
+    }));
+
+    // Handle reconnectable game info
+    unsubscribers.push(wsClient.on('game:reconnectable-game', (msg) => {
+      console.log('game:reconnectable-game', msg.data);
+      if (msg.data.gameId) {
+        const deadline = new Date(Date.now() + msg.data.timeRemainingMs);
+        showReconnectBanner(msg.data.gameId, deadline);
+      }
+    }));
+
+    // ==================== END NEW HANDLERS ====================
 
     // Handle errors
     unsubscribers.push(wsClient.on('game:error', (msg) => {
@@ -639,7 +821,7 @@ export function GameView(): HTMLElement {
       showScreen('menu');
     }));
 
-    // Handle move acknowledgment (optional, for debugging)
+    // Handle move acknowledgment
     unsubscribers.push(wsClient.on('game:move-ack', (msg) => {
       // Silent acknowledgment
     }));
@@ -649,7 +831,6 @@ export function GameView(): HTMLElement {
       console.log('WebSocket connected');
       updateConnectionStatus();
       
-      // Check for active game when WebSocket connects (after initial setup)
       if (!hasCheckedActiveGame) {
         hasCheckedActiveGame = true;
         setTimeout(() => {
@@ -751,11 +932,65 @@ export function GameView(): HTMLElement {
     });
   });
 
+  // ==================== LEAVE & FORFEIT HANDLERS ====================
+
   container.querySelector('#leaveGameBtn')?.addEventListener('click', () => {
     console.log('Leave clicked');
-    wsClient.send('game:leave', {});
-    resetGame();
-    showScreen('menu');
+    
+    if (!gameId) {
+      showScreen('menu');
+      return;
+    }
+    
+    // Show different confirmation based on game type
+    if (isLocalGame) {
+      const confirmed = confirm('End the local game?');
+      if (confirmed) {
+        wsClient.send('game:leave', {});
+        resetGame();
+        showScreen('menu');
+      }
+    } else {
+      const confirmed = confirm(
+        'Leave the game?\n\n' +
+        'You will have 30 seconds to rejoin.\n' +
+        'If you don\'t rejoin in time, you will forfeit.'
+      );
+      if (confirmed) {
+        wsClient.send('game:leave', {});
+        // Don't reset or show menu - wait for game:left-with-reconnect
+      }
+    }
+  });
+
+  container.querySelector('#forfeitGameBtn')?.addEventListener('click', () => {
+    console.log('Forfeit clicked');
+    
+    if (!gameId) return;
+    
+    const confirmed = confirm(
+      'Are you sure you want to forfeit?\n\n' +
+      '⚠️ Your opponent will win immediately.\n' +
+      'This cannot be undone!'
+    );
+    
+    if (confirmed) {
+      wsClient.send('game:forfeit', {});
+    }
+  });
+
+  // ==================== RECONNECT HANDLERS ====================
+
+  container.querySelector('#reconnectBtn')?.addEventListener('click', () => {
+    if (reconnectableGameId) {
+      console.log('Attempting to rejoin game:', reconnectableGameId);
+      wsClient.send('game:rejoin', { gameId: reconnectableGameId });
+    }
+  });
+
+  container.querySelector('#dismissReconnectBtn')?.addEventListener('click', () => {
+    hideReconnectBanner();
+    showToast('Reconnection dismissed - you will forfeit', 'warning');
   });
 
   // Focus handling
@@ -788,6 +1023,8 @@ export function GameView(): HTMLElement {
   (container as any).__cleanup = () => {
     console.log('GameView cleanup');
     clearInterval(statusInterval);
+    if (reconnectTimerInterval) clearInterval(reconnectTimerInterval);
+    if (opponentReconnectTimerInterval) clearInterval(opponentReconnectTimerInterval);
     unsubscribers.forEach(unsub => unsub());
     document.removeEventListener('keydown', handleKeyDown);
     document.removeEventListener('keyup', handleKeyUp);
