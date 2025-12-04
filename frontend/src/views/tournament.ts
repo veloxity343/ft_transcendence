@@ -600,7 +600,7 @@ export function TournamentView(): HTMLElement {
       myMatchAlert.classList.remove('hidden');
       if (myActiveMatch.status === 'in_progress' && myActiveMatch.gameId) {
         myMatchInfo.textContent = `Your match against ${myActiveMatch.opponentName || 'opponent'} is in progress!`;
-        (container.querySelector('#goToMyMatchBtn') as HTMLElement).textContent = `${icons.play} Continue Match`;
+        (container.querySelector('#goToMyMatchBtn') as HTMLElement).innerHTML = `${icons.play} Continue Match`;
       } else {
         myMatchInfo.textContent = `Your Round ${myActiveMatch.round} match against ${myActiveMatch.opponentName || 'opponent'} is ready!`;
       }
@@ -714,7 +714,7 @@ export function TournamentView(): HTMLElement {
           ${player.seed ? `<span class="player-seed">${player.seed}</span>` : ''}
           <span class="text-sm text-navy font-medium flex-1">${escapeHtml(player.username)}</span>
           ${isMe ? '<span class="text-xs text-blue">(You)</span>' : ''}
-          ${player.eliminated ? '<span class="text-xs text-red-500">Out R${player.eliminatedInRound}</span>' : ''}
+          ${player.eliminated ? `<span class="text-xs text-red-500">Eliminated Round ${player.eliminatedInRound}</span>` : ''}
         </div>
       `;
     }).join('');
