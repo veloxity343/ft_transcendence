@@ -785,6 +785,7 @@ export function TournamentView(): HTMLElement {
 
     goToMatchBtn?.addEventListener('click', () => {
       // Navigate to game view - the game should already be set up
+      // GameView will check for active game state and restore it
       router.navigateTo('/game');
     });
 
@@ -875,11 +876,24 @@ export function TournamentView(): HTMLElement {
       }
     }));
 
-    // Match starting - THIS IS IMPORTANT: navigates player to game
+    // CRITICAL: Listen for game-starting events from tournament matches
+    // When the backend starts a tournament game, it sends game-starting to the players
+    // We need to navigate to the game view so the game-starting handler in GameView processes it
+    unsubscribers.push(wsClient.on('game-starting', (msg) => {
+      // Check if this is a tournament game by checking for tournament context
+      if (msg.data.tournamentId) {
+        console.log('Tournament game starting, navigating to game view', msg.data);
+        showToast(`Tournament match starting: Round ${msg.data.round}!`, 'info');
+        // Navigate to game view - it will receive this event and subsequent game-update events
+        router.navigateTo('/game');
+      }
+    }));
+
+    // Match starting - THIS IS IMPORTANT: notifies us a tournament match is about to start
     unsubscribers.push(wsClient.on('tournament:match-starting', (msg) => {
       showToast(`Tournament match starting: vs ${msg.data.opponent?.name}!`, 'info');
-      // The game-starting event from GameService will handle the actual game UI
-      // This just notifies us it's a tournament match
+      // The game-starting event handler above will navigate us to the game view
+      // This event is sent AFTER game-starting, so navigation should already be happening
     }));
 
     // Match completed

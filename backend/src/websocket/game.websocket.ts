@@ -251,6 +251,75 @@ export async function setupGameWebSocket(
             break;
           }
 
+          case 'game:get-active-state': {
+            // Check if user is currently in a game and return full state
+            // This allows the game view to restore state when navigating from tournament
+            try {
+              const gameId = gameService.getUserGameId(userId);
+              
+              if (!gameId) {
+                socket.send(JSON.stringify({
+                  event: 'game:active-state',
+                  data: { inGame: false },
+                }));
+                break;
+              }
+
+              // Get game info
+              const gameInfo = gameService.getGameInfo(gameId);
+              const gameState = await gameService.spectateGame(gameId);
+              
+              if (!gameInfo) {
+                socket.send(JSON.stringify({
+                  event: 'game:active-state',
+                  data: { inGame: false },
+                }));
+                break;
+              }
+
+              // Access internal rooms map to get full room details
+              const rooms = (gameService as any).rooms;
+              const room = rooms.get(gameId);
+              
+              // Determine player number
+              let playerNumber: 1 | 2 = 1;
+              if (room) {
+                playerNumber = room.player1Id === userId ? 1 : 2;
+              }
+
+              socket.send(JSON.stringify({
+                event: 'game:active-state',
+                data: {
+                  inGame: true,
+                  gameId,
+                  playerNumber,
+                  isLocal: gameInfo.isLocal,
+                  player1Name: gameInfo.player1Name,
+                  player2Name: gameInfo.player2Name,
+                  gameState: gameState || null,
+                  // Include room details for full restoration
+                  player1: room ? {
+                    id: room.player1Id,
+                    name: room.player1Name,
+                    avatar: room.player1Avatar,
+                  } : null,
+                  player2: room ? {
+                    id: room.player2Id,
+                    name: room.player2Name,
+                    avatar: room.player2Avatar,
+                  } : null,
+                  status: room?.status || 'unknown',
+                },
+              }));
+            } catch (error: any) {
+              socket.send(JSON.stringify({
+                event: 'game:active-state',
+                data: { inGame: false, error: error.message },
+              }));
+            }
+            break;
+          }
+
           default:
             fastify.log.warn(`Unknown game event: ${message.event}`);
         }

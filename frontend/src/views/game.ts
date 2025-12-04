@@ -167,6 +167,7 @@ export function GameView(): HTMLElement {
     round: number;
     matchId: string;
   } | null = null;
+  let hasCheckedActiveGame = false;
 
   // Elements
   const gameModeSelection = container.querySelector('#gameModeSelection') as HTMLElement;
@@ -369,9 +370,78 @@ export function GameView(): HTMLElement {
     return true;
   };
 
+  // Restore game from active state (used when navigating from tournament)
+  const restoreFromActiveState = (data: any) => {
+    console.log('Restoring game from active state:', data);
+    
+    gameId = data.gameId;
+    playerNumber = data.playerNumber;
+    isLocalGame = data.isLocal || false;
+    
+    // Set up player labels
+    player1Label.textContent = data.player1Name || data.player1?.name || 'Player 1';
+    player2Label.textContent = data.player2Name || data.player2?.name || 'Player 2';
+    
+    // Highlight current player's name
+    if (!isLocalGame) {
+      if (playerNumber === 1) player1Label.style.color = '#4A7CC9';
+      else if (playerNumber === 2) player2Label.style.color = '#4A7CC9';
+    }
+    
+    // Update controls display
+    if (isLocalGame) {
+      controlsDisplay.innerHTML = `<div class="control-group"><span class="control-label">P1:</span><kbd>W</kbd><kbd>S</kbd></div><div class="control-group"><span class="control-label">P2:</span><kbd>↑</kbd><kbd>↓</kbd></div>`;
+    }
+    
+    // Show game screen
+    showScreen('game');
+    
+    // If we have game state, render it
+    if (data.gameState) {
+      player1Score.textContent = data.gameState.player1Score?.toString() || '0';
+      player2Score.textContent = data.gameState.player2Score?.toString() || '0';
+      
+      if (renderer) {
+        renderer.drawFromBackendState({
+          paddleLeft: data.gameState.paddleLeft || 45,
+          paddleRight: data.gameState.paddleRight || 45,
+          ballX: data.gameState.ballX || 50,
+          ballY: data.gameState.ballY || 50,
+          player1Score: data.gameState.player1Score || 0,
+          player2Score: data.gameState.player2Score || 0,
+          status: data.status === 'in_progress' ? 'playing' : data.status || 'waiting'
+        }, playerNumber);
+      }
+    }
+    
+    // Update status based on game state
+    if (data.status === 'in_progress') {
+      updateStatus('Playing', 'playing');
+    } else if (data.status === 'starting') {
+      updateStatus('Starting...', 'waiting');
+    } else if (data.status === 'waiting') {
+      updateStatus('Waiting...', 'waiting');
+    }
+    
+    showToast('Rejoined game!', 'success');
+  };
+
   // WebSocket message handlers
   const setupWSHandlers = () => {
     console.log('Setting up WebSocket handlers...');
+    
+    // Handle active game state response (for restoring game when navigating from tournament)
+    unsubscribers.push(wsClient.on('game:active-state', (msg) => {
+      console.log('game:active-state', msg.data);
+      
+      if (msg.data.inGame && msg.data.gameId) {
+        // User is in an active game - restore it
+        restoreFromActiveState(msg.data);
+      } else {
+        // No active game - show menu (already default)
+        console.log('No active game found');
+      }
+    }));
     
     // Handle matchmaking join - only show waiting if player 1 waiting for opponent
     unsubscribers.push(wsClient.on('game:joined', (msg) => {
@@ -422,6 +492,18 @@ export function GameView(): HTMLElement {
     // Handle game starting (countdown phase) - THIS IS THE AUTHORITATIVE EVENT FOR SHOWING GAME SCREEN
     unsubscribers.push(wsClient.on('game-starting', (msg) => {
       console.log('game-starting', msg.data);
+      
+      // Update game ID and player number if provided
+      if (msg.data.gameId) gameId = msg.data.gameId;
+      
+      // Determine player number from player data if not already set
+      const user = storage.getUserData();
+      if (!playerNumber && user) {
+        const userId = parseInt(user.id);
+        if (msg.data.player1?.id === userId) playerNumber = 1;
+        else if (msg.data.player2?.id === userId) playerNumber = 2;
+      }
+      
       player1Label.textContent = msg.data.player1?.name || 'Player 1';
       player2Label.textContent = msg.data.player2?.name || 'Player 2';
       player1Score.textContent = '0';
@@ -566,6 +648,15 @@ export function GameView(): HTMLElement {
     unsubscribers.push(wsClient.on('ws:connected', () => {
       console.log('WebSocket connected');
       updateConnectionStatus();
+      
+      // Check for active game when WebSocket connects (after initial setup)
+      if (!hasCheckedActiveGame) {
+        hasCheckedActiveGame = true;
+        setTimeout(() => {
+          console.log('Checking for active game after connection...');
+          wsClient.send('game:get-active-state', {});
+        }, 100);
+      }
     }));
 
     unsubscribers.push(wsClient.on('ws:disconnected', () => {
@@ -682,6 +773,13 @@ export function GameView(): HTMLElement {
   
   // Setup handlers
   setupWSHandlers();
+  
+  // Check for active game immediately if already connected
+  if (wsClient.isConnected() && !hasCheckedActiveGame) {
+    hasCheckedActiveGame = true;
+    console.log('Already connected, checking for active game...');
+    wsClient.send('game:get-active-state', {});
+  }
   
   // Update connection status periodically
   const statusInterval = setInterval(updateConnectionStatus, 1000);
