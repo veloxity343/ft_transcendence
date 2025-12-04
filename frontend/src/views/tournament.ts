@@ -120,7 +120,7 @@ interface BracketViewData {
 
 export function TournamentView(): HTMLElement {
   const container = document.createElement('div');
-  container.className = 'flex-1 p-4 md:p-8';
+  container.className = 'flex-1 p-4 md:p-8 flex flex-col items-center';
 
   // State
   let currentView: 'list' | 'create' | 'bracket' = 'list';
@@ -135,7 +135,7 @@ export function TournamentView(): HTMLElement {
 
   // Initial HTML
   container.innerHTML = `
-    <div class="max-w-7xl mx-auto">
+    <div class="w-full max-w-7xl mx-auto flex flex-col items-center">
       <div class="text-center mb-8">
         <h1 class="text-4xl font-bold mb-2">
           <span class="text-blue animate-glow">TOURNAMENTS</span>
@@ -144,7 +144,7 @@ export function TournamentView(): HTMLElement {
       </div>
 
       <!-- Tournament List View -->
-      <div id="tournamentList" class="space-y-6">
+      <div id="tournamentList" class="space-y-6 w-full max-w-4xl">
         <div class="flex justify-center gap-4 mb-6">
           <button id="createTournamentBtn" class="btn-primary px-6 py-3">
             ${icons.plus}
@@ -175,7 +175,7 @@ export function TournamentView(): HTMLElement {
       </div>
 
       <!-- Create Tournament View -->
-      <div id="createTournament" class="hidden max-w-2xl mx-auto">
+      <div id="createTournament" class="hidden w-full max-w-2xl">
         <div class="glass-card p-8">
           <h2 class="text-2xl font-bold text-navy mb-6">Create Tournament</h2>
           
@@ -196,12 +196,12 @@ export function TournamentView(): HTMLElement {
             <div>
               <label class="block text-sm font-medium mb-2 text-navy">Max Players</label>
               <select id="maxPlayers" class="input-glass w-full">
-                <option value="4">4 Players (2 rounds)</option>
-                <option value="8" selected>8 Players (3 rounds)</option>
+                <option value="4" selected>4 Players (2 rounds)</option>
+                <option value="8">8 Players (3 rounds)</option>
                 <option value="16">16 Players (4 rounds)</option>
                 <option value="32">32 Players (5 rounds)</option>
               </select>
-              <p class="text-xs text-navy-muted mt-1">Tournament will start when full or manually by creator</p>
+              <p class="text-xs text-navy-muted mt-6">Tournament will start when full or manually by creator</p>
             </div>
 
             <div id="createError" class="text-red-500 text-sm hidden"></div>

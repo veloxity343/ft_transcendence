@@ -13,7 +13,7 @@ export function Navbar(): HTMLElement {
 
   nav.innerHTML = `
     <div class="max-w-7xl mx-auto px-4">
-      <div class="flex items-center justify-between h-16">
+      <div class="flex items-center justify-between h-16 px-6 lg:px-8">
         <!-- Logo -->
         <a href="/" class="text-2xl font-bold">
           <span class="text-blue animate-glow">ft_trans</span><span class="text-navy">cendence</span>
@@ -60,7 +60,7 @@ export function Navbar(): HTMLElement {
           </div>
         ` : `
           <!-- Guest Navigation -->
-          <div class="flex items-center gap-4">
+          <div class="flex items-center gap-6">
             <a href="/leaderboard" class="text-navy hover:text-blue transition-colors font-semibold">
               Leaderboard
             </a>
