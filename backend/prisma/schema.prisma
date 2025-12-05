@@ -17,8 +17,9 @@ model User {
   hash      String
   avatar    String   @default("default-avatar.png")
   
-  // 42 OAuth
+  // OAuth providers
   id42      Int?     @unique
+  googleId  String?  @unique
   
   // 2FA
   twoFA         Boolean @default(false)

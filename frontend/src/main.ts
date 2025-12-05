@@ -1,4 +1,11 @@
 import './styles/main.css';
+
+// Capture OAuth params on callback
+if (window.location.pathname === '/oauth/callback' && window.location.search) {
+  sessionStorage.setItem('oauth_params', window.location.search);
+  console.log('Captured OAuth params:', window.location.search);
+}
+
 import { router } from './router';
 import { Navbar } from './components/navbar';
 import { HomeView } from './views/home';
@@ -9,6 +16,9 @@ import { authApi } from './api/auth';
 import { storage } from './utils/storage';
 import { GameView } from './views/game';
 import { TournamentView } from './views/tournament';
+import { ProfileView } from './views/profile';
+import { SettingsView } from './views/settings';
+import { OAuthCallbackView } from './views/oauth-callback';
 import { errorOverlay } from './components/error-overlay';
 import './utils/debug';
 
@@ -162,6 +172,13 @@ function registerRoutes(): void {
   });
 
   router.registerRoute({
+    path: '/oauth/callback',
+    title: 'Signing in...',
+    component: OAuthCallbackView,
+    requiresAuth: false,
+  });
+
+  router.registerRoute({
     path: '/leaderboard',
     title: 'Leaderboard',
     component: () => {
@@ -196,36 +213,16 @@ function registerRoutes(): void {
   });
 
   router.registerRoute({
-    path: '/profile',
-    title: 'Profile',
-    component: () => {
-      const div = document.createElement('div');
-      div.className = 'flex-1 flex items-center justify-center';
-      div.innerHTML = `
-        <div class="text-center">
-          <h1 class="text-4xl font-bold mb-4" style="color: var(--color-navy)">Profile</h1>
-          <p style="color: var(--color-navy-muted)">Profile interface coming soon...</p>
-        </div>
-      `;
-      return div;
-    },
+    path: '/settings',
+    title: 'Settings',
+    component: SettingsView,
     requiresAuth: true,
   });
 
   router.registerRoute({
-    path: '/settings',
-    title: 'Settings',
-    component: () => {
-      const div = document.createElement('div');
-      div.className = 'flex-1 flex items-center justify-center';
-      div.innerHTML = `
-        <div class="text-center">
-          <h1 class="text-4xl font-bold mb-4" style="color: var(--color-navy)">Settings</h1>
-          <p style="color: var(--color-navy-muted)">Settings interface coming soon...</p>
-        </div>
-      `;
-      return div;
-    },
+    path: '/profile',
+    title: 'Profile', 
+    component: ProfileView,
     requiresAuth: true,
   });
 }

@@ -4,7 +4,28 @@ export interface User {
   username: string;
   email: string;
   avatar?: string;
+  
+  // 2FA
+  twoFA?: boolean;
+  
+  // Game stats
+  score?: number;
+  rank?: number;
+  gamesPlayed?: number;
+  gamesWon?: number;
+  gamesLost?: number;
+  winRate?: number;
+  playTime?: number;
+  gameHistory?: string;
+  
+  // Relationships
+  friends?: string;
+  
+  // Timestamps
   createdAt: string;
+  updatedAt?: string;
+  
+  // Legacy nested stats (for compatibility)
   stats?: UserStats;
 }
 
@@ -168,7 +189,8 @@ export type Route =
   | '/profile' 
   | '/leaderboard' 
   | '/stats'
-  | '/settings';
+  | '/settings'
+  | '/oauth/callback';
 
 export interface RouteConfig {
   path: Route;

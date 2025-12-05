@@ -127,6 +127,7 @@ export function GameView(): HTMLElement {
     <div id="gameContainer" class="hidden max-w-4xl w-full">
       <div class="arcade-cabinet">
         <div class="arcade-bezel">
+        <div class="arcade-controls-info"><div id="controlsDisplay" class="flex justify-center gap-8"><div class="control-group"><kbd>W</kbd><kbd>S</kbd><span class="control-label">or</span><kbd>↑</kbd><kbd>↓</kbd></div></div></div>
           <div class="arcade-marquee">
             <div class="flex justify-between items-center px-8">
               <div class="text-center"><div id="player1Label" class="text-xs text-gray-400 uppercase">Player 1</div><div id="player1Score" class="text-4xl font-bold text-white font-mono">0</div></div>
@@ -150,7 +151,6 @@ export function GameView(): HTMLElement {
           </div>
           <div id="gameStatusBar" class="arcade-status"><span class="status-text">Ready</span></div>
         </div>
-        <div class="arcade-controls-info"><div id="controlsDisplay" class="flex justify-center gap-8"><div class="control-group"><kbd>W</kbd><kbd>S</kbd><span class="control-label">or</span><kbd>↑</kbd><kbd>↓</kbd></div></div></div>
         <div class="arcade-controls">
           <button id="leaveGameBtn" class="btn-outline">${icons.back} Leave</button>
           <button id="forfeitGameBtn" class="btn-outline text-red-500 hover:bg-red-50">${icons.forfeit} Forfeit</button>

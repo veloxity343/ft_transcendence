@@ -102,7 +102,15 @@ class Router {
     const route = this.routes.get(path);
     
     if (route) {
-      this.navigateTo(path);
+      // Preserve query params for OAuth callback
+      if (path === '/oauth/callback' && window.location.search) {
+        // Render component directly
+        this.currentRoute = path;
+        document.title = `${route.title} - Transcendence`;
+        this.render(route);
+      } else {
+        this.navigateTo(path);
+      }
     } else {
       this.navigateTo('/');
     }

@@ -253,7 +253,7 @@ export async function setupGameWebSocket(
             break;
           }
 
-          // ==================== NEW: FORFEIT ====================
+          // ==================== FORFEIT ====================
           case 'game:forfeit': {
             try {
               const result = gameService.forfeitGame(userId);
@@ -278,7 +278,7 @@ export async function setupGameWebSocket(
             break;
           }
 
-          // ==================== NEW: REJOIN ====================
+          // ==================== REJOIN ====================
           case 'game:rejoin': {
             try {
               const { gameId } = message.data || {};
