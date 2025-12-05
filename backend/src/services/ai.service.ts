@@ -199,13 +199,13 @@ export class AIOpponentService {
     let targetY: number;
     
     if (movingTowardsAI) {
-      // Ball is coming towards us - predict where it will be
+      // Ball is coming towards ai -> predict where it will be
       const prediction = this.predictBallImpact(
         ballX, ballY, ballSpeedX, ballSpeedY, isPlayer1, config
       );
       targetY = prediction.y;
     } else {
-      // Ball is going away - position strategically
+      // Ball is going away -> position strategically
       targetY = this.getStrategicPosition(ballY, aiPaddleCenter, config);
     }
 
@@ -283,14 +283,14 @@ export class AIOpponentService {
         : simX >= anticipationX;
 
       if (reachedTarget) {
-        // Apply accuracy - sometimes the AI "miscalculates"
+        // Apply accuracy
         if (Math.random() > config.predictionAccuracy) {
-          // Add a significant error for failed predictions
+          // Add sig err for failed predictions
           const bigError = (Math.random() - 0.5) * 30;
           simY += bigError;
         }
         
-        // Account for multiple bounces making prediction harder
+        // Account for multiple bounces
         if (bounces > 2) {
           const bounceError = (bounces - 2) * 5 * (1 - config.predictionAccuracy);
           simY += (Math.random() - 0.5) * bounceError;
@@ -302,7 +302,7 @@ export class AIOpponentService {
         };
       }
 
-      // Ball changed direction - return to center
+      // Ball changed direction -> return to center
       const nowMovingAway = isPlayer1 ? simSpeedX > 0 : simSpeedX < 0;
       if (nowMovingAway) {
         return { x: targetX, y: 50 };

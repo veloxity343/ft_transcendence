@@ -21,15 +21,21 @@ class WebSocketClient {
   private wasConnected = false;
 
   connect(): Promise<boolean> {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
       if (this.ws?.readyState === WebSocket.OPEN) {
         console.log('WebSocket already connected');
         resolve(true);
         return;
       }
 
-      // Use getValidAuthToken to check expiration before connecting
-      const token = storage.getValidAuthToken();
+      // Try to get valid token, refreshing if needed
+      let token = storage.getValidAuthToken();
+      
+      if (!token) {
+        // Try to refresh
+        token = await storage.refreshAccessToken();
+      }
+      
       if (!token) {
         console.error('No valid auth token found - token may be expired');
         this.handleAuthFailure();
@@ -195,15 +201,20 @@ class WebSocketClient {
     window.dispatchEvent(new CustomEvent('auth:logout'));
   }
 
-  private handleReconnect(): void {
+  private async handleReconnect(): Promise<void> {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('Max reconnect attempts reached');
       return;
     }
 
-    // Check token before attempting reconnect
-    if (storage.isTokenExpired()) {
-      console.warn('Token expired, not attempting reconnect');
+    // Try to refresh token if expired
+    let token = storage.getValidAuthToken();
+    if (!token) {
+      token = await storage.refreshAccessToken();
+    }
+    
+    if (!token) {
+      console.warn('Token expired and refresh failed, not attempting reconnect');
       this.handleAuthFailure();
       return;
     }
@@ -214,12 +225,7 @@ class WebSocketClient {
     console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
     
     setTimeout(() => {
-      // Double-check token validity before reconnecting
-      if (!storage.isTokenExpired()) {
-        this.connect();
-      } else {
-        this.handleAuthFailure();
-      }
+      this.connect();
     }, delay);
   }
 

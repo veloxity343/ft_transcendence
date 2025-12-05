@@ -14,9 +14,16 @@ class HttpClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    isRetry: boolean = false
   ): Promise<ApiResponse<T>> {
-    const token = storage.getAuthToken();
+    // Get valid token, or try to refresh if expired
+    let token = storage.getValidAuthToken();
+    
+    if (!token && !isRetry) {
+      // Token expired, try to refresh before making the request
+      token = await storage.refreshAccessToken();
+    }
     
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -36,8 +43,25 @@ class HttpClient {
       // Reset consecutive errors on successful connection
       this.consecutiveNetworkErrors = 0;
 
-      // Handle auth errors
-      if (response.status === 401) {
+      // Handle auth errors - try refresh once
+      if (response.status === 401 && !isRetry) {
+        const newToken = await storage.refreshAccessToken();
+        
+        if (newToken) {
+          // Retry the request with the new token
+          return this.request<T>(endpoint, options, true);
+        } else {
+          // Refresh failed - now log out
+          this.handleAuthError();
+          return {
+            success: false,
+            error: 'Session expired. Please log in again.',
+          };
+        }
+      }
+
+      // Auth error on retry - give up
+      if (response.status === 401 && isRetry) {
         this.handleAuthError();
         return {
           success: false,
@@ -89,7 +113,7 @@ class HttpClient {
     // Check if already showing auth error
     if (errorOverlay.getCurrentType() === 'auth') return;
     
-    storage.clearAll();
+    storage.clearAuth();
     
     errorOverlay.show({
       type: 'auth',
@@ -100,22 +124,16 @@ class HttpClient {
   }
 
   private handleServerError(status: number): void {
-    // Don't show overlay for every server error, just log it
     console.error(`Server error: ${status}`);
-    
-    // Only show overlay for persistent server issues
-    // Could track consecutive 500s similar to network errors
   }
 
   private showNetworkError(): void {
-    // Don't show if already showing
     if (errorOverlay.isShowing()) return;
     
     errorOverlay.show({
       type: 'network',
       canRetry: true,
       onRetry: async () => {
-        // Try a simple health check request
         try {
           const response = await fetch(`${this.baseURL}/health`, {
             method: 'GET',
@@ -132,13 +150,11 @@ class HttpClient {
         }
       },
       onDismiss: () => {
-        // Reset error count when user dismisses
         this.consecutiveNetworkErrors = 0;
       },
     });
   }
 
-  // Reset error tracking (call after successful operations)
   resetErrorTracking(): void {
     this.consecutiveNetworkErrors = 0;
   }
