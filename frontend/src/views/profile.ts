@@ -1,14 +1,23 @@
-import { router } from '../router';
-import { authApi } from '../api/auth';
-import { userApi } from '../api/user';
 import { storage } from '../utils/storage';
 import { showToast } from '../utils/toast';
-import { formatDate, calculateWinRate, formatDuration } from '../utils/validators';
 import { API_BASE_URL } from '../constants';
+import { userApi } from '../api/user';
+import { authApi } from '../api/auth';
+import {
+  historyApi,
+  formatDuration,
+  formatDate,
+  getEloChangeDisplay,
+  getMatchTypeDisplay,
+  getRankColor,
+  getRankTitle,
+  type MatchHistoryEntry,
+  type PlayerStats,
+} from '../api/history';
 
 export function ProfileView(): HTMLElement {
   const container = document.createElement('div');
-  container.className = 'flex-1 p-4 md:p-8 flex flex-col items-center';
+  container.className = 'flex-1 px-4 py-8 max-w-4xl mx-auto w-full';
 
   const user = storage.getUserData();
 
@@ -41,14 +50,17 @@ export function ProfileView(): HTMLElement {
           <div class="flex-1 text-center md:text-left">
             <h1 class="text-3xl font-bold text-blue">${user?.username || 'Unknown'}</h1>
             <p class="text-navy-muted">${user?.email || ''}</p>
-            <p class="text-sm text-navy-muted mt-1">
-              Member since ${user?.createdAt ? formatDate(user.createdAt) : 'Unknown'}
-            </p>
+            
+            <!-- Rank Badge -->
+            <div class="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full" id="rankBadge">
+              <span id="rankTitle" class="font-semibold">Loading...</span>
+              <span id="rankElo" class="text-sm opacity-75"></span>
+            </div>
             
             <!-- Quick Stats -->
             <div class="flex flex-wrap gap-4 mt-4 justify-center md:justify-start">
               <div class="text-center">
-                <span id="rankBadge" class="text-2xl font-bold text-gold">-</span>
+                <span id="leaderboardRank" class="text-2xl font-bold text-gold">-</span>
                 <p class="text-xs text-navy-muted">Rank</p>
               </div>
               <div class="text-center">
@@ -59,6 +71,10 @@ export function ProfileView(): HTMLElement {
                 <span id="gamesPlayed" class="text-2xl font-bold text-blue">-</span>
                 <p class="text-xs text-navy-muted">Games</p>
               </div>
+              <div class="text-center">
+                <span id="winStreak" class="text-2xl font-bold text-orange-500">-</span>
+                <p class="text-xs text-navy-muted">Streak</p>
+              </div>
             </div>
           </div>
 
@@ -67,11 +83,14 @@ export function ProfileView(): HTMLElement {
             <a href="/settings" class="btn-secondary px-4 py-2 text-sm text-center">
               Edit Profile
             </a>
+            <a href="/history" class="btn-primary px-4 py-2 text-sm text-center">
+              Full History
+            </a>
           </div>
         </div>
       </div>
 
-      <!-- Stats Grid -->
+      <!-- Detailed Stats Grid -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="glass-card p-4 text-center">
           <div id="statWins" class="text-3xl font-bold text-green-500">-</div>
@@ -82,22 +101,36 @@ export function ProfileView(): HTMLElement {
           <div class="text-sm text-navy-muted">Losses</div>
         </div>
         <div class="glass-card p-4 text-center">
-          <div id="statScore" class="text-3xl font-bold text-blue">-</div>
-          <div class="text-sm text-navy-muted">ELO Score</div>
-        </div>
-        <div class="glass-card p-4 text-center">
           <div id="statPlayTime" class="text-3xl font-bold text-purple-500">-</div>
           <div class="text-sm text-navy-muted">Play Time</div>
         </div>
+        <div class="glass-card p-4 text-center">
+          <div id="statTournaments" class="text-3xl font-bold text-yellow-500">-</div>
+          <div class="text-sm text-navy-muted">Tournaments Won</div>
+        </div>
       </div>
 
-      <!-- Match History -->
+      <!-- ELO History Chart placeholder -->
       <div class="glass-card p-6">
-        <h2 class="text-xl font-semibold mb-4 text-navy">Match History</h2>
+        <h2 class="text-xl font-semibold mb-4 text-navy">ELO Progression</h2>
+        <div id="eloChart" class="h-32 flex items-end gap-1">
+          <!-- Simple bar chart will be rendered here -->
+          <div class="text-center text-navy-muted w-full py-8">Loading ELO history...</div>
+        </div>
+      </div>
+
+      <!-- Recent Matches -->
+      <div class="glass-card p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-semibold text-navy">Recent Matches</h2>
+          <a href="/history" class="text-blue hover:text-blue-dark text-sm font-semibold">
+            View All →
+          </a>
+        </div>
         
-        <div id="matchHistory" class="space-y-3">
+        <div id="recentMatches" class="space-y-3">
           <div class="text-center text-navy-muted py-8">
-            Loading match history...
+            Loading recent matches...
           </div>
         </div>
       </div>
@@ -143,9 +176,9 @@ export function ProfileView(): HTMLElement {
     </div>
   `;
 
-  // Load user stats
-  loadUserStats();
-  loadMatchHistory();
+  // Load data
+  loadPlayerStats();
+  loadRecentMatches();
   loadFriends();
 
   // Avatar upload handler
@@ -156,13 +189,11 @@ export function ProfileView(): HTMLElement {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (!file) return;
 
-    // Validate file size (1MB max)
     if (file.size > 1024 * 1024) {
       showToast('Image must be less than 1MB', 'error');
       return;
     }
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       showToast('Please select an image file', 'error');
       return;
@@ -184,10 +215,8 @@ export function ProfileView(): HTMLElement {
 
       if (response.ok) {
         showToast('Avatar updated successfully!', 'success');
-        // Update avatar display
         if (data.avatar) {
           avatarImage.src = getAvatarUrl(data.avatar);
-          // Update stored user data
           const userData = storage.getUserData();
           if (userData) {
             userData.avatar = data.avatar;
@@ -253,8 +282,8 @@ export function ProfileView(): HTMLElement {
           }
 
           searchResults.innerHTML = response.data
-            .filter(u => u.id !== user?.id) // Don't show current user
-            .map(u => `
+            .filter((u: any) => u.id !== user?.id)
+            .map((u: any) => `
               <div class="flex items-center justify-between p-2 bg-navy-dark/30 rounded-lg">
                 <div class="flex items-center gap-2">
                   <img 
@@ -274,15 +303,12 @@ export function ProfileView(): HTMLElement {
               </div>
             `).join('');
 
-          // Add click handlers
           searchResults.querySelectorAll('.add-friend-action').forEach(btn => {
             btn.addEventListener('click', async (e) => {
               const userId = (e.target as HTMLButtonElement).dataset.userId!;
               await addFriend(userId, e.target as HTMLButtonElement);
             });
           });
-        } else {
-          searchResults.innerHTML = '<p class="text-red-500 text-sm text-center py-2">Search failed</p>';
         }
       } catch (error) {
         searchResults.innerHTML = '<p class="text-red-500 text-sm text-center py-2">Search failed</p>';
@@ -314,56 +340,59 @@ export function ProfileView(): HTMLElement {
     }
   }
 
-  async function loadUserStats() {
+  async function loadPlayerStats() {
     try {
-      const response = await authApi.getCurrentUser();
+      const response = await historyApi.getMyStats();
       
       if (response.success && response.data) {
-        const userData = response.data as any;
+        const stats = response.data;
         
-        // Update header stats
-        const rankBadge = container.querySelector('#rankBadge') as HTMLSpanElement;
-        const winRateEl = container.querySelector('#winRate') as HTMLSpanElement;
-        const gamesPlayedEl = container.querySelector('#gamesPlayed') as HTMLSpanElement;
+        // Update rank badge
+        const rankBadge = container.querySelector('#rankBadge') as HTMLDivElement;
+        const rankColor = getRankColor(stats.currentElo);
+        rankBadge.style.backgroundColor = `${rankColor}20`;
+        rankBadge.style.border = `2px solid ${rankColor}`;
         
-        rankBadge.textContent = userData.rank > 0 ? `#${userData.rank}` : '-';
-        winRateEl.textContent = `${Math.round(userData.winRate || 0)}%`;
-        gamesPlayedEl.textContent = userData.gamesPlayed?.toString() || '0';
-
-        // Update detailed stats
-        (container.querySelector('#statWins') as HTMLDivElement).textContent = userData.gamesWon?.toString() || '0';
-        (container.querySelector('#statLosses') as HTMLDivElement).textContent = userData.gamesLost?.toString() || '0';
-        (container.querySelector('#statScore') as HTMLDivElement).textContent = userData.score?.toString() || '1200';
-        (container.querySelector('#statPlayTime') as HTMLDivElement).textContent = formatPlayTime(userData.playTime || 0);
+        (container.querySelector('#rankTitle') as HTMLSpanElement).textContent = stats.rankTitle;
+        (container.querySelector('#rankTitle') as HTMLSpanElement).style.color = rankColor;
+        (container.querySelector('#rankElo') as HTMLSpanElement).textContent = `${stats.currentElo} ELO`;
+        
+        // Quick stats
+        (container.querySelector('#leaderboardRank') as HTMLSpanElement).textContent = 
+          stats.leaderboardRank > 0 ? `#${stats.leaderboardRank}` : '-';
+        (container.querySelector('#winRate') as HTMLSpanElement).textContent = `${stats.winRate}%`;
+        (container.querySelector('#gamesPlayed') as HTMLSpanElement).textContent = stats.totalGames.toString();
+        (container.querySelector('#winStreak') as HTMLSpanElement).textContent = 
+          stats.currentWinStreak > 0 ? `${stats.currentWinStreak}W` : '0';
+        
+        // Detailed stats
+        (container.querySelector('#statWins') as HTMLDivElement).textContent = stats.wins.toString();
+        (container.querySelector('#statLosses') as HTMLDivElement).textContent = stats.losses.toString();
+        (container.querySelector('#statPlayTime') as HTMLDivElement).textContent = formatPlayTime(stats.totalPlayTime);
+        (container.querySelector('#statTournaments') as HTMLDivElement).textContent = stats.tournamentsWon.toString();
+        
+        // Render simple ELO chart
+        renderEloChart(stats.currentElo, stats.highestElo);
       }
     } catch (error) {
-      console.error('Failed to load user stats:', error);
+      console.error('Failed to load stats:', error);
     }
   }
 
-  async function loadMatchHistory() {
-    const matchHistoryDiv = container.querySelector('#matchHistory') as HTMLDivElement;
+  async function loadRecentMatches() {
+    const recentMatchesDiv = container.querySelector('#recentMatches') as HTMLDivElement;
     
     try {
-      const response = await authApi.getCurrentUser();
+      const response = await historyApi.getMyMatchHistory(5, 0, 'all');
+
+      console.log('Match history response:', response);  // Add this
+      console.log('Matches:', response.data?.matches);   // Add this
       
       if (response.success && response.data) {
-        const userData = response.data as any;
-        let gameHistory: any[] = [];
+        const matches = response.data.matches;
         
-        // Parse game history if it's a string
-        if (typeof userData.gameHistory === 'string') {
-          try {
-            gameHistory = JSON.parse(userData.gameHistory);
-          } catch {
-            gameHistory = [];
-          }
-        } else if (Array.isArray(userData.gameHistory)) {
-          gameHistory = userData.gameHistory;
-        }
-
-        if (gameHistory.length === 0) {
-          matchHistoryDiv.innerHTML = `
+        if (matches.length === 0) {
+          recentMatchesDiv.innerHTML = `
             <div class="text-center text-navy-muted py-8">
               <p>No matches played yet.</p>
               <a href="/game" class="text-blue hover:text-blue-dark mt-2 inline-block">Play your first game!</a>
@@ -372,14 +401,9 @@ export function ProfileView(): HTMLElement {
           return;
         }
 
-        // Show last 10 matches
-        const recentMatches = gameHistory.slice(-10).reverse();
-        
-        matchHistoryDiv.innerHTML = recentMatches.map((match: any) => {
-          const isWin = match.won;
-          const opponentName = match.opponent || 'Unknown';
-          const myScore = match.myScore || 0;
-          const oppScore = match.oppScore || 0;
+        recentMatchesDiv.innerHTML = matches.map((match: MatchHistoryEntry) => {
+          const isWin = match.winnerId === match.player1Id;
+          const eloChange = getEloChangeDisplay(match.player1EloChange);
           
           return `
             <div class="flex items-center justify-between p-3 bg-navy-dark/30 rounded-lg border-l-4 ${isWin ? 'border-green-500' : 'border-red-500'}">
@@ -388,20 +412,20 @@ export function ProfileView(): HTMLElement {
                   ${isWin ? 'W' : 'L'}
                 </span>
                 <div>
-                  <p class="text-navy font-medium">vs ${opponentName}</p>
-                  <p class="text-sm text-navy-muted">${match.date ? formatDate(match.date) : 'Unknown date'}</p>
+                  <p class="text-navy font-medium">vs ${match.player2Name}</p>
+                  <p class="text-sm text-navy-muted">${formatDate(match.date)}</p>
                 </div>
               </div>
               <div class="text-right">
-                <p class="text-lg font-bold text-navy">${myScore} - ${oppScore}</p>
-                <p class="text-sm text-navy-muted">${match.duration ? formatDuration(match.duration) : ''}</p>
+                <p class="text-lg font-bold text-navy">${match.player1Score} - ${match.player2Score}</p>
+                <p class="text-sm font-semibold ${eloChange.color}">${eloChange.text}</p>
               </div>
             </div>
           `;
         }).join('');
       }
     } catch (error) {
-      matchHistoryDiv.innerHTML = '<p class="text-red-500 text-center py-4">Failed to load match history</p>';
+      recentMatchesDiv.innerHTML = '<p class="text-red-500 text-center py-4">Failed to load match history</p>';
     }
   }
 
@@ -422,7 +446,7 @@ export function ProfileView(): HTMLElement {
           return;
         }
 
-        friendsList.innerHTML = response.data.map(friend => `
+        friendsList.innerHTML = response.data.map((friend: any) => `
           <div class="flex items-center justify-between p-3 bg-navy-dark/30 rounded-lg">
             <div class="flex items-center gap-3">
               <img 
@@ -445,7 +469,6 @@ export function ProfileView(): HTMLElement {
           </div>
         `).join('');
 
-        // Add remove handlers
         friendsList.querySelectorAll('.remove-friend-btn').forEach(btn => {
           btn.addEventListener('click', async (e) => {
             const userId = (e.target as HTMLButtonElement).dataset.userId!;
@@ -454,7 +477,7 @@ export function ProfileView(): HTMLElement {
                 const response = await userApi.removeFriend(userId);
                 if (response.success) {
                   showToast('Friend removed', 'success');
-                  loadFriends(); // Reload list
+                  loadFriends();
                 } else {
                   showToast(response.error || 'Failed to remove friend', 'error');
                 }
@@ -470,27 +493,50 @@ export function ProfileView(): HTMLElement {
     }
   }
 
+  function renderEloChart(currentElo: number, highestElo: number) {
+    const eloChart = container.querySelector('#eloChart') as HTMLDivElement;
+    
+    // Simple visualization showing current vs highest
+    const minElo = Math.max(1000, Math.min(currentElo, highestElo) - 100);
+    const maxElo = Math.max(currentElo, highestElo) + 100;
+    const range = maxElo - minElo;
+    
+    const currentHeight = Math.round(((currentElo - minElo) / range) * 100);
+    const highestHeight = Math.round(((highestElo - minElo) / range) * 100);
+    
+    eloChart.innerHTML = `
+      <div class="flex items-end justify-center gap-8 w-full h-full">
+        <div class="text-center">
+          <div class="bg-blue rounded-t w-16 transition-all" style="height: ${currentHeight}%"></div>
+          <div class="text-sm font-semibold text-navy mt-2">${currentElo}</div>
+          <div class="text-xs text-navy-muted">Current</div>
+        </div>
+        <div class="text-center">
+          <div class="bg-yellow-500 rounded-t w-16 transition-all" style="height: ${highestHeight}%"></div>
+          <div class="text-sm font-semibold text-navy mt-2">${highestElo}</div>
+          <div class="text-xs text-navy-muted">Highest</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function getAvatarUrl(avatar?: string): string {
+    if (!avatar || avatar === 'default-avatar.png') {
+      return '';
+    }
+    if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+      return avatar;
+    }
+    return `${API_BASE_URL}/uploads/${avatar}`;
+  }
+
+  function formatPlayTime(seconds: number): string {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${hours}h ${minutes}m`;
+  }
+
   return container;
-}
-
-function getAvatarUrl(avatar?: string): string {
-  if (!avatar || avatar === 'default-avatar.png') {
-    return 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%231a1a2e" width="100" height="100"/><text x="50" y="50" font-size="40" text-anchor="middle" dominant-baseline="middle" fill="%2300d4ff">?</text></svg>';
-  }
-  
-  // If it's a full URL (e.g., Google avatar), return as-is
-  if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
-    return avatar;
-  }
-  
-  // Otherwise, it's a local upload
-  return `${API_BASE_URL}/uploads/${avatar}`;
-}
-
-function formatPlayTime(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  return `${hours}h ${minutes}m`;
 }

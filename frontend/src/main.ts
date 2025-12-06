@@ -19,11 +19,38 @@ import { TournamentView } from './views/tournament';
 import { ProfileView } from './views/profile';
 import { SettingsView } from './views/settings';
 import { OAuthCallbackView } from './views/oauth-callback';
+import { HistoryView } from './views/history';
 import { errorOverlay } from './components/error-overlay';
 import './utils/debug';
 
+// Try to refresh token if expired on startup
+async function tryRefreshOnStartup(): Promise<boolean> {
+  // If no auth token at all, nothing to refresh
+  if (!storage.getAuthToken()) {
+    return false;
+  }
+  
+  // If token is still valid, no need to refresh
+  if (!storage.isTokenExpired()) {
+    return true;
+  }
+  
+  // Token expired, try to refresh
+  console.log('Access token expired on startup, attempting refresh...');
+  const newToken = await storage.refreshAccessToken();
+  
+  if (newToken) {
+    console.log('Token refreshed successfully on startup');
+    return true;
+  } else {
+    console.warn('Token refresh failed on startup, clearing auth state');
+    storage.clearAuth();
+    return false;
+  }
+}
+
 // Initialize app
-function initializeApp(): void {
+async function initializeApp(): Promise<void> {
   const app = document.getElementById('app');
   if (!app) {
     console.error('App container not found');
@@ -33,11 +60,7 @@ function initializeApp(): void {
   // Setup global error handlers
   setupGlobalErrorHandlers();
 
-  // Check for expired token on startup and clear if needed
-  if (storage.getAuthToken() && storage.isTokenExpired()) {
-    console.warn('Token expired on startup, clearing auth state');
-    storage.clearAll();
-  }
+  await tryRefreshOnStartup();
 
   // Create layout
   const layout = document.createElement('div');
@@ -209,6 +232,13 @@ function registerRoutes(): void {
       `;
       return div;
     },
+    requiresAuth: true,
+  });
+
+  router.registerRoute({
+    path: '/history',
+    title: 'Match History',
+    component: HistoryView,
     requiresAuth: true,
   });
 

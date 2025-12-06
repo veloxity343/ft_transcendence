@@ -187,6 +187,7 @@ export type Route =
   | '/game' 
   | '/tournament' 
   | '/profile' 
+  | '/history'
   | '/leaderboard' 
   | '/stats'
   | '/settings'
