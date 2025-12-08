@@ -68,7 +68,7 @@ export function HomeView(): HTMLElement {
         <h1 class="text-5xl font-bold mb-6">
           <span class="text-blue animate-glow">TRANS</span><span class="text-navy">CENDENCE</span>
         </h1>
-        <p class="text-xl mb-10 text-navy-muted">
+        <p class="text-xl mb-10 text-navy-muted mb-6">
           The Ultimate Pong Experience
         </p>
         <div class="flex gap-4 justify-center">

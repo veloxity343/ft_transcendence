@@ -190,9 +190,21 @@ class Storage {
     localStorage.clear();
   }
 
-  // Check if user is authenticated (token exists AND is not expired)
+  // Check if user is authenticated
+  // Returns true if we have a valid access token OR a refresh token we can try
   isAuthenticated(): boolean {
-    return this.getValidAuthToken() !== null;
+    // If access token is valid, we're authenticated
+    if (this.getValidAuthToken()) {
+      return true;
+    }
+    
+    // If access token expired but refresh token exists, 
+    // still consider authenticated (refresh will happen on API calls)
+    if (this.getAuthToken() && this.getRefreshToken()) {
+      return true;
+    }
+    
+    return false;
   }
 }
 
