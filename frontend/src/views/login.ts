@@ -37,7 +37,7 @@ export function LoginView(): HTMLElement {
               type="text"
               id="username"
               name="username"
-              class="input-glass w-full"
+              class="input-glass mb-4 w-full"
               placeholder="Enter your username"
               value="${prefillUsername}"
               required
@@ -47,20 +47,36 @@ export function LoginView(): HTMLElement {
 
           <div>
             <label class="block text-sm font-medium mb-2 text-navy">Password</label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              class="input-glass w-full"
-              placeholder="Enter your password"
-              required
-            />
+            <div class="relative">
+              <input
+                type="password"
+                id="password"
+                name="password"
+                class="input-glass mb-4 w-full pr-10"
+                placeholder="Enter your password"
+                required
+              />
+              <button
+                type="button"
+                id="togglePassword"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-navy-muted hover:text-navy transition-colors"
+                title="Show Password"
+              >
+                <svg id="eyeOpen" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                <svg id="eyeClosed" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                </svg>
+              </button>
+            </div>
             <div id="passwordError" class="text-red-500 text-sm mt-1 hidden"></div>
           </div>
 
           <div id="formError" class="text-red-500 text-sm text-center hidden"></div>
 
-          <button type="submit" class="btn-primary w-full py-2.5" id="submitBtn">
+          <button type="submit" class="btn-primary w-full py-2.5 mb-6" id="submitBtn">
             Login
           </button>
         </div>
@@ -108,7 +124,7 @@ export function LoginView(): HTMLElement {
 
       <!-- OAuth Divider -->
       <div id="oauthSection" class="${requires2FA ? 'hidden' : ''}">
-        <div class="relative my-6">
+        <div class="relative my-6 mb-6">
           <div class="absolute inset-0 flex items-center">
             <div class="w-full border-t border-navy/20"></div>
           </div>
@@ -161,6 +177,18 @@ export function LoginView(): HTMLElement {
   const oauthSection = container.querySelector('#oauthSection') as HTMLDivElement;
   const registerLink = container.querySelector('#registerLink') as HTMLDivElement;
   const googleAuthBtn = container.querySelector('#googleAuthBtn') as HTMLButtonElement;
+  const togglePassword = container.querySelector('#togglePassword') as HTMLButtonElement;
+  const eyeOpen = togglePassword.querySelectorAll('svg')[0];
+  const eyeClosed = togglePassword.querySelectorAll('svg')[1];
+
+  // Toggle password visibility
+  togglePassword.addEventListener('click', () => {
+    const type = passwordInput.type === 'password' ? 'text' : 'password';
+    passwordInput.type = type;
+    eyeOpen.classList.toggle('hidden');
+    eyeClosed.classList.toggle('hidden');
+    togglePassword.title = type === 'password' ? 'Show password' : 'Hide password';
+  });
 
   // Check OAuth status
   checkOAuthStatus();

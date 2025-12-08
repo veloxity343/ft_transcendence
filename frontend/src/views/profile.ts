@@ -17,14 +17,14 @@ import {
 
 export function ProfileView(): HTMLElement {
   const container = document.createElement('div');
-  container.className = 'flex-1 px-4 py-8 max-w-4xl mx-auto w-full';
+  container.className = 'flex-1 flex items-center justify-center px-4';
 
   const user = storage.getUserData();
 
   container.innerHTML = `
     <div class="space-y-6">
       <!-- Profile Header -->
-      <div class="glass-card p-6">
+      <div class="glass-card p-6 mb-6 mt-6">
         <div class="flex flex-col md:flex-row items-center gap-6">
           <!-- Avatar -->
           <div class="relative group">
@@ -91,7 +91,7 @@ export function ProfileView(): HTMLElement {
       </div>
 
       <!-- Detailed Stats Grid -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div class="glass-card p-4 text-center">
           <div id="statWins" class="text-3xl font-bold text-green-500">-</div>
           <div class="text-sm text-navy-muted">Wins</div>
@@ -111,7 +111,7 @@ export function ProfileView(): HTMLElement {
       </div>
 
       <!-- ELO History Chart placeholder -->
-      <div class="glass-card p-6">
+      <div class="glass-card p-6 mb-6">
         <h2 class="text-xl font-semibold mb-4 text-navy">ELO Progression</h2>
         <div id="eloChart" class="h-32 flex items-end gap-1">
           <!-- Simple bar chart will be rendered here -->
@@ -120,7 +120,7 @@ export function ProfileView(): HTMLElement {
       </div>
 
       <!-- Recent Matches -->
-      <div class="glass-card p-6">
+      <div class="glass-card p-6 mb-6">
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-xl font-semibold text-navy">Recent Matches</h2>
           <a href="/history" class="text-blue hover:text-blue-dark text-sm font-semibold">
@@ -154,7 +154,7 @@ export function ProfileView(): HTMLElement {
 
     <!-- Add Friend Modal -->
     <div id="addFriendModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
-      <div class="glass-card p-6 max-w-md w-full mx-4">
+      <div class="glass-card p-6 max-w-md w-full mx-4 mb-6">
         <h3 class="text-xl font-semibold mb-4 text-navy">Add Friend</h3>
         <div class="space-y-4">
           <input
@@ -346,6 +346,7 @@ export function ProfileView(): HTMLElement {
       
       if (response.success && response.data) {
         const stats = response.data;
+        const winRateDisplay = Math.floor(stats.winRate * 100) / 100;
         
         // Update rank badge
         const rankBadge = container.querySelector('#rankBadge') as HTMLDivElement;
@@ -360,7 +361,7 @@ export function ProfileView(): HTMLElement {
         // Quick stats
         (container.querySelector('#leaderboardRank') as HTMLSpanElement).textContent = 
           stats.leaderboardRank > 0 ? `#${stats.leaderboardRank}` : '-';
-        (container.querySelector('#winRate') as HTMLSpanElement).textContent = `${stats.winRate}%`;
+        (container.querySelector('#winRate') as HTMLSpanElement).textContent = `${winRateDisplay}%`;
         (container.querySelector('#gamesPlayed') as HTMLSpanElement).textContent = stats.totalGames.toString();
         (container.querySelector('#winStreak') as HTMLSpanElement).textContent = 
           stats.currentWinStreak > 0 ? `${stats.currentWinStreak}W` : '0';

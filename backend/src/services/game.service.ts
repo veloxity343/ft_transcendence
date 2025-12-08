@@ -1446,8 +1446,30 @@ export class GameService {
     tournamentMatch?: string,
   ): Promise<number | null> {
     try {
+      // Check if game already exists (tournament games pre-create the record)
+      const existing = await this.prisma.game.findUnique({
+        where: { id: roomId },
+      });
+
+      if (existing) {
+        // Update existing (tournament game)
+        await this.prisma.game.update({
+          where: { id: roomId },
+          data: {
+            score1,
+            score2,
+            endTime,
+            duration,
+          },
+        });
+        console.log(`Updated game ${roomId}`);
+        return roomId;
+      }
+
+      // Create new game with the room ID as the database ID
       const game = await this.prisma.game.create({
         data: {
+          id: roomId,  // ADD THIS LINE - use room ID as database ID
           player1: player1Id,
           player2: player2Id,
           score1,

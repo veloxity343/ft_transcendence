@@ -17,7 +17,7 @@ import {
 
 export function HistoryView(): HTMLElement {
   const container = document.createElement('div');
-  container.className = 'flex-1 px-4 py-8 max-w-6xl mx-auto w-full';
+  container.className = 'flex-1 flex flex-col items-center justify-start px-4 py-8';
 
   const user = storage.getUserData();
 
@@ -70,7 +70,7 @@ export function HistoryView(): HTMLElement {
     </div>
 
     <!-- Content -->
-    <div id="matchesContent" class="space-y-3">
+    <div id="matchesContent" class="space-y-4">
       <div class="text-center text-navy-muted py-8">
         Loading match history...
       </div>
@@ -195,12 +195,13 @@ export function HistoryView(): HTMLElement {
       
       if (response.success && response.data) {
         const stats = response.data;
+        const winRateDisplay = Math.floor(stats.winRate * 100) / 100;
         
         (container.querySelector('#statElo') as HTMLDivElement).textContent = stats.currentElo.toString();
         (container.querySelector('#statElo') as HTMLDivElement).style.color = getRankColor(stats.currentElo);
         (container.querySelector('#statRank') as HTMLDivElement).textContent = 
           `${getRankTitle(stats.currentElo)} • #${stats.leaderboardRank || '-'}`;
-        (container.querySelector('#statWinRate') as HTMLDivElement).textContent = `${stats.winRate}%`;
+        (container.querySelector('#statWinRate') as HTMLDivElement).textContent = `${winRateDisplay}%`;
         (container.querySelector('#statGames') as HTMLDivElement).textContent = stats.totalGames.toString();
         (container.querySelector('#statStreak') as HTMLDivElement).textContent = 
           stats.currentWinStreak > 0 ? `${stats.currentWinStreak}W` : '0';
@@ -299,7 +300,7 @@ export function HistoryView(): HTMLElement {
       
       return `
         <button 
-          class="match-item w-full text-left glass-card p-4 hover:shadow-lg transition-shadow cursor-pointer border-l-4 ${isWin ? 'border-green-500' : 'border-red-500'}"
+          class="match-item w-full text-left glass-card p-4 mb-2 hover:shadow-lg transition-shadow cursor-pointer border-l-4 ${isWin ? 'border-green-500' : 'border-red-500'}"
           data-match-id="${match.id}"
         >
           <div class="flex items-center justify-between">
@@ -370,7 +371,7 @@ export function HistoryView(): HTMLElement {
       
       return `
         <button 
-          class="tournament-item w-full text-left glass-card p-6 hover:shadow-lg transition-shadow cursor-pointer"
+          class="tournament-item w-full text-left glass-card p-6 mb-2 hover:shadow-lg transition-shadow cursor-pointer"
           data-tournament-id="${tournament.id}"
         >
           <div class="flex items-center justify-between mb-4">
@@ -439,7 +440,7 @@ export function HistoryView(): HTMLElement {
           </svg>
         </button>
         
-        <div class="text-4xl font-bold mb-2 ${isWin ? 'text-green-500' : 'text-red-500'}">
+        <div class="text-4xl font-bold mb-2 ${isWin ? 'text-green-500' : 'text-red-500'}" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.5), -1px -1px 2px rgba(0,0,0,0.5), 1px -1px 2px rgba(0,0,0,0.5), -1px 1px 2px rgba(0,0,0,0.5);">
           ${isWin ? 'VICTORY' : 'DEFEAT'}
         </div>
         <div class="text-navy-muted">${getMatchTypeDisplay(match.type)}</div>

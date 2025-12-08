@@ -18,7 +18,7 @@ export function SettingsView(): HTMLElement {
 
     <div class="w-full max-w-2xl mx-auto items-center">
       <!-- Account Settings Section -->
-      <div class="glass-card p-6">
+      <div class="glass-card p-6 mb-6">
         <h2 class="text-xl font-semibold mb-4 text-navy">Account Settings</h2>
         
         <!-- Username -->
@@ -59,7 +59,7 @@ export function SettingsView(): HTMLElement {
       </div>
 
       <!-- Password Section -->
-      <div class="glass-card p-6">
+      <div class="glass-card p-6 mb-6">
         <h2 class="text-xl font-semibold mb-4 text-navy">Change Password</h2>
         
         <form id="passwordForm" class="space-y-4">
@@ -88,7 +88,7 @@ export function SettingsView(): HTMLElement {
             <input
               type="password"
               id="confirmPassword"
-              class="input-glass w-full"
+              class="input-glass w-full mb-6"
               placeholder="Confirm new password"
             />
           </div>
@@ -102,7 +102,7 @@ export function SettingsView(): HTMLElement {
       </div>
 
       <!-- Two-Factor Authentication Section -->
-      <div class="glass-card p-6">
+      <div class="glass-card p-6 mb-6">
         <h2 class="text-xl font-semibold mb-4 text-navy">Two-Factor Authentication</h2>
         
         <div id="twoFactorSection">

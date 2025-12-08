@@ -39,6 +39,23 @@ export const validators = {
       };
     }
     
+    // Check for valid email domain
+    // const validDomains = [
+    //   'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com',
+    //   'icloud.com', 'protonmail.com', 'aol.com', 'mail.com',
+    //   'zoho.com', 'yandex.com', 'gmx.com', 'fastmail.com'
+    // ];
+    
+    // const emailLower = value.toLowerCase();
+    // const hasValidDomain = validDomains.some(domain => emailLower.endsWith(`@${domain}`));
+    
+    // if (!hasValidDomain) {
+    //   return {
+    //     isValid: false,
+    //     error: 'Please use a valid email provider',
+    //   };
+    // }
+    
     return { isValid: true };
   },
 
@@ -56,6 +73,38 @@ export const validators = {
         error: `Password must be less than ${VALIDATION.PASSWORD_MAX_LENGTH} characters.`,
       };
     }
+
+    // Check for uppercase letter
+    if (!/[A-Z]/.test(value)) {
+      return {
+        isValid: false,
+        error: 'Password must contain at least one uppercase letter',
+      };
+    }
+    
+    // Check for lowercase letter
+    if (!/[a-z]/.test(value)) {
+      return {
+        isValid: false,
+        error: 'Password must contain at least one lowercase letter',
+      };
+    }
+    
+    // Check for number
+    if (!/[0-9]/.test(value)) {
+      return {
+        isValid: false,
+        error: 'Password must contain at least one number',
+      };
+    }
+    
+    // Check for special character
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value)) {
+      return {
+        isValid: false,
+        error: 'Password must contain at least one special character',
+      };
+    }
     
     return { isValid: true };
   },
@@ -64,7 +113,7 @@ export const validators = {
     if (password !== confirmPassword) {
       return {
         isValid: false,
-        error: 'Passwords do not match.',
+        error: 'Passwords must match.',
       };
     }
     

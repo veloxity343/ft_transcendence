@@ -223,6 +223,9 @@ button:focus-visible {
   color: var(--color-navy);
   font-family: 'Share Tech Mono', monospace;
   font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .input-glass:focus {
