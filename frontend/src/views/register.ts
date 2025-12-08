@@ -10,7 +10,7 @@ export function RegisterView(): HTMLElement {
   container.className = 'flex-1 flex items-center justify-center px-4 py-12';
   
   container.innerHTML = `
-    <div class="glass-card max-w-md w-full p-8 mt-6">
+    <div class="glass-card max-w-md w-full p-8 mb-6 mt-6">
       <h2 class="text-3xl font-bold text-center mb-8">
         <span class="text-blue animate-glow">Join</span> <span class="text-navy">Transcendence</span>
       </h2>

@@ -359,7 +359,7 @@ export function HistoryView(): HTMLElement {
       tournamentsContent.innerHTML = `
         <div class="text-center text-navy-muted py-8">
           <p>No tournaments played yet</p>
-          <a href="/tournament" class="text-blue hover:text-blue-dark mt-2 inline-block">Join a tournament!</a>
+          <a href="/tournament" class="text-blue hover:text-blue-dark mt-2 inline-block">Join or create a tournament!</a>
         </div>
       `;
       return;

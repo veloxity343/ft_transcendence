@@ -144,7 +144,7 @@ export function HomeView(): HTMLElement {
     <main class="center-content fade-in">
       <div class="text-center mb-4">
         <h1 class="text-4xl font-bold">
-          <span class="text-blue animate-glow">Choose</span> <span class="text-navy">Your Mode</span>
+          <span class="text-blue animate-glow">Welcome,</span> <span class="text-navy">${user?.username || 'Player'}!</span>
         </h1>
       </div>
 

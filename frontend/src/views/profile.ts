@@ -52,7 +52,7 @@ export function ProfileView(): HTMLElement {
             <p class="text-navy-muted">${user?.email || ''}</p>
             
             <!-- Rank Badge -->
-            <div class="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full" id="rankBadge">
+            <div class="mt-2 inline-flex items-center gap-2 px-4 py-1 rounded-full" id="rankBadge">
               <span id="rankTitle" class="font-semibold">Loading...</span>
               <span id="rankElo" class="text-sm opacity-75"></span>
             </div>
@@ -124,7 +124,7 @@ export function ProfileView(): HTMLElement {
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-xl font-semibold text-navy">Recent Matches</h2>
           <a href="/history" class="text-blue hover:text-blue-dark text-sm font-semibold">
-            View All →
+            View all →
           </a>
         </div>
         
@@ -136,8 +136,8 @@ export function ProfileView(): HTMLElement {
       </div>
 
       <!-- Friends Section -->
-      <div class="glass-card p-6">
-        <div class="flex justify-between items-center mb-4">
+      <div class="glass-card p-6 mb-6">
+        <div class="flex justify-between items-center mb-6">
           <h2 class="text-xl font-semibold text-navy">Friends</h2>
           <button id="addFriendBtn" class="btn-secondary px-3 py-1 text-sm">
             + Add Friend
@@ -160,7 +160,7 @@ export function ProfileView(): HTMLElement {
           <input
             type="text"
             id="friendSearchInput"
-            class="input-glass w-full"
+            class="input-glass mb-4 w-full"
             placeholder="Search by username..."
           />
           <div id="searchResults" class="max-h-60 overflow-y-auto space-y-2">

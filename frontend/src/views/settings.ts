@@ -63,34 +63,131 @@ export function SettingsView(): HTMLElement {
         <h2 class="text-xl font-semibold mb-4 text-navy">Change Password</h2>
         
         <form id="passwordForm" class="space-y-4">
+        
           <div>
             <label class="block text-sm font-medium mb-2 text-navy">Current Password</label>
-            <input
-              type="password"
-              id="currentPassword"
-              class="input-glass w-full"
-              placeholder="Enter current password"
-            />
+            <div class="relative">
+              <input
+                type="password"
+                id="currentPassword"
+                class="input-glass mb-4 w-full"
+                placeholder="Enter current password"
+              />
+              <button
+                type="button"
+                id="toggleCurrentPassword"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-navy-muted hover:text-navy transition-colors"
+                title="Show password"
+              >
+                <svg id="eyeOpenCurrent" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                <svg id="eyeClosedCurrent" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                </svg>
+              </button>
+            </div>
+            <p id="currentPasswordError" class="text-xs text-red-500 mt-1 hidden"></p>
           </div>
-          
+
           <div>
             <label class="block text-sm font-medium mb-2 text-navy">New Password</label>
-            <input
-              type="password"
-              id="newPassword"
-              class="input-glass w-full"
-              placeholder="Enter new password"
-            />
+            <div class="relative">
+              <input
+                type="password"
+                id="newPassword"
+                class="input-glass mb-4 w-full"
+                placeholder="Enter new password"
+              />
+              <button
+                type="button"
+                id="passwordInfo"
+                class="absolute right-10 top-1/2 -translate-y-1/2 text-navy-muted hover:text-navy transition-colors"
+                title="Password requirements"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </button>
+              <button
+                type="button"
+                id="togglePassword"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-navy-muted hover:text-navy transition-colors"
+                title="Show password"
+              >
+                <svg id="eyeOpen" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                <svg id="eyeClosed" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                </svg>
+              </button>
+            </div>
+            <div id="passwordRequirements" class="hidden mb-4 bg-white rounded-lg border border-navy/20 p-4 shadow-lg">
+              <p class="text-sm font-semibold text-navy mb-2">Password Requirements:</p>
+              <div class="space-y-1 text-sm">
+                <div id="req-length" class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                  <span class="text-red-500">At least 8 characters long</span>
+                </div>
+                <div id="req-uppercase" class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                  <span class="text-red-500">At least one uppercase letter</span>
+                </div>
+                <div id="req-number" class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                  <span class="text-red-500">At least one number</span>
+                </div>
+                <div id="req-special" class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                  <span class="text-red-500">At least one special character</span>
+                </div>
+                <div id="req-match" class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                  <span class="text-red-500">Passwords must match</span>
+                </div>
+              </div>
+            </div>
+            <p id="passwordError" class="text-xs text-red-500 mt-1 hidden"></p>
           </div>
-          
+
           <div>
             <label class="block text-sm font-medium mb-2 text-navy">Confirm New Password</label>
-            <input
-              type="password"
-              id="confirmPassword"
-              class="input-glass w-full mb-6"
-              placeholder="Confirm new password"
-            />
+            <div class="relative">
+              <input
+                type="password"
+                id="confirmPassword"
+                class="input-glass mb-6 w-full"
+                placeholder="Confirm new password"
+              />
+              <button
+                type="button"
+                id="toggleConfirmPassword"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-navy-muted hover:text-navy transition-colors"
+                title="Show password"
+              >
+                <svg id="eyeOpenConfirm" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                <svg id="eyeClosedConfirm" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                </svg>
+              </button>
+            </div>
+            <p id="confirmPasswordError" class="text-xs text-red-500 mt-1 hidden"></p>
           </div>
           
           <div id="passwordError" class="text-red-500 text-sm hidden"></div>
@@ -180,7 +277,7 @@ export function SettingsView(): HTMLElement {
       </div>
 
       <!-- Danger Zone -->
-      <div class="glass-card p-6 border border-red-500/30">
+      <div class="glass-card p-6 mb-6 border border-red-500/30">
         <h2 class="text-xl font-semibold mb-4 text-red-500">Danger Zone</h2>
         <p class="text-navy-muted mb-4">
           Once you delete your account, there is no going back. Please be certain.
@@ -300,6 +397,123 @@ export function SettingsView(): HTMLElement {
   
   const passwordForm = container.querySelector('#passwordForm') as HTMLFormElement;
   const passwordError = container.querySelector('#passwordError') as HTMLDivElement;
+  const currentPasswordInput = container.querySelector('#currentPassword') as HTMLInputElement;
+  const newPasswordInput = container.querySelector('#newPassword') as HTMLInputElement;
+  const confirmPasswordInput = container.querySelector('#confirmPassword') as HTMLInputElement;
+  const toggleCurrentPassword = container.querySelector('#toggleCurrentPassword') as HTMLButtonElement;
+  const toggleNewPassword = container.querySelector('#togglePassword') as HTMLButtonElement;
+  const toggleConfirmPassword = container.querySelector('#toggleConfirmPassword') as HTMLButtonElement;
+  const eyeOpenCurrent = toggleCurrentPassword.querySelectorAll('svg')[0];
+  const eyeClosedCurrent = toggleCurrentPassword.querySelectorAll('svg')[1];
+  const eyeOpenNew = toggleNewPassword.querySelectorAll('svg')[0];
+  const eyeClosedNew = toggleNewPassword.querySelectorAll('svg')[1];
+  const eyeOpenConfirm = toggleConfirmPassword.querySelectorAll('svg')[0];
+  const eyeClosedConfirm = toggleConfirmPassword.querySelectorAll('svg')[1];
+  const passwordInfo = container.querySelector('#passwordInfo') as HTMLButtonElement;
+  const passwordRequirements = container.querySelector('#passwordRequirements') as HTMLDivElement;
+
+  passwordInfo.addEventListener('click', () => {
+    passwordRequirements.classList.toggle('hidden');
+  });
+
+  // Real-time password requirement validation
+  newPasswordInput.addEventListener('input', () => {
+    const password = newPasswordInput.value;
+    
+    // Length check
+    const reqLength = container.querySelector('#req-length') as HTMLDivElement;
+    updateRequirement(reqLength, password.length >= 8);
+    
+    // Uppercase check
+    const reqUppercase = container.querySelector('#req-uppercase') as HTMLDivElement;
+    updateRequirement(reqUppercase, /[A-Z]/.test(password));
+
+    // Number check
+    const reqNumber = container.querySelector('#req-number') as HTMLDivElement;
+    updateRequirement(reqNumber, /[0-9]/.test(password));
+    
+    // Special character check
+    const reqSpecial = container.querySelector('#req-special') as HTMLDivElement;
+    updateRequirement(reqSpecial, /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password));
+    
+    // Match check
+    const reqMatch = container.querySelector('#req-match') as HTMLDivElement;
+    updateRequirement(reqMatch, password === confirmPasswordInput.value && password.length > 0 && confirmPasswordInput.value.length > 0);
+  });
+
+  // Check match if confirm password changes
+  confirmPasswordInput.addEventListener('input', () => {
+    const reqMatch = container.querySelector('#req-match') as HTMLDivElement;
+    updateRequirement(reqMatch, newPasswordInput.value === confirmPasswordInput.value && newPasswordInput.value.length > 0 && confirmPasswordInput.value.length > 0);
+  });
+
+  function updateRequirement(element: HTMLDivElement, isMet: boolean) {
+    const svg = element.querySelector('svg') as SVGElement;
+    const span = element.querySelector('span') as HTMLSpanElement;
+    
+    if (isMet) {
+      svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>';
+      svg.classList.remove('text-red-500');
+      svg.classList.add('text-green-500');
+      span.classList.remove('text-red-500');
+      span.classList.add('text-green-500');
+    } else {
+      svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>';
+      svg.classList.remove('text-green-500');
+      svg.classList.add('text-red-500');
+      span.classList.remove('text-green-500');
+      span.classList.add('text-red-500');
+    }
+  }
+
+  // Toggle password visibility
+  toggleCurrentPassword.addEventListener('click', () => {
+    const type = currentPasswordInput.type === 'password' ? 'text' : 'password';
+    currentPasswordInput.type = type;
+    newPasswordInput.type = type;
+    confirmPasswordInput.type = type;
+    eyeOpenCurrent.classList.toggle('hidden');
+    eyeClosedCurrent.classList.toggle('hidden');
+    eyeOpenNew.classList.toggle('hidden');
+    eyeClosedNew.classList.toggle('hidden');
+    eyeOpenConfirm.classList.toggle('hidden');
+    eyeClosedConfirm.classList.toggle('hidden');
+    toggleCurrentPassword.title = type === 'password' ? 'Show password' : 'Hide password';
+    toggleNewPassword.title = type === 'password' ? 'Show password' : 'Hide password';
+    toggleConfirmPassword.title = type === 'password' ? 'Show password' : 'Hide password';
+  });
+
+  toggleNewPassword.addEventListener('click', () => {
+    const type = newPasswordInput.type === 'password' ? 'text' : 'password';
+    currentPasswordInput.type = type;
+    newPasswordInput.type = type;
+    confirmPasswordInput.type = type;
+    eyeOpenCurrent.classList.toggle('hidden');
+    eyeClosedCurrent.classList.toggle('hidden');
+    eyeOpenNew.classList.toggle('hidden');
+    eyeClosedNew.classList.toggle('hidden');
+    eyeOpenConfirm.classList.toggle('hidden');
+    eyeClosedConfirm.classList.toggle('hidden');
+    toggleCurrentPassword.title = type === 'password' ? 'Show password' : 'Hide password';
+    toggleNewPassword.title = type === 'password' ? 'Show password' : 'Hide password';
+    toggleConfirmPassword.title = type === 'password' ? 'Show password' : 'Hide password';
+  });
+
+  toggleConfirmPassword.addEventListener('click', () => {
+    const type = confirmPasswordInput.type === 'password' ? 'text' : 'password';
+    currentPasswordInput.type = type;
+    newPasswordInput.type = type;
+    confirmPasswordInput.type = type;
+    eyeOpenCurrent.classList.toggle('hidden');
+    eyeClosedCurrent.classList.toggle('hidden');
+    eyeOpenNew.classList.toggle('hidden');
+    eyeClosedNew.classList.toggle('hidden');
+    eyeOpenConfirm.classList.toggle('hidden');
+    eyeClosedConfirm.classList.toggle('hidden');
+    toggleCurrentPassword.title = type === 'password' ? 'Show password' : 'Hide password';
+    toggleNewPassword.title = type === 'password' ? 'Show password' : 'Hide password';
+    toggleConfirmPassword.title = type === 'password' ? 'Show password' : 'Hide password';
+  });
 
   passwordForm.addEventListener('submit', async (e) => {
     e.preventDefault();
