@@ -38,6 +38,7 @@ authentication, and container orchestration.
 6. [Modules](#modules)
 7. [Team Information](#team-information)
 8. [Additional Information](#additional-information)
+9. [License](#license)
 
 ## Instructions
 
@@ -134,31 +135,26 @@ npm run dev
 
 ## Database Schema
 
-Tables:
-- users
-- matches
-- friends
-- messages
-- tokens/sessions
-- settings
-
-Relationships:
-- users 1---N matches
-- users M---M friends
-- users 1---N messages
+| Table                | Purpose                                                                    | Key Relationships                                                                                                   | Notes / Constraints               |
+| -------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| **User**             | Stores accounts, OAuth, 2FA, game stats, and social links                  | `User → Tournament` (creator), `User → TournamentPlayer` (participant)                                              | `email` & `username` unique       |
+| **Game**             | Records matches between players with scores, duration, timestamps          | Optional `Game → Tournament`                                                                                        | Can exist outside tournaments     |
+| **Tournament**       | Represents tournaments with config, status, players, matches, and games    | `Tournament → TournamentPlayer`, `Tournament → TournamentMatch`, `Tournament → Game`, `Tournament → User` (creator) | Tracks winner, rounds, and status |
+| **TournamentPlayer** | Tracks tournament participants, seed, elimination round, and snapshot info | `TournamentPlayer → Tournament`, `TournamentPlayer → User`                                                          | `[tournamentId, userId]` unique   |
+| **TournamentMatch**  | Represents matches in tournament bracket, participants, status, result     | `TournamentMatch → Tournament`, optional `TournamentMatch → Game`                                                   | `[tournamentId, matchId]` unique  |
 
 ## Features
 
-| Feature           | Description            | Member                  |
-|------------------|-----------------------|------------------------|
-| Authentication    | OAuth, login          | rcheong                |
-| Profiles          | User info, status     | nbinnazl               |
-| Chat              | Real-time comms       | rcheong + nbinnazl     |
-| AI Player         | Algorithmic gameplay  | rcheong                |
-| Game              | Real-time gameplay    | rcheong                |
-| Friends           | Add/remove, presence  | rcheong + nbinnazl     |
-| Containerisation  | Docker infra          | hetan                  |
-| Deployment        | Networking & infra    | hetan                  |
+| Feature           | Description                 | Member                 |
+|-------------------|-----------------------------|------------------------|
+| Authentication    | OAuth, login                | rcheong                |
+| Profiles          | User info, status           | nbinnazl               |
+| Chat              | Real-time communication     | rcheong + nbinnazl     |
+| AI Player         | Algorithmic gameplay        | rcheong                |
+| Game              | Real-time gameplay          | rcheong                |
+| Friends           | Add/remove, presence        | rcheong + nbinnazl     |
+| Containerisation  | Docker infrastructure       | hetan                  |
+| Deployment        | Networking & infrastructure | hetan                  |
 
 ## Modules
 
@@ -219,4 +215,7 @@ Relationships:
 
 -   Known issues (to be added)
 -   Future improvements (to be added)
--   License (if applicable)
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
