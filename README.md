@@ -155,16 +155,16 @@ Relationships:
 
 ## Features List
 
-  Feature            Description            Member
-  ------------------ ---------------------- --------------------
-  Authentication     OAuth, login           rcheong
-  Profiles           User info, status      nbinnazl
-  Chat               Real-time comms        rcheong + nbinnazl
-  AI Player          Algorithmic gameplay   rcheong
-  Game               Real-time gameplay     rcheong
-  Friends            Add/remove, presence   rcheong + nbinnazl
-  Containerisation   Docker infra           hetan
-  Deployment         Networking & infra     hetan
+| Feature           | Description            | Member                  |
+|------------------|-----------------------|------------------------|
+| Authentication    | OAuth, login          | rcheong                |
+| Profiles          | User info, status     | nbinnazl               |
+| Chat              | Real-time comms       | rcheong + nbinnazl     |
+| AI Player         | Algorithmic gameplay  | rcheong                |
+| Game              | Real-time gameplay    | rcheong                |
+| Friends           | Add/remove, presence  | rcheong + nbinnazl     |
+| Containerisation  | Docker infra          | hetan                  |
+| Deployment        | Networking & infra    | hetan                  |
 
 ## Modules
 
