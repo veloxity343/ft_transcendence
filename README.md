@@ -30,20 +30,15 @@ authentication, and container orchestration.
 
 ## Table of Contents
 
-- [Instructions](#instructions)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Production](#production)
-- [Resources](#resources)
-  - [References](#references)
-  - [AI Usage Statement](#ai-usage--disclosure-statement)
-- [Project Management](#project-management)
-- [Technical Stack](#technical-stack)
-- [Database Schema](#database-schema)
-- [Features](#features)
-- [Modules](#modules)
-- [Team Information](#team-information)
-- [Additional Information](#additional-information)
+1. [Instructions](#instructions)
+2. [Resources](#resources)
+3. [Project Management](#project-management)
+4. [Technical Stack](#technical-stack)
+5. [Database Schema](#database-schema)
+6. [Features](#features)
+7. [Modules](#modules)
+8. [Team Information](#team-information)
+9. [Additional Information](#additional-information)
 
 ## Instructions
 
