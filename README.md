@@ -83,7 +83,6 @@ npm run dev
 > - Documentation refinement and clarification
 > - Researching patterns and best practices
 > - Providing refactoring suggestions for readability
-
 > **AI was not used for writing code, generating solutions, or implementing any project features.**  
 > All architectural decisions, code, and implementations were developed and validated entirely by the team.
 
