@@ -21,6 +21,7 @@ import { SettingsView } from './views/settings';
 import { OAuthCallbackView } from './views/oauth-callback';
 import { HistoryView } from './views/history';
 import { errorOverlay } from './components/error-overlay';
+import { initChatOverlay, getChatOverlay } from './components/chat-overlay';
 import './utils/debug';
 
 // Try to refresh token if expired on startup
@@ -87,6 +88,16 @@ async function initializeApp(): Promise<void> {
   // Connect WebSocket if authenticated (storage.isAuthenticated now checks token expiration)
   if (authApi.isAuthenticated()) {
     wsClient.connect();
+  }
+
+  const chatOverlay = initChatOverlay();
+  chatOverlay.mount(document.body);
+
+  // Update visibility on route changes
+  if (chatOverlay.shouldShow()) {
+    chatOverlay.show();
+  } else {
+    chatOverlay.hide();
   }
 
   // Initialize router
