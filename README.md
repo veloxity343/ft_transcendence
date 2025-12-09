@@ -28,6 +28,23 @@ authentication, and container orchestration.
 -   Responsive UI
 -   Fully containerised with Docker
 
+## Table of Contents
+
+- [Instructions](#instructions)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Production](#production)
+- [Resources](#resources)
+  - [References](#references)
+  - [AI Usage Statement](#ai-usage--disclosure-statement)
+- [Project Management](#project-management)
+- [Technical Stack](#technical-stack)
+- [Database Schema](#database-schema)
+- [Features](#features)
+- [Modules](#modules)
+- [Team Information](#team-information)
+- [Additional Information](#additional-information)
+
 ## Instructions
 
 ### Prerequisites
@@ -47,6 +64,11 @@ docker compose up --build
 
 Then visit `http://localhost:5173`.
 
+### Production
+
+<details>
+<summary><strong>View development details</strong></summary>
+
 ### Development
 
 Frontend:
@@ -64,6 +86,7 @@ cd backend
 npm install
 npm run dev
 ```
+</details>
 
 ## Resources
 
@@ -88,24 +111,6 @@ npm run dev
 >
 > **AI was not used for writing code, generating solutions, or implementing any project features.**  
 > All architectural decisions, code, and implementations were developed and validated entirely by the team.
-
-## Team Information
-
-### rcheong | Project Manager (PM) & Developer
-
--   Backend Developer, Support Developer
--   Backend architecture, authentication, WebSockets, DB logic,
-    debugging
-
-### nbinnazl | Product Owner (PO) & Developer
-
--   Frontend Developer
--   UI/UX, components, pages, game UI, chat UI, integration
-
-### hetan | Technical Lead / Architect
-
--   DevOps / Infrastructure
--   Dockerisation, networking, deployment, debugging support
 
 ## Project Management
 
@@ -155,7 +160,7 @@ Relationships:
 - users M---M friends
 - users 1---N messages
 
-## Features List
+## Features
 
 | Feature           | Description            | Member                  |
 |------------------|-----------------------|------------------------|
@@ -183,6 +188,24 @@ Relationships:
 -   Profiles
 -   Notifications
 -   Match history
+
+## Team Information
+
+### rcheong | Project Manager (PM) & Developer
+
+-   Backend Developer, Support Developer
+-   Backend architecture, authentication, WebSockets, DB logic,
+    debugging
+
+### nbinnazl | Product Owner (PO) & Developer
+
+-   Frontend Developer
+-   UI/UX, components, pages, game UI, chat UI, integration
+
+### hetan | Technical Lead / Architect
+
+-   DevOps / Infrastructure
+-   Dockerisation, networking, deployment, debugging support
 
 ## Individual Contributions
 
