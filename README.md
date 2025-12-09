@@ -75,15 +75,17 @@ npm run dev
 -   SQLite / Prisma docs
 -   Docker documentation
 
-### AI Usage Statement
+### AI Usage & Disclosure Statement
 
-AI was used for:
-- Debugging assistance
-- Documentation refinement
-- Researching patterns
-- Refactoring suggestions
+> [!IMPORTANT]  
+> As per the 42 curriculum rules regarding AI, AI tools were strictly limited to the following approved tasks:
+> - Debugging assistance - understanding and breaking down error messages  
+> - Documentation refinement and clarification
+> - Researching patterns and best practices
+> - Providing refactoring suggestions for readability
 
-All code and decisions were implemented manually.
+> **AI was not used for writing code, generating solutions, or implementing any project features.**  
+> All architectural decisions, code, and implementations were developed and validated entirely by the team.
 
 ## Team Information
 
@@ -93,7 +95,7 @@ All code and decisions were implemented manually.
 -   Backend architecture, authentication, WebSockets, DB logic,
     debugging
 
-### nbinnazl | Product Owner (PO)
+### nbinnazl | Product Owner (PO) & Developer
 
 -   Frontend Developer
 -   UI/UX, components, pages, game UI, chat UI, integration
