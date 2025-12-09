@@ -19,22 +19,22 @@ authentication, and container orchestration.
 
 ### Key Features
 
--   Real-time multiplayer gameplay\
--   Secure OAuth login\
--   User profiles, avatars, online status\
--   Matchmaking and friend system\
--   AI gameplay with difficulty settings\
--   Real-time chat\
--   Responsive UI\
+-   Real-time multiplayer gameplay
+-   Secure OAuth login
+-   User profiles, avatars, online status
+-   Matchmaking and friend system
+-   AI gameplay with difficulty settings
+-   Real-time chat
+-   Responsive UI
 -   Fully containerised with Docker
 
 ## Instructions
 
 ### Prerequisites
 
--   Docker & Docker Compose\
--   Node.js LTS\
--   npm or yarn\
+-   Docker & Docker Compose
+-   Node.js LTS
+-   npm or yarn
 -   Required .env files
 
 ### Installation
@@ -69,18 +69,18 @@ npm run dev
 
 ### References
 
--   WebSockets documentation\
--   Fastify docs\
--   Vite / Tailwind docs\
--   SQLite / Prisma docs\
+-   WebSockets documentation
+-   Fastify docs
+-   Vite / Tailwind docs
+-   SQLite / Prisma docs
 -   Docker documentation
 
 ### AI Usage Statement
 
 AI was used for:
-- Debugging assistance\
-- Documentation refinement\
-- Researching patterns\
+- Debugging assistance
+- Documentation refinement
+- Researching patterns
 - Refactoring suggestions
 
 All code and decisions were implemented manually.
@@ -89,66 +89,66 @@ All code and decisions were implemented manually.
 
 ### rcheong | Project Manager (PM) & Developer
 
--   Backend Developer, Support Developer\
+-   Backend Developer, Support Developer
 -   Backend architecture, authentication, WebSockets, DB logic,
     debugging
 
 ### nbinnazl | Product Owner (PO)
 
--   Frontend Developer\
+-   Frontend Developer
 -   UI/UX, components, pages, game UI, chat UI, integration
 
 ### hetan | Technical Lead / Architect
 
--   DevOps / Infrastructure\
+-   DevOps / Infrastructure
 -   Dockerisation, networking, deployment, debugging support
 
 ## Project Management
 
--   Domain-based work split\
--   GitHub Issues & Projects\
--   Discord for communication\
+-   Domain-based work split
+-   GitHub Issues & Projects
+-   Discord for communication
 -   Docker Compose for workflows
 
 ## Technical Stack
 
 ### Frontend
 
--   Vite\
--   TailwindCSS\
--   WebSockets\
+-   Vite
+-   TailwindCSS
+-   WebSockets
 -   OAuth 2.0
 
 ### Backend
 
--   Fastify\
--   REST & WebSocket APIs\
+-   Fastify
+-   REST & WebSocket APIs
 -   Validation, JWT, guards
 
 ### Database
 
--   SQLite\
+-   SQLite
 -   Prisma ORM
 
 ### Other
 
--   Docker / Docker Compose\
--   JWT\
+-   Docker / Docker Compose
+-   JWT
 -   Reverse proxy (if used)
 
 ## Database Schema
 
 Tables:
-- users\
-- matches\
-- friends\
-- messages\
-- tokens/sessions\
+- users
+- matches
+- friends
+- messages
+- tokens/sessions
 - settings
 
 Relationships:
-- users 1---N matches\
-- users M---M friends\
+- users 1---N matches
+- users M---M friends
 - users 1---N messages
 
 ## Features List
@@ -168,16 +168,16 @@ Relationships:
 
 ### Major (2 pts)
 
--   Real-time multiplayer\
--   OAuth authentication\
--   Containerised architecture\
+-   Real-time multiplayer
+-   OAuth authentication
+-   Containerised architecture
 -   AI Player
 
 ### Minor (1 pt)
 
--   Chat\
--   Profiles\
--   Notifications\
+-   Chat
+-   Profiles
+-   Notifications
 -   Match history
 
 ## Individual Contributions
@@ -196,6 +196,6 @@ Relationships:
 
 ## Additional Information
 
--   Known issues (to be added)\
--   Future improvements (to be added)\
+-   Known issues (to be added)
+-   Future improvements (to be added)
 -   License (if applicable)
