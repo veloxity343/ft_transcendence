@@ -69,11 +69,13 @@ npm run dev
 
 ### References
 
--   WebSockets documentation
--   Fastify docs
--   Vite / Tailwind docs
--   SQLite / Prisma docs
--   Docker documentation
+-   [WebSockets](https://websockets.readthedocs.io/en/stable/)
+-   [Fastify](https://fastify.dev/docs/latest/)
+-   [SQLite](https://sqlite.org/docs.html)
+-   [Prisma](https://www.prisma.io/docs)
+-   [Vite](https://vite.dev/guide/)
+-   [Tailwind](https://tailwindcss.com/docs/installation/using-vite)
+-   [Docker](https://docs.docker.com/manuals/)
 
 ### AI Usage & Disclosure Statement
 
