@@ -5,9 +5,8 @@ nbinnazl, hetan.*
 
 ## Description
 
-**ft_transcendence** is a full-stack web application built as part of
-the 42 curriculum's final project.\
-The project requires that each team develop a web service that meets standard modern,
+**ft_transcendence** is a full-stack web application.\
+The project requires that a team develop a web service that meets standard modern,
 real-world architectural, security, and feature requirements.
 
 Our project delivers a modern, modular, and scalable platform featuring
@@ -36,7 +35,7 @@ authentication, and container orchestration.
 4. [Database Schema](#database-schema)
 5. [Features](#features)
 6. [Modules](#modules)
-7. [Team Information](#team-information)
+7. [Team Information & Contributions](#team-information--contributions)
 8. [Additional Information](#additional-information)
 9. [License](#license)
 
@@ -172,7 +171,7 @@ npm run dev
 -   Notifications
 -   Match history
 
-## Team Information
+## Team Information & Contributions
 
 ### rcheong | Project Manager (PM) & Developer
 
@@ -189,20 +188,6 @@ npm run dev
 
 -   DevOps / Infrastructure
 -   Dockerisation, networking, deployment, debugging support
-
-## Individual Contributions
-
-### rcheong
-
--   Backend architecture, auth, DB, WS game logic, AI game logic, debugging
-
-### nbinnazl
-
--   Frontend UI/UX, components, game UI, chat UI
-
-### hetan
-
--   Docker, networking, deployment, debugging
 
 ## Project Management
 
