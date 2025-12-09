@@ -32,17 +32,16 @@ authentication, and container orchestration.
 
 1. [Instructions](#instructions)
 2. [Resources](#resources)
-3. [Project Management](#project-management)
-4. [Technical Stack](#technical-stack)
-5. [Database Schema](#database-schema)
-6. [Features](#features)
-7. [Modules](#modules)
-8. [Team Information](#team-information)
-9. [Additional Information](#additional-information)
+3. [Technical Stack](#technical-stack)
+4. [Database Schema](#database-schema)
+5. [Features](#features)
+6. [Modules](#modules)
+7. [Team Information](#team-information)
+8. [Additional Information](#additional-information)
 
 ## Instructions
 
-### Prerequisites
+### Pre-requisites
 
 -   Docker & Docker Compose
 -   Node.js LTS
@@ -106,13 +105,6 @@ npm run dev
 >
 > **AI was not used for writing code, generating solutions, or implementing any project features.**  
 > All architectural decisions, code, and implementations were developed and validated entirely by the team.
-
-## Project Management
-
--   Domain-based work split
--   GitHub Issues & Projects
--   Discord for communication
--   Docker Compose for workflows
 
 ## Technical Stack
 
@@ -215,6 +207,13 @@ Relationships:
 ### hetan
 
 -   Docker, networking, deployment, debugging
+
+## Project Management
+
+-   Domain-based work split
+-   GitHub Issues & Projects
+-   Discord for communication
+-   Docker Compose for workflows
 
 ## Additional Information
 
