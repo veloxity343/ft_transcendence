@@ -3,8 +3,8 @@
 # Complete Backend Testing Script
 # Tests all Auth, User, Game, and WebSocket functionality
 
-BASE_URL="http://localhost:3000"
-WS_URL="ws://localhost:3000/ws"
+BASE_URL="https://localhost:3000"
+WS_URL="wss://localhost:3000/ws"
 
 # Colors for output
 GREEN='\033[0;32m'

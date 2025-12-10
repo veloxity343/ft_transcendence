@@ -3,8 +3,10 @@ import { storage } from '../utils/storage';
 import type { LoginRequest, RegisterRequest, ApiResponse, User } from '../types';
 
 interface BackendAuthResponse {
-  access_token: string;
-  refresh_token: string;
+  access_token?: string;
+  refresh_token?: string;
+  requires2FA?: boolean;
+  username?: string;
 }
 
 export const authApi = {
@@ -15,13 +17,22 @@ export const authApi = {
     });
     
     if (response.success && response.data) {
-      storage.setAuthToken(response.data.access_token);
-      const userResponse = await this.getCurrentUser();
-      if (userResponse.success && userResponse.data) {
-        storage.setUserData(userResponse.data);
+      // Check if 2FA is required - don't store tokens yet
+      if (response.data.requires2FA) {
+        return response;
       }
-      // Dispatch auth:login event so WebSocket connects
-      window.dispatchEvent(new CustomEvent('auth:login'));
+      
+      // Only store tokens if we actually received them
+      if (response.data.access_token && response.data.refresh_token) {
+        storage.setAuthToken(response.data.access_token);
+        storage.setRefreshToken(response.data.refresh_token);
+        
+        const userResponse = await this.getCurrentUser();
+        if (userResponse.success && userResponse.data) {
+          storage.setUserData(userResponse.data);
+        }
+        window.dispatchEvent(new CustomEvent('auth:login'));
+      }
     }
     
     return response;
@@ -31,13 +42,17 @@ export const authApi = {
     const response = await httpClient.post<BackendAuthResponse>('/auth/signup', data);
     
     if (response.success && response.data) {
-      storage.setAuthToken(response.data.access_token);
-      const userResponse = await this.getCurrentUser();
-      if (userResponse.success && userResponse.data) {
-        storage.setUserData(userResponse.data);
+      // Only store tokens if we actually received them
+      if (response.data.access_token && response.data.refresh_token) {
+        storage.setAuthToken(response.data.access_token);
+        storage.setRefreshToken(response.data.refresh_token);
+        
+        const userResponse = await this.getCurrentUser();
+        if (userResponse.success && userResponse.data) {
+          storage.setUserData(userResponse.data);
+        }
+        window.dispatchEvent(new CustomEvent('auth:login'));
       }
-      // Dispatch auth:login event so WebSocket connects
-      window.dispatchEvent(new CustomEvent('auth:login'));
     }
     
     return response;
@@ -50,7 +65,6 @@ export const authApi = {
       console.error('Logout error:', error);
     } finally {
       storage.clearAll();
-      // Dispatch auth:logout event
       window.dispatchEvent(new CustomEvent('auth:logout'));
     }
   },

@@ -14,8 +14,8 @@
 const WebSocket = require('ws');
 const readline = require('readline');
 
-const WS_URL = 'ws://localhost:3000/ws';
-const API_URL = 'http://localhost:3000';
+const WS_URL = 'wss://localhost:3000/ws';
+const API_URL = 'https://localhost:3000';
 
 // ANSI Colors
 const colors = {
