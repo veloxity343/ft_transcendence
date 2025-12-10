@@ -16,6 +16,7 @@ services:
       - FORTYTWO_SECRET=${FORTYTWO_SECRET}
       - FORTYTWO_CALLBACK=${FORTYTWO_CALLBACK}
       - USE_SSL=true
+      - SSL_DIR=/app/ssl
       - BACK_PORT=3000
     volumes:
       - ./backend/data:/app/data
