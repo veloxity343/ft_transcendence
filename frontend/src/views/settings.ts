@@ -314,7 +314,7 @@ export function SettingsView(): HTMLElement {
     updateUsernameBtn.textContent = 'Updating...';
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/users/update-username`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://localhost:3000'}/users/update-username`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -361,7 +361,7 @@ export function SettingsView(): HTMLElement {
     updateEmailBtn.textContent = 'Updating...';
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/users/update-email`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://localhost:3000'}/users/update-email`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -728,7 +728,7 @@ export function SettingsView(): HTMLElement {
     deleteAccountBtn.textContent = 'Deleting...';
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/users/me`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://localhost:3000'}/users/me`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${storage.getAuthToken()}`,

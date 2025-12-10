@@ -1,5 +1,5 @@
-*This project has been created as part of the 42 curriculum by rcheong,
-nbinnazl, hetan.*
+*This project has been created as part of the 42 curriculum by [rcheong](https://profile-v3.intra.42.fr/users/rcheong),
+[nbinnazl](https://profile-v3.intra.42.fr/users/nbinnazl) and [hetan](https://profile-v3.intra.42.fr/users/hetan).*
 
 # ft_transcendence
 
@@ -56,7 +56,7 @@ cd ft_transcendence
 docker compose up --build
 ```
 
-Then visit `http://localhost:5173`.
+Then visit `https://localhost:5173`.
 
 ### Production
 
@@ -173,18 +173,18 @@ npm run dev
 
 ## Team Information & Contributions
 
-### rcheong | Project Manager (PM) & Developer
+### [rcheong](https://github.com/veloxity343) | Project Manager (PM) & Developer
 
 -   Backend Developer, Support Developer
 -   Backend architecture, authentication, WebSockets, DB logic,
     debugging
 
-### nbinnazl | Product Owner (PO) & Developer
+### [nbinnazl](https://github.com/nizarsyahmi37) | Product Owner (PO) & Developer
 
 -   Frontend Developer
 -   UI/UX, components, pages, game UI, chat UI, integration
 
-### hetan | Technical Lead / Architect
+### [hetan](https://github.com/ninetendo59) | Technical Lead / Architect
 
 -   DevOps / Infrastructure
 -   Dockerisation, networking, deployment, debugging support

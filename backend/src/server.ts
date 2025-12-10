@@ -8,6 +8,7 @@ async function start() {
       level: config.environment === 'DEVELOPMENT' ? 'info' : 'warn',
     },
     trustProxy: config.trustProxy,
+    ...(config.ssl && { https: config.ssl }),
   });
 
   // Register our app
@@ -19,7 +20,8 @@ async function start() {
       host: '0.0.0.0',
     });
     
-    console.log(`🚀 Server running on http://localhost:${config.port}`);
+    const protocol = config.useSSL ? 'https' : 'http';
+    console.log(`🚀 Server running on ${protocol}://localhost:${config.port}`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

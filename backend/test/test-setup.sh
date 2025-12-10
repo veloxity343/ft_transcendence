@@ -16,7 +16,7 @@ NC='\033[0m'
 echo -e "${YELLOW}Step 3: Creating test users...${NC}"
 
 # Start server in background if not running
-if ! curl -s http://localhost:3000/auth/me > /dev/null 2>&1; then
+if ! curl -s https://localhost:3000/auth/me > /dev/null 2>&1; then
     echo "Starting backend server..."
     npm run dev > /dev/null 2>&1 &
     SERVER_PID=$!
@@ -30,7 +30,7 @@ fi
 echo "Creating test users..."
 
 for i in 1 2 3 4; do
-    RESPONSE=$(curl -s -X POST http://localhost:3000/auth/signup \
+    RESPONSE=$(curl -s -X POST https://localhost:3000/auth/signup \
       -H "Content-Type: application/json" \
       -d "{
         \"email\": \"player${i}@test.com\",
@@ -48,7 +48,7 @@ done
 echo ""
 
 # Create AI user
-RESPONSE=$(curl -s -X POST http://localhost:3000/auth/signup \
+RESPONSE=$(curl -s -X POST https://localhost:3000/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
     "email": "ai@transcendence.local",
@@ -77,8 +77,8 @@ echo "   node test-websocket.js"
 echo "   Login as: player1 / password123"
 echo ""
 echo "3️⃣  Visual Game Testing (Browser):"
-echo "   python3 -m http.server 8080"
-echo "   Then open: http://localhost:8080/test-game-client.html"
+echo "   python3 -m https.server 8080"
+echo "   Then open: https://localhost:8080/test-game-client.html"
 echo "   Login as: player1 / password123"
 echo ""
 echo -e "${YELLOW}Test Accounts Created:${NC}"
@@ -89,6 +89,6 @@ echo "   player4@test.com / password123"
 echo ""
 echo -e "${YELLOW}Read full guide:${NC} less TESTING_GUIDE.md"
 echo ""
-echo -e "${GREEN}Backend running on: http://localhost:3000${NC}"
-echo -e "${GREEN}WebSocket endpoint: ws://localhost:3000/ws${NC}"
+echo -e "${GREEN}Backend running on: https://localhost:3000${NC}"
+echo -e "${GREEN}WebSocket endpoint: wss://localhost:3000/ws${NC}"
 echo ""
