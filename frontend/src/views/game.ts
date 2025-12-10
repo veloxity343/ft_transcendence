@@ -188,6 +188,7 @@ export function GameView(): HTMLElement {
 
   // State
   let gameId: number | null = null;
+  let gameEnded = false;
   let playerNumber: 1 | 2 | null = null;
   let renderer: GameRenderer | null = null;
   let currentTheme = initialTheme;
@@ -389,7 +390,7 @@ export function GameView(): HTMLElement {
 
   // Paddle movement
   const movePaddle = (direction: number, playerNum?: number) => {
-    if (!gameId) return;
+    if (!gameId || gameEnded) return;
     
     if (isLocalGame && playerNum !== undefined) {
       const currentDir = playerNum === 1 ? currentDirectionP1 : currentDirectionP2;
@@ -452,6 +453,7 @@ export function GameView(): HTMLElement {
   // Reset game state
   const resetGame = () => {
     gameId = null;
+    gameEnded = false;
     playerNumber = null;
     isLocalGame = false;
     tournamentContext = null;
@@ -680,6 +682,7 @@ export function GameView(): HTMLElement {
 
     // Handle game end
     unsubscribers.push(wsClient.on('game-ended', (msg) => {
+      gameEnded = true;
       console.log('game-ended', msg.data);
       updateStatus('Game Over!', '');
       hideOpponentDisconnected();

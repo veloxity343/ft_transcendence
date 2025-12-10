@@ -221,7 +221,7 @@ export async function setupChatWebSocket(
             if (!canWhisper(userId, targetUserId)) {
               socket.send(JSON.stringify({
                 event: 'chat:error',
-                data: { message: "Hello, I'm using Do Not Disturb mode. Please contact me later." },
+                data: { message: 'User has Do Not Disturb enabled.' },
               }));
               return;
             }
@@ -290,7 +290,7 @@ export async function setupChatWebSocket(
             if (!canWhisper(userId, targetUser.id)) {
               socket.send(JSON.stringify({
                 event: 'chat:error',
-                data: { message: "Hello, I'm using Do Not Disturb mode. Please contact me later." },
+                data: { message: 'User has Do Not Disturb enabled.' },
               }));
               return;
             }
@@ -311,7 +311,7 @@ export async function setupChatWebSocket(
 
             // Also send whisper tab info to sender
             socket.send(JSON.stringify({
-              event: 'chat:whisper-sent',
+              event: 'chat:dm-sent',
               data: {
                 success: true,
                 messageId: dmMessage.id,

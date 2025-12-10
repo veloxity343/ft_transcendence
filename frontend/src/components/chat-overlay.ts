@@ -642,7 +642,7 @@ export class ChatOverlay {
   }
 
   private renderMessage(msg: ChatMessage): string {
-    const isMe = msg.userId.toString() === this.currentUser?.id;
+    const isMe = msg.userId === parseInt(this.currentUser?.id || '0');
     
     if (msg.type === 'system') {
       return `
@@ -839,6 +839,40 @@ export class ChatOverlay {
       this.render();
     }));
 
+    // Handle join game response
+    this.unsubscribers.push(wsClient.on('chat:join-game', (msg) => {
+      const { gameId, username } = msg.data;
+      showToast(`Joining ${username}'s game...`, 'info');
+      // Store gameId and navigate - game view reads from sessionStorage
+      sessionStorage.setItem('join_game_id', gameId);
+      router.navigateTo('/game');
+    }));
+
+    // Handle join tournament response  
+    this.unsubscribers.push(wsClient.on('chat:join-tournament', (msg) => {
+      const { tournamentId, name } = msg.data;
+      showToast(`Joining tournament: ${name}`, 'info');
+      sessionStorage.setItem('join_tournament_id', tournamentId);
+      router.navigateTo('/tournament');
+    }));
+
+    // Handle friend added notification
+    this.unsubscribers.push(wsClient.on('chat:friend-added', (msg) => {
+      const { username, message } = msg.data;
+      showToast(`${username} added you as a friend!`, 'info');
+      this.addLocalMessage('global', {
+        id: `friend-${Date.now()}`,
+        userId: 0,
+        username: 'System',
+        userAvatar: '',
+        message: message 
+          ? `${username} added you as a friend: "${message}"`
+          : `${username} added you as a friend!`,
+        timestamp: new Date(),
+        type: 'system',
+      });
+    }));
+
     // Friend request sent
     this.unsubscribers.push(wsClient.on('chat:friend-request-sent', (msg) => {
       this.addLocalMessage(this.state.activeTabId, {
@@ -976,7 +1010,7 @@ export class ChatOverlay {
     }
 
     // Open or get whisper tab
-    const isFromMe = userId.toString() === this.currentUser?.id;
+    const isFromMe = userId === parseInt(this.currentUser?.id || '0');
     const otherUserId = isFromMe ? parseInt(roomId.split('-')[2]) : userId;
     const otherUsername = isFromMe ? (data.toUsername || 'User') : username;
 

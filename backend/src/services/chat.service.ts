@@ -247,6 +247,15 @@ export class ChatService {
       room.members.add(toUserId);
     }
 
+    if (!this.userRooms.has(fromUserId)) {
+      this.userRooms.set(fromUserId, new Set());
+    }
+    if (!this.userRooms.has(toUserId)) {
+      this.userRooms.set(toUserId, new Set());
+    }
+    this.userRooms.get(fromUserId)!.add(roomId);
+    this.userRooms.get(toUserId)!.add(roomId);
+
     const message: ChatMessage = {
       id: this.generateMessageId(),
       roomId,
@@ -328,6 +337,16 @@ export class ChatService {
   deleteGameRoom(gameId: number): void {
     this.deleteRoom(`game-${gameId}`);
     this.deleteRoom(`spectator-${gameId}`);
+  }
+
+  createTournamentRoom(tournamentId: number): string {
+    const roomId = `tournament-${tournamentId}`;
+    this.createRoom(roomId, ChatRoomType.LOBBY, `Tournament ${tournamentId}`);
+    return roomId;
+  }
+
+  deleteTournamentRoom(tournamentId: number): void {
+    this.deleteRoom(`tournament-${tournamentId}`);
   }
 
   // ==================== UTILITIES ====================
