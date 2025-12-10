@@ -33,7 +33,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new Error('Invalid credentials');
+      throw new Error('Unknown user');
     }
 
     const pwMatches = await argon.verify(user.hash, password);

@@ -51,7 +51,7 @@ authentication, and container orchestration.
 ### Installation
 
 ``` bash
-git clone <your-repo-url>
+git clone git@github.com:veloxity343/ft_transcendence.git
 cd ft_transcendence
 docker compose up --build
 ```
@@ -64,6 +64,20 @@ Then visit `http://localhost:5173`.
 <summary><strong>View development details</strong></summary>
 
 ### Development
+
+Create .env files for both frontend and backend directories\
+based on env.example templates.
+
+```
+mkdir -p backend/ssl nginx/ssl
+
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout backend/ssl/key.pem \
+  -out backend/ssl/cert.pem \
+  -subj "/C=MY/ST=KL/L=KualaLumpur/O=42/CN=localhost"
+
+cp backend/ssl/*.pem nginx/ssl/
+```
 
 Frontend:
 
