@@ -66,12 +66,10 @@ export async function websocketHandler(fastify: FastifyInstance) {
     fastify.log.info(`User ${userId} connected to WebSocket`);
 
     // Get user info for chat
-    let username = '';
-    let avatar = '';
+    let userInfo: { username: string; avatar: string } | null = null;
     
-    userService.getUser(userId).then(user => {
-      username = user.username;
-      avatar = user.avatar;
+    const userInfoPromise = userService.getUser(userId).then(user => {
+      userInfo = { username: user.username, avatar: user.avatar || '' };
       
       // Auto-join global chat
       try {
@@ -79,8 +77,10 @@ export async function websocketHandler(fastify: FastifyInstance) {
       } catch (error) {
         // Already in room, that's fine
       }
+      return userInfo;
     }).catch(err => {
       fastify.log.error({ err }, 'Failed to get user info');
+      return { username: `User${userId}`, avatar: '' };
     });
 
     // Send connection confirmation
@@ -105,13 +105,19 @@ export async function websocketHandler(fastify: FastifyInstance) {
 
         // Route chat-related messages to chat handler
         if (message.event && message.event.startsWith('chat:')) {
-          await chatWebSocket.handleChatMessage(userId, username, avatar, message, ws);
+          if (!userInfo) {
+            userInfo = await userInfoPromise;
+          }
+          await chatWebSocket.handleChatMessage(userId, userInfo.username, userInfo.avatar, message, ws);
           return;
         }
 
         // Route tournament-related messages to tournament handler
         if (message.event && message.event.startsWith('tournament:')) {
-          await tournamentWebSocket.handleTournamentMessage(userId, username, message, ws);
+          if (!userInfo) {
+            userInfo = await userInfoPromise;
+          }
+          await tournamentWebSocket.handleTournamentMessage(userId, userInfo.username, message, ws);
           return;
         }
 
