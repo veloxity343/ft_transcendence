@@ -34,8 +34,9 @@ export const twoFactorApi = {
     });
 
     if (response.success && response.data) {
-      // Update stored token with new one that has is2FA: true
+      // Store both tokens
       storage.setAuthToken(response.data.access_token);
+      storage.setRefreshToken(response.data.refresh_token);
     }
 
     return response;
@@ -48,8 +49,8 @@ export const twoFactorApi = {
     const response = await httpClient.post<AuthTokensResponse>('/auth/2fa/turn-off', {});
 
     if (response.success && response.data) {
-      // Update stored token with new one that has is2FA: false
       storage.setAuthToken(response.data.access_token);
+      storage.setRefreshToken(response.data.refresh_token);
     }
 
     return response;
@@ -67,6 +68,7 @@ export const twoFactorApi = {
 
     if (response.success && response.data) {
       storage.setAuthToken(response.data.access_token);
+      storage.setRefreshToken(response.data.refresh_token);
       
       // Fetch and store user data
       const userResponse = await httpClient.get('/auth/me');
@@ -74,7 +76,6 @@ export const twoFactorApi = {
         storage.setUserData(userResponse.data as any);
       }
       
-      // Dispatch auth:login event so WebSocket connects
       window.dispatchEvent(new CustomEvent('auth:login'));
     }
 

@@ -56,7 +56,7 @@ cd ft_transcendence
 docker compose up --build
 ```
 
-Then visit `https://localhost:5173`.
+Then visit `http://localhost:5173`.
 
 ### Production
 
