@@ -15,9 +15,12 @@ services:
       - FORTYTWO_ID=${FORTYTWO_ID}
       - FORTYTWO_SECRET=${FORTYTWO_SECRET}
       - FORTYTWO_CALLBACK=${FORTYTWO_CALLBACK}
+      - USE_SSL=true
+      - BACK_PORT=3000
     volumes:
       - ./backend/data:/app/data
       - ./backend/uploads:/app/uploads
+      - ./backend/ssl:/app/ssl
     depends_on:
       - init-db
     networks:
