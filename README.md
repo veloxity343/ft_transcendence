@@ -43,9 +43,9 @@ authentication, and container orchestration.
 
 ### Pre-requisites
 
--   Docker & Docker Compose
+-   Docker & Docker compose
 -   Node.js LTS
--   npm or yarn
+-   npm
 -   Required .env files
 
 ### Installation
@@ -64,9 +64,6 @@ Then visit `http://localhost:5173`.
 <summary><strong>View development details</strong></summary>
 
 ### Development
-
-Create .env files for both frontend and backend directories\
-based on env.example templates.
 
 ```
 mkdir -p backend/ssl nginx/ssl
@@ -92,6 +89,7 @@ Backend:
 ``` bash
 cd backend
 npm install
+npx prisma migrate dev
 npm run dev
 ```
 </details>
