@@ -215,7 +215,7 @@ class SoundManager {
     }
 
     // Create audio element
-    this.backgroundAudio = new Audio('/music/uncharted-worlds.mp3');
+    this.backgroundAudio = new Audio('/music/default-1.mp3');
     this.backgroundAudio.loop = true;
     this.backgroundAudio.volume = this.settings.musicVolume;
     
@@ -248,7 +248,9 @@ class SoundManager {
     if (enabled) {
       this.startBackgroundMusic();
     } else {
-      this.stopBackgroundMusic();
+      if (this.backgroundAudio) {
+        this.backgroundAudio.pause();
+      }
     }
   }
 
