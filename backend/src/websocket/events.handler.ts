@@ -147,6 +147,18 @@ export async function websocketHandler(fastify: FastifyInstance) {
             });
             break;
 
+          case 'user:refresh-info':
+            userService.getUser(userId).then(user => {
+              userInfo = { username: user.username, avatar: user.avatar || '' };
+              ws.send(JSON.stringify({
+                event: 'user:info-updated',
+                data: { username: userInfo.username, avatar: userInfo.avatar },
+              }));
+            }).catch(err => {
+              fastify.log.error({ err }, 'Failed to refresh user info');
+            });
+            break;
+
           default:
             fastify.log.warn(`Unknown event: ${message.event}`);
         }

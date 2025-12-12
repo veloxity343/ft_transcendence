@@ -2,6 +2,15 @@ import { wsClient } from '../websocket/client';
 import { storage } from '../utils/storage';
 import { showToast } from '../utils/toast';
 import { router } from '../router';
+import { API_BASE_URL } from '../constants';
+
+function getAvatarUrl(avatar?: string): string {
+  if (!avatar) return '';
+  if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+    return avatar;
+  }
+  return `${API_BASE_URL}/uploads/${avatar}`;
+}
 
 // SVG Icons
 const icons = {
@@ -669,9 +678,11 @@ export class ChatOverlay {
     }
 
     const timeStr = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const avatarContent = msg.userAvatar 
-      ? `<img src="${msg.userAvatar}" alt="${msg.username}" />`
-      : msg.username.charAt(0).toUpperCase();
+    const initial = msg.username.charAt(0).toUpperCase();
+    const avatarUrl = getAvatarUrl(msg.userAvatar);
+    const avatarContent = avatarUrl
+      ? `<img src="${avatarUrl}" alt="${initial}" onerror="this.style.display='none';this.parentElement.textContent='${initial}';" />`
+      : initial;
 
     return `
       <div class="chat-message ${msg.isWhisper ? 'whisper' : ''}">

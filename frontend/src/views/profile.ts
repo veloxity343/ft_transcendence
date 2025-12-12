@@ -1,6 +1,7 @@
 import { storage } from '../utils/storage';
 import { showToast } from '../utils/toast';
 import { API_BASE_URL } from '../constants';
+import { wsClient } from '../websocket/client';
 import { userApi } from '../api/user';
 import { authApi } from '../api/auth';
 import {
@@ -222,6 +223,7 @@ export function ProfileView(): HTMLElement {
             userData.avatar = data.avatar;
             storage.setUserData(userData);
           }
+          wsClient.send('user:refresh-info', {});
         }
       } else {
         showToast(data.message || 'Failed to upload avatar', 'error');
