@@ -1,7 +1,4 @@
 import './styles/main.css';
-import { Footer } from './components/footer';
-import { PrivacyPolicyView } from './views/privacy';
-import { TermsOfServiceView } from './views/tos';
 
 // Capture OAuth params on callback
 if (window.location.pathname === '/oauth/callback' && window.location.search) {
@@ -23,8 +20,13 @@ import { ProfileView } from './views/profile';
 import { SettingsView } from './views/settings';
 import { OAuthCallbackView } from './views/oauth-callback';
 import { HistoryView } from './views/history';
+import { Footer } from './components/footer';
+import { PrivacyPolicyView } from './views/privacy';
+import { TermsOfServiceView } from './views/tos';
 import { errorOverlay } from './components/error-overlay';
 import { initChatOverlay, getChatOverlay } from './components/chat-overlay';
+import { soundManager } from './utils/sound';
+import { SoundControls } from './components/sound-controls';
 import './utils/debug';
 
 // Try to refresh token if expired on startup
@@ -83,6 +85,16 @@ async function initializeApp(): Promise<void> {
   // Add footer
   const footer = Footer();
   layout.appendChild(footer);
+
+  // Add sound controls
+  const soundControls = SoundControls();
+  layout.appendChild(soundControls);
+
+  // Initialise global click sounds
+  soundManager.initGlobalClickSounds();
+
+  // Resume audio context on first user interaction (browser requirement)
+  document.addEventListener('click', () => soundManager.resumeAudioContext(), { once: true });
   
   app.appendChild(layout);
 

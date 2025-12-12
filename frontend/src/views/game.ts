@@ -3,6 +3,7 @@ import { GameRenderer } from '../game/renderer';
 import { GAME_THEMES } from '../game/themes';
 import { showToast } from '../utils/toast';
 import { storage } from '../utils/storage';
+import { soundManager } from '../utils/sound';
 import { router } from '../router';
 
 // SVG Icons
@@ -694,17 +695,21 @@ export function GameView(): HTMLElement {
       if (msg.data.isLocal) {
         const winner = finalScore.player1 > finalScore.player2 ? 'Player 1' : 'Player 2';
         showToast(`${winner} Wins!`, 'info');
+        soundManager.gameWin();
       } else {
         won = msg.data.winnerId?.toString() === user?.id?.toString();
         
         if (msg.data.forfeit) {
           if (msg.data.forfeitedBy?.toString() === user?.id?.toString()) {
             showToast('You forfeited the match', 'info');
+            soundManager.gameLose();
           } else {
             showToast('Opponent forfeited - You Win!', 'success');
+            soundManager.gameWin();
           }
         } else {
           showToast(won ? 'You Won!' : 'You Lost!', won ? 'success' : 'error');
+          soundManager[won ? 'gameWin' : 'gameLose']();
         }
       }
       
@@ -742,6 +747,24 @@ export function GameView(): HTMLElement {
     unsubscribers.push(wsClient.on('game:left', () => {
       console.log('game:left');
       // Note: game:left-with-reconnect will be sent for in-progress games instead
+    }));
+
+    unsubscribers.push(wsClient.on('game-sound', (msg) => {
+      const { type } = msg.data;
+      switch (type) {
+        case 'paddleHit':
+          soundManager.paddleHit();
+          break;
+        case 'wallHit':
+          soundManager.wallHit();
+          break;
+        case 'score':
+          soundManager.score();
+          break;
+        case 'gameStart':
+          soundManager.gameStart();
+          break;
+      }
     }));
 
     // ==================== RECONNECTION HANDLERS ====================

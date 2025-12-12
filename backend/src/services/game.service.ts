@@ -130,6 +130,10 @@ export class GameService {
     return { success: true };
   }
 
+  private emitSound(gameId: number, soundType: 'paddleHit' | 'wallHit' | 'score' | 'gameStart') {
+    this.emitToRoom(gameId, 'game-sound', { type: soundType });
+  }
+
   private endLocalGameForfeit(gameId: number, userId: number): { success: boolean; error?: string } {
     const room = this.rooms.get(gameId);
     if (!room) return { success: false, error: 'Game not found' };
@@ -959,6 +963,8 @@ export class GameService {
     room.startTime = new Date();
     this.initializeBall(room);
 
+    this.emitSound(gameId, 'gameStart');
+
     const intervalId = setInterval(() => {
       this.gameLoop(gameId);
     }, this.REFRESH_RATE);
@@ -1123,9 +1129,11 @@ export class GameService {
     if (newBallY <= this.BALL_RADIUS) {
       newBallY = this.BALL_RADIUS;
       room.ballSpeedY *= -1;
+      this.emitSound(room.id, 'wallHit');
     } else if (newBallY >= 100 - this.BALL_RADIUS) {
       newBallY = 100 - this.BALL_RADIUS;
       room.ballSpeedY *= -1;
+      this.emitSound(room.id, 'wallHit');
     }
 
     const ballRadius = this.BALL_RADIUS / this.GAME_ASPECT_RATIO;
@@ -1186,14 +1194,17 @@ export class GameService {
 
     if (room.ballX <= -ballRadius) {
       room.player2Score++;
+      this.emitSound(room.id, 'score');
       this.initializeBall(room);
     } else if (room.ballX >= 100 + ballRadius) {
       room.player1Score++;
+      this.emitSound(room.id, 'score');
       this.initializeBall(room);
     }
   }
 
   private handlePaddleCollision(room: GameRoom, isLeftPaddle: boolean, collisionY?: number) {
+    this.emitSound(room.id, 'paddleHit');
     const ballRadius = this.BALL_RADIUS / this.GAME_ASPECT_RATIO;
     
     if (isLeftPaddle) {
