@@ -12,7 +12,7 @@ export function Navbar(): HTMLElement {
   const user = storage.getUserData();
 
   nav.innerHTML = `
-    <div class="max-w-7xl mx-auto px-4">
+    <div class="w-full px-4 lg:px-8">
       <div class="flex items-center justify-between h-16 px-6 lg:px-8">
         <!-- Logo -->
         <a href="/" class="text-2xl font-bold">

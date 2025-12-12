@@ -184,6 +184,8 @@ export type Route =
   | '/' 
   | '/login' 
   | '/register' 
+  | '/privacy'
+  | '/terms' 
   | '/game' 
   | '/tournament' 
   | '/profile' 

@@ -185,7 +185,10 @@ export function RegisterView(): HTMLElement {
 
       <!-- Terms Notice -->
       <p class="text-xs text-navy-muted text-center mt-4">
-        By creating an account, you agree to our terms of service and privacy policy.
+        By creating an account, you agree to our
+        <a href="/terms" class="text-blue hover:underline">Terms of Service</a>
+        and
+        <a href="/privacy" class="text-blue hover:underline">Privacy Policy</a>.
       </p>
     </div>
   `;

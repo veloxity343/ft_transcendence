@@ -1,4 +1,7 @@
 import './styles/main.css';
+import { Footer } from './components/footer';
+import { PrivacyPolicyView } from './views/privacy';
+import { TermsOfServiceView } from './views/tos';
 
 // Capture OAuth params on callback
 if (window.location.pathname === '/oauth/callback' && window.location.search) {
@@ -76,6 +79,10 @@ async function initializeApp(): Promise<void> {
   mainContainer.id = 'main-content';
   mainContainer.className = 'min-h-[calc(100vh-4rem)] flex flex-col';
   layout.appendChild(mainContainer);
+
+  // Add footer
+  const footer = Footer();
+  layout.appendChild(footer);
   
   app.appendChild(layout);
 
@@ -192,6 +199,20 @@ function registerRoutes(): void {
   });
 
   router.registerRoute({
+    path: '/privacy',
+    title: 'Privacy Policy',
+    component: PrivacyPolicyView,
+    requiresAuth: false,
+  });
+
+  router.registerRoute({
+    path: '/terms',
+    title: 'Terms of Service',
+    component: TermsOfServiceView,
+    requiresAuth: false,
+  });
+
+  router.registerRoute({
     path: '/game',
     title: 'Play',
     component: GameView,
@@ -232,17 +253,7 @@ function registerRoutes(): void {
   router.registerRoute({
     path: '/stats',
     title: 'Statistics',
-    component: () => {
-      const div = document.createElement('div');
-      div.className = 'flex-1 flex items-center justify-center';
-      div.innerHTML = `
-        <div class="text-center">
-          <h1 class="text-4xl font-bold mb-4" style="color: var(--color-navy)">Statistics</h1>
-          <p style="color: var(--color-navy-muted)">Statistics interface coming soon...</p>
-        </div>
-      `;
-      return div;
-    },
+    component: HistoryView,
     requiresAuth: true,
   });
 
