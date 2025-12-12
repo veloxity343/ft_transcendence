@@ -93,8 +93,19 @@ async function initializeApp(): Promise<void> {
   // Initialise global click sounds
   soundManager.initGlobalClickSounds();
 
+  // Start background music if enabled in settings
+  if (soundManager.isMusicEnabled()) {
+    soundManager.startBackgroundMusic();
+  }
+
   // Resume audio context on first user interaction (browser requirement)
-  document.addEventListener('click', () => soundManager.resumeAudioContext(), { once: true });
+  document.addEventListener('click', () => {
+    soundManager.resumeAudioContext();
+    // Also try to start music on first click if enabled (in case autoplay blocked it)
+    if (soundManager.isMusicEnabled()) {
+      soundManager.startBackgroundMusic();
+    }
+  }, { once: true });
   
   app.appendChild(layout);
 

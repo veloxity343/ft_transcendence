@@ -12,10 +12,7 @@ interface SoundSettings {
 class SoundManager {
   private audioContext: AudioContext | null = null;
   private settings: SoundSettings;
-  private musicInterval: ReturnType<typeof setInterval> | null = null;
-  private musicGainNode: GainNode | null = null;
-  private musicOscillators: OscillatorNode[] = [];
-  private isMusicPlaying = false;
+  private backgroundAudio: HTMLAudioElement | null = null;
 
   constructor() {
     this.settings = this.loadSettings();
@@ -34,7 +31,7 @@ class SoundManager {
       sfxEnabled: true,
       sfxVolume: 0.5,
       musicEnabled: false,
-      musicVolume: 0.3,
+      musicVolume: 0.15,
     };
   }
 
@@ -205,108 +202,34 @@ class SoundManager {
   click(): void { this.play('click'); }
   notification(): void { this.play('notification'); }
 
-  // Background music - retro ambient loop
+  // Background music - from audio file
   startBackgroundMusic(): void {
-    if (!this.settings.musicEnabled || this.isMusicPlaying) return;
+    if (!this.settings.musicEnabled) return;
+    
+    if (this.backgroundAudio) {
+      // Already exists, just play it
+      this.backgroundAudio.play().catch(err => {
+        console.log('Could not play background music:', err);
+      });
+      return;
+    }
 
-    const ctx = this.getAudioContext();
-    this.isMusicPlaying = true;
-
-    // Create master gain for music
-    this.musicGainNode = ctx.createGain();
-    this.musicGainNode.gain.setValueAtTime(this.settings.musicVolume * 0.15, ctx.currentTime);
-    this.musicGainNode.connect(ctx.destination);
-
-    // Bass drone
-    const bassOsc = ctx.createOscillator();
-    const bassGain = ctx.createGain();
-    bassOsc.type = 'sine';
-    bassOsc.frequency.setValueAtTime(55, ctx.currentTime); // A1
-    bassGain.gain.setValueAtTime(0.4, ctx.currentTime);
-    bassOsc.connect(bassGain);
-    bassGain.connect(this.musicGainNode);
-    bassOsc.start();
-    this.musicOscillators.push(bassOsc);
-
-    // Rhythmic pulse pattern
-    let beat = 0;
-    const bpm = 120;
-    const beatInterval = 60000 / bpm;
-
-    this.musicInterval = setInterval(() => {
-      if (!this.isMusicPlaying || !this.musicGainNode) return;
-
-      const now = ctx.currentTime;
-      
-      // Simple 4-beat pattern
-      const pattern = [1, 0, 0.5, 0]; // 1 = accent, 0.5 = soft, 0 = rest
-      const intensity = pattern[beat % 4];
-
-      if (intensity > 0) {
-        // Kick-like pulse
-        const kickOsc = ctx.createOscillator();
-        const kickGain = ctx.createGain();
-        kickOsc.type = 'sine';
-        kickOsc.frequency.setValueAtTime(80, now);
-        kickOsc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
-        kickGain.gain.setValueAtTime(intensity * 0.5, now);
-        kickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-        kickOsc.connect(kickGain);
-        kickGain.connect(this.musicGainNode);
-        kickOsc.start(now);
-        kickOsc.stop(now + 0.15);
-
-        // Hi-hat on offbeats
-        if (beat % 2 === 1) {
-          const noise = ctx.createOscillator();
-          const noiseGain = ctx.createGain();
-          noise.type = 'square';
-          noise.frequency.setValueAtTime(1000 + Math.random() * 500, now);
-          noiseGain.gain.setValueAtTime(0.08, now);
-          noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-          noise.connect(noiseGain);
-          noiseGain.connect(this.musicGainNode);
-          noise.start(now);
-          noise.stop(now + 0.05);
-        }
-      }
-
-      // Arpeggiated notes every 4 beats
-      if (beat % 4 === 0) {
-        const arpNotes = [110, 165, 220, 165]; // A2, E3, A3, E3
-        arpNotes.forEach((freq, i) => {
-          const arpOsc = ctx.createOscillator();
-          const arpGain = ctx.createGain();
-          arpOsc.type = 'triangle';
-          arpOsc.frequency.setValueAtTime(freq, now + i * 0.1);
-          arpGain.gain.setValueAtTime(0, now + i * 0.1);
-          arpGain.gain.linearRampToValueAtTime(0.15, now + i * 0.1 + 0.02);
-          arpGain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.2);
-          arpOsc.connect(arpGain);
-          arpGain.connect(this.musicGainNode!);
-          arpOsc.start(now + i * 0.1);
-          arpOsc.stop(now + i * 0.1 + 0.2);
-        });
-      }
-
-      beat++;
-    }, beatInterval);
+    // Create audio element
+    this.backgroundAudio = new Audio('/music/uncharted-worlds.mp3');
+    this.backgroundAudio.loop = true;
+    this.backgroundAudio.volume = this.settings.musicVolume;
+    
+    this.backgroundAudio.play().catch(err => {
+      console.log('Could not autoplay background music (browser policy):', err);
+      // Will try again on user interaction
+    });
   }
 
   stopBackgroundMusic(): void {
-    this.isMusicPlaying = false;
-
-    if (this.musicInterval) {
-      clearInterval(this.musicInterval);
-      this.musicInterval = null;
+    if (this.backgroundAudio) {
+      this.backgroundAudio.pause();
+      this.backgroundAudio.currentTime = 0;
     }
-
-    // Stop any running oscillators
-    this.musicOscillators.forEach(osc => {
-      try { osc.stop(); } catch { /* already stopped */ }
-    });
-    this.musicOscillators = [];
-    this.musicGainNode = null;
   }
 
   setSfxEnabled(enabled: boolean): void {
@@ -331,9 +254,8 @@ class SoundManager {
 
   setMusicVolume(volume: number): void {
     this.settings.musicVolume = Math.max(0, Math.min(1, volume));
-    if (this.musicGainNode) {
-      const ctx = this.getAudioContext();
-      this.musicGainNode.gain.setValueAtTime(volume * 0.15, ctx.currentTime);
+    if (this.backgroundAudio) {
+      this.backgroundAudio.volume = this.settings.musicVolume;
     }
     this.saveSettings();
   }

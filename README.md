@@ -6,7 +6,7 @@
 ## Description
 
 **ft_transcendence** is a full-stack web application.\
-The project requires that a team develop a web service that meets standard modern,
+The project requires that a team develop a web service that meets modern
 real-world architectural, security, and feature requirements.
 
 Our project delivers a modern, modular, and scalable platform featuring
