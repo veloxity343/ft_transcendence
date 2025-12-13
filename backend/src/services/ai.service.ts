@@ -98,6 +98,7 @@ export class AIOpponentService {
 
       status: 'starting',
       isPrivate: false,
+      vsAI: true,
       lastUpdateTime: new Date(),
     };
 

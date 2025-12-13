@@ -8,6 +8,7 @@ import { parseJsonArray, stringifyJsonArray } from '../utils/array-helpers';
 export class GameService {
   private rooms = new Map<number, GameRoom>();
   private userToRoom = new Map<number, number>();
+  private aiUserId: number | null = null;
 
   // Game constants
   private readonly REFRESH_RATE = 10; // ms
@@ -568,8 +569,7 @@ export class GameService {
     const waitingRoom = Array.from(this.rooms.values()).find(
       room => room.status === GameStatus.WAITING && 
               !room.isPrivate && 
-              !room.player2Id &&
-              room.intervalId !== undefined
+              !room.player2Id
     );
 
     if (waitingRoom) {
@@ -720,7 +720,7 @@ export class GameService {
       throw new Error('Cannot join your own game');
     }
 
-    if (room.status === GameStatus.FINISHED || !room.intervalId) {
+    if (room.status === GameStatus.FINISHED) {
       throw new Error('Game is no longer available');
     }
 
@@ -1298,6 +1298,17 @@ export class GameService {
       select: { tournamentId: true },
     });
 
+    let gameType: 'quickplay' | 'private' | 'ai' | 'local' | 'tournament' = 'quickplay';
+    if (gameInfo?.tournamentId) {
+      gameType = 'tournament';
+    } else if (room.vsAI) {
+      gameType = 'ai';
+    } else if (room.isLocal) {
+      gameType = 'local';
+    } else if (room.isPrivate) {
+      gameType = 'private';
+    }
+
     await this.saveGame(
       gameId,
       room.player1Id,
@@ -1307,13 +1318,30 @@ export class GameService {
       room.startTime!,
       new Date(),
       duration,
+      gameType,
+      undefined,  // tournamentId
+      undefined,  // tournamentRound  
+      undefined,  // tournamentMatch
+      room.isLocal,
+      room.vsAI,
+      room.isPrivate,
     );
 
-    if (!room.isLocal) {
+    // Only update ELO for quickplay and tournament games
+    // Local, AI, and private games do NOT affect ELO
+    const isTournament = !!gameInfo?.tournamentId;
+    const shouldUpdateElo = !room.isLocal && !room.vsAI && !room.isPrivate || isTournament;
+
+    if (shouldUpdateElo) {
       await this.updateGameStats(winnerId, loserId, gameId, duration);
     } else {
+      // For non-ELO games, just add to game history without updating stats
+      const realUserId = room.vsAI 
+        ? (room.player1Id !== await this.getAIUserId() ? room.player1Id : room.player2Id)
+        : room.player1Id;
+      
       const user = await this.prisma.user.findUnique({
-        where: { id: room.player1Id },
+        where: { id: realUserId },
       });
 
       if (user) {
@@ -1321,7 +1349,7 @@ export class GameService {
         history.push(gameId);
         
         await this.prisma.user.update({
-          where: { id: room.player1Id },
+          where: { id: realUserId },
           data: {
             gameHistory: stringifyJsonArray(history),
           },
@@ -1428,6 +1456,18 @@ export class GameService {
     }
   }
 
+  private async getAIUserId(): Promise<number> {
+    if (this.aiUserId) return this.aiUserId;
+    
+    const aiUser = await this.prisma.user.findUnique({
+      where: { email: 'ai@transcendence.local' },
+      select: { id: true },
+    });
+    
+    this.aiUserId = aiUser?.id || 0;
+    return this.aiUserId;
+  }
+
   getActiveGames() {
     return Array.from(this.rooms.values())
       .filter(room => room.status === GameStatus.IN_PROGRESS && room.player2Id)
@@ -1452,9 +1492,13 @@ export class GameService {
     startTime: Date,
     endTime: Date,
     duration: number,
+    gameType: 'quickplay' | 'private' | 'ai' | 'local' | 'tournament' = 'quickplay',
     tournamentId?: number,
     tournamentRound?: number,
     tournamentMatch?: string,
+    isLocal?: boolean,
+    isAI?: boolean,
+    isPrivate?: boolean,
   ): Promise<number | null> {
     try {
       // Check if game already exists (tournament games pre-create the record)
@@ -1471,6 +1515,7 @@ export class GameService {
             score2,
             endTime,
             duration,
+            gameType,
           },
         });
         console.log(`Updated game ${roomId}`);
@@ -1488,6 +1533,7 @@ export class GameService {
           startTime,
           endTime,
           duration,
+          gameType,
           tournamentId,
           tournamentRound,
           tournamentMatch,
@@ -1565,6 +1611,9 @@ export class GameService {
       where: {
         score: {
           not: 1200,
+        },
+        email: {
+          not: 'ai@transcendence.local',
         },
       },
       orderBy: {

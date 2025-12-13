@@ -215,13 +215,13 @@ class SoundManager {
     }
 
     // Create audio element
-    this.backgroundAudio = new Audio('/music/default-1.mp3');
+    this.backgroundAudio = new Audio('/music/liaras-vigil.mp3');
     this.backgroundAudio.loop = true;
     this.backgroundAudio.volume = this.settings.musicVolume;
     
     this.backgroundAudio.play().catch(err => {
       console.log('Could not autoplay background music (browser policy):', err);
-      // Will try again on user interaction
+      // tries again on user interaction
     });
   }
 

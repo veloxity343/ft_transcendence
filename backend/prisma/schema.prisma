@@ -61,6 +61,9 @@ model Game {
   score1    Int
   score2    Int
   duration  Int      @default(0)
+
+  // Game type
+  gameType  String   @default("quickplay")
   
   startTime DateTime
   endTime   DateTime

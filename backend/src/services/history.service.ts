@@ -101,7 +101,21 @@ export interface PlayerStats {
 }
 
 export class MatchHistoryService {
+  private aiUserId: number | null = null;
+
   constructor(private prisma: PrismaClient) {}
+
+  private async getAIUserId(): Promise<number | null> {
+    if (this.aiUserId !== null) return this.aiUserId;
+    
+    const aiUser = await this.prisma.user.findUnique({
+      where: { email: 'ai@transcendence.local' },
+      select: { id: true },
+    });
+    
+    this.aiUserId = aiUser?.id ?? null;
+    return this.aiUserId;
+  }
 
   /**
    * Record a completed game and update player stats/ELO
@@ -370,12 +384,7 @@ export class MatchHistoryService {
 
     for (const game of games) {
       // Determine game type
-      let gameType: 'quickplay' | 'private' | 'ai' | 'tournament' = 'quickplay';
-      if (game.tournamentId) {
-        gameType = 'tournament';
-      } else if (game.player2 === null || game.player2 === 0) {
-        gameType = 'ai';
-      }
+      const gameType = (game.gameType || 'quickplay') as 'quickplay' | 'private' | 'ai' | 'tournament';
 
       // Filter by type if specified
       if (type && type !== 'all' && gameType !== type) {
@@ -467,7 +476,7 @@ export class MatchHistoryService {
     return {
       id: game.id,
       date: game.createdAt.toISOString(),
-      type: game.tournamentId ? 'tournament' : 'quickplay',
+      type: (game.gameType || (game.tournamentId ? 'tournament' : 'quickplay')) as 'quickplay' | 'private' | 'ai' | 'tournament',
       player1Id: game.player1,
       player1Name: player1?.username || 'Unknown',
       player1Avatar: player1?.avatar || 'default-avatar.png',
@@ -696,6 +705,7 @@ export class MatchHistoryService {
     const users = await this.prisma.user.findMany({
       where: {
         gamesPlayed: { gt: 0 },  // Only rank players who have played
+        email: { not: 'ai@transcendence.local' },
       },
       orderBy: {
         score: 'desc',
