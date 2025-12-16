@@ -20,6 +20,11 @@ const icons = {
     <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
     <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
   </svg>`,
+  local: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+    <line x1="8" y1="21" x2="16" y2="21"></line>
+    <line x1="12" y1="17" x2="12" y2="21"></line>
+  </svg>`,
   clock: `<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
     <circle cx="12" cy="12" r="10"></circle>
     <polyline points="12 6 12 12 16 14"></polyline>
@@ -111,6 +116,7 @@ interface BracketViewData {
     creatorId: number;
     winnerId?: number;
     winnerName?: string;
+    isLocal: boolean;
   };
   players: TournamentPlayer[];
   rounds: {
@@ -137,6 +143,8 @@ export function TournamentView(): HTMLElement {
   container.className = 'flex-1 p-4 md:p-8 flex flex-col items-center';
 
   // State
+  let isLocalMode = false;
+  let localPlayerNames: string[] = [];
   let currentView: 'list' | 'create' | 'bracket' = 'list';
   let tournaments: Tournament[] = [];
   let selectedTournamentId: number | null = null;
@@ -200,6 +208,16 @@ export function TournamentView(): HTMLElement {
         <div class="glass-card p-8">
           <h2 class="text-2xl font-bold text-navy mb-6">Create Tournament</h2>
           
+          <!-- Mode Toggle -->
+          <div class="flex gap-4 mb-6">
+            <button type="button" id="onlineModeBtn" class="mode-toggle-btn active flex-1 py-3 rounded-lg font-semibold transition-all">
+              ${icons.users} Online
+            </button>
+            <button type="button" id="localModeBtn" class="mode-toggle-btn flex-1 py-3 rounded-lg font-semibold transition-all">
+              ${icons.local || icons.users} Local (Same Keyboard)
+            </button>
+          </div>
+          
           <form id="createTournamentForm" class="space-y-6">
             <div>
               <label class="block text-sm font-medium mb-2 text-navy">Tournament Name</label>
@@ -215,14 +233,23 @@ export function TournamentView(): HTMLElement {
             </div>
 
             <div>
-              <label class="block text-sm font-medium mb-2 text-navy">Max Players</label>
+              <label class="block text-sm font-medium mb-2 text-navy">Number of Players</label>
               <select id="maxPlayers" class="input-glass w-full">
+                <option value="2">2 Players (1 round - Finals only)</option>
                 <option value="4" selected>4 Players (2 rounds)</option>
                 <option value="8">8 Players (3 rounds)</option>
                 <option value="16">16 Players (4 rounds)</option>
-                <option value="32">32 Players (5 rounds)</option>
               </select>
-              <p class="text-xs text-navy-muted mt-6">Tournament will start when full or manually by creator</p>
+              <p id="onlineModeHint" class="text-xs text-navy-muted mt-2">Tournament will start when full or manually by creator</p>
+              <p id="localModeHint" class="text-xs text-navy-muted mt-2 hidden">All matches played on same keyboard (W/S vs ↑/↓)</p>
+            </div>
+
+            <!-- Local Player Names (shown only in local mode) -->
+            <div id="localPlayersSection" class="hidden space-y-3">
+              <label class="block text-sm font-medium text-navy">Player Names</label>
+              <div id="localPlayerInputs" class="space-y-2">
+                <!-- Dynamic inputs will be added here -->
+              </div>
             </div>
 
             <div id="createError" class="text-red-500 text-sm hidden"></div>
@@ -332,6 +359,23 @@ export function TournamentView(): HTMLElement {
         transform: translateY(-4px);
         border-color: var(--color-blue);
         box-shadow: 0 8px 24px rgba(74, 124, 201, 0.2);
+      }
+      .mode-toggle-btn {
+        background: rgba(26, 26, 46, 0.1);
+        color: var(--color-navy);
+        border: 2px solid transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+      }
+      .mode-toggle-btn:hover {
+        background: rgba(26, 26, 46, 0.2);
+      }
+      .mode-toggle-btn.active {
+        background: var(--color-blue);
+        color: white;
+        border-color: var(--color-blue);
       }
       .status-badge {
         display: inline-flex;
@@ -533,6 +577,55 @@ export function TournamentView(): HTMLElement {
   const maxPlayersSelect = container.querySelector('#maxPlayers') as HTMLSelectElement;
   const createError = container.querySelector('#createError') as HTMLElement;
   const tournamentThemeSelect = container.querySelector('#tournamentThemeSelect') as HTMLSelectElement;
+  const onlineModeBtn = container.querySelector('#onlineModeBtn') as HTMLButtonElement;
+  const localModeBtn = container.querySelector('#localModeBtn') as HTMLButtonElement;
+  const localPlayersSection = container.querySelector('#localPlayersSection') as HTMLElement;
+  const localPlayerInputs = container.querySelector('#localPlayerInputs') as HTMLElement;
+  const onlineModeHint = container.querySelector('#onlineModeHint') as HTMLElement;
+  const localModeHint = container.querySelector('#localModeHint') as HTMLElement;
+
+  const updateLocalPlayerInputs = () => {
+    const count = parseInt(maxPlayersSelect.value);
+    localPlayerInputs.innerHTML = Array.from({ length: count }, (_, i) => `
+      <input 
+        type="text" 
+        class="local-player-input input-glass w-full" 
+        placeholder="Player ${i + 1} name"
+        data-index="${i}"
+        maxlength="20"
+        required
+      />
+    `).join('');
+  };
+
+  onlineModeBtn?.addEventListener('click', () => {
+    isLocalMode = false;
+    onlineModeBtn.classList.add('active', 'bg-blue', 'text-white');
+    onlineModeBtn.classList.remove('bg-navy/10', 'text-navy');
+    localModeBtn.classList.remove('active', 'bg-blue', 'text-white');
+    localModeBtn.classList.add('bg-navy/10', 'text-navy');
+    localPlayersSection.classList.add('hidden');
+    onlineModeHint.classList.remove('hidden');
+    localModeHint.classList.add('hidden');
+  });
+
+  localModeBtn?.addEventListener('click', () => {
+    isLocalMode = true;
+    localModeBtn.classList.add('active', 'bg-blue', 'text-white');
+    localModeBtn.classList.remove('bg-navy/10', 'text-navy');
+    onlineModeBtn.classList.remove('active', 'bg-blue', 'text-white');
+    onlineModeBtn.classList.add('bg-navy/10', 'text-navy');
+    localPlayersSection.classList.remove('hidden');
+    onlineModeHint.classList.add('hidden');
+    localModeHint.classList.remove('hidden');
+    updateLocalPlayerInputs();
+  });
+
+  maxPlayersSelect.addEventListener('change', () => {
+    if (isLocalMode) {
+      updateLocalPlayerInputs();
+    }
+  });
 
   // Theme selection handler
   tournamentThemeSelect.addEventListener('change', () => {
@@ -691,6 +784,31 @@ export function TournamentView(): HTMLElement {
       winnerBanner.classList.add('hidden');
     }
 
+    if (tournament.isLocal && tournament.status === 'in_progress') {
+      const nextMatch = bracketData?.rounds
+        .flatMap(r => r.matches)
+        .find(m => m.status === 'ready');
+      
+      if (nextMatch) {
+        tournamentActions.innerHTML = `
+          <div class="text-center">
+            <p class="text-navy-muted mb-2">Next Match:</p>
+            <p class="text-lg font-bold text-navy mb-4">
+              ${nextMatch.player1?.name || 'TBD'} vs ${nextMatch.player2?.name || 'TBD'}
+            </p>
+            <button id="playNextLocalMatchBtn" class="btn-primary px-8 py-3" data-match-id="${nextMatch.matchId}">
+              ${icons.play} Play Match
+            </button>
+            <p class="text-xs text-navy-muted mt-3">Controls: Player 1 (W/S) vs Player 2 (↑/↓)</p>
+          </div>
+        `;
+      } else {
+        tournamentActions.innerHTML = `
+          <p class="text-navy-muted">Waiting for matches to be ready...</p>
+        `;
+      }
+    }
+
     // Check for my active match
     const myActiveMatch = myMatches.find(m => m.status === 'in_progress' || m.status === 'ready');
     if (myActiveMatch) {
@@ -782,6 +900,31 @@ export function TournamentView(): HTMLElement {
       }
     }
 
+    if (tournament.isLocal && tournament.status === 'in_progress') {
+      const nextMatch = rounds
+        ?.flatMap(r => r.matches)
+        .find(m => m.status === 'ready');
+      
+      if (nextMatch) {
+        tournamentActions.innerHTML = `
+          <div class="text-center">
+            <p class="text-navy-muted mb-2">Next Match:</p>
+            <p class="text-lg font-bold text-navy mb-4">
+              ${nextMatch.player1?.name || 'TBD'} vs ${nextMatch.player2?.name || 'TBD'}
+            </p>
+            <button id="playNextLocalMatchBtn" class="btn-primary px-8 py-3" data-match-id="${nextMatch.matchId}">
+              ${icons.play} Play Match
+            </button>
+            <p class="text-xs text-navy-muted mt-3">Controls: Player 1 (W/S) vs Player 2 (↑/↓)</p>
+          </div>
+        `;
+      } else {
+        tournamentActions.innerHTML = `
+          <p class="text-navy-muted">Waiting for matches to be ready...</p>
+        `;
+      }
+    }
+
     if (tournament.status !== 'finished' && tournament.status !== 'cancelled' && isCreator) {
       tournamentActions.innerHTML += `
         <button id="cancelTournamentBtn" class="btn-outline text-red-500 px-4 py-3">
@@ -821,11 +964,18 @@ export function TournamentView(): HTMLElement {
                     ` : ''}
                     ${match.status === 'ready' ? `
                       <div class="text-center mt-2">
-                        <div class="flex justify-center gap-2">
-                          ${match.player1?.isReady ? `<span class="ready-indicator is-ready text-xs">${icons.check}</span>` : `<span class="ready-indicator not-ready text-xs">${icons.clock}</span>`}
-                          ${match.player2?.isReady ? `<span class="ready-indicator is-ready text-xs">${icons.check}</span>` : `<span class="ready-indicator not-ready text-xs">${icons.clock}</span>`}
-                        </div>
-                        <span class="text-xs text-yellow-600 font-semibold">Waiting for ready</span>
+                        ${tournament.isLocal ? `
+                          <button class="play-local-match-btn bg-green-500 hover:bg-green-600 text-white text-xs px-3 py-1.5 rounded font-semibold transition-colors" 
+                                  data-match-id="${match.matchId}">
+                            ${icons.play} Play
+                          </button>
+                        ` : `
+                          <div class="flex justify-center gap-2">
+                            ${match.player1?.isReady ? `<span class="ready-indicator is-ready text-xs">${icons.check}</span>` : `<span class="ready-indicator not-ready text-xs">${icons.clock}</span>`}
+                            ${match.player2?.isReady ? `<span class="ready-indicator is-ready text-xs">${icons.check}</span>` : `<span class="ready-indicator not-ready text-xs">${icons.clock}</span>`}
+                          </div>
+                          <span class="text-xs text-yellow-600 font-semibold">Waiting for ready</span>
+                        `}
                       </div>
                     ` : ''}
                   </div>
@@ -903,6 +1053,7 @@ export function TournamentView(): HTMLElement {
     const cancelBtn = container.querySelector('#cancelTournamentBtn');
     const goToMatchBtn = container.querySelector('#goToMyMatchBtn');
     const readyBtn = container.querySelector('#readyForMatchBtn');
+    const playNextLocalBtn = container.querySelector('#playNextLocalMatchBtn');
 
     joinBtn?.addEventListener('click', () => {
       if (selectedTournamentId) {
@@ -954,6 +1105,32 @@ export function TournamentView(): HTMLElement {
         // Update UI immediately
         renderBracket();
         showToast('You are ready! Waiting for opponent...', 'success');
+      }
+    });
+
+    // Play buttons in bracket for local tournaments
+    container.querySelectorAll('.play-local-match-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const matchId = (btn as HTMLElement).dataset.matchId;
+        if (matchId && selectedTournamentId) {
+          localStorage.setItem('tournamentTheme', selectedTheme);
+          wsClient.send('tournament:start-local-match', {
+            tournamentId: selectedTournamentId,
+            matchId,
+          });
+        }
+      });
+    });
+
+    playNextLocalBtn?.addEventListener('click', () => {
+      const matchId = (playNextLocalBtn as HTMLElement).dataset.matchId;
+      if (matchId && selectedTournamentId) {
+        localStorage.setItem('tournamentTheme', selectedTheme);
+        wsClient.send('tournament:start-local-match', {
+          tournamentId: selectedTournamentId,
+          matchId,
+        });
       }
     });
 
@@ -1037,6 +1214,37 @@ export function TournamentView(): HTMLElement {
       }
     }));
 
+    // Local tournament ready
+    unsubscribers.push(wsClient.on('tournament:local-ready', (msg) => {
+      console.log('tournament:local-ready', msg.data);
+      if (selectedTournamentId === msg.data.tournamentId) {
+        bracketData = msg.data.bracket;
+        renderBracket();
+        showToast('Local tournament ready! Start your first match.', 'success');
+      }
+    }));
+
+    // Local match starting
+    unsubscribers.push(wsClient.on('tournament:local-match-starting', (msg) => {
+      console.log('tournament:local-match-starting', msg.data);
+      showToast(`Starting: ${msg.data.player1Name} vs ${msg.data.player2Name}`, 'info');
+      // Navigation happens via game-starting event
+    }));
+
+    // Local match complete
+    unsubscribers.push(wsClient.on('tournament:local-match-complete', (msg) => {
+      console.log('tournament:local-match-complete', msg.data);
+      if (selectedTournamentId === msg.data.tournamentId) {
+        bracketData = msg.data.bracket;
+        if (msg.data.nextMatch) {
+          showToast('Match complete! Ready for next match.', 'success');
+        } else {
+          showToast('Round complete!', 'info');
+        }
+        renderBracket();
+      }
+    }));
+
     // Both players ready - match starting
     unsubscribers.push(wsClient.on('tournament:match-ready', (msg) => {
       console.log('tournament:match-ready', msg.data);
@@ -1067,11 +1275,13 @@ export function TournamentView(): HTMLElement {
     // When the backend starts a tournament game, it sends game-starting to the players
     // We need to navigate to the game view so the game-starting handler in GameView processes it
     unsubscribers.push(wsClient.on('game-starting', (msg) => {
-      // Check if this is a tournament game by checking for tournament context
       if (msg.data.tournamentId) {
-        console.log('Tournament game starting, navigating to game view', msg.data);
-        showToast(`Tournament match starting: Round ${msg.data.round}!`, 'info');
-        // Navigate to game view - it will receive this event and subsequent game-update events
+        console.log('Tournament game starting', msg.data);
+        if (msg.data.isLocalTournament) {
+          showToast(`Local match: ${msg.data.player1?.name} vs ${msg.data.player2?.name}`, 'info');
+        } else {
+          showToast(`Tournament match starting: Round ${msg.data.round}!`, 'info');
+        }
         router.navigateTo('/game');
       }
     }));
@@ -1221,16 +1431,33 @@ export function TournamentView(): HTMLElement {
       return;
     }
 
-    if (name.length > 50) {
-      createError.textContent = 'Tournament name must be 50 characters or less';
-      createError.classList.remove('hidden');
-      return;
+    if (isLocalMode) {
+      // Collect player names
+      const inputs = localPlayerInputs.querySelectorAll('.local-player-input') as NodeListOf<HTMLInputElement>;
+      localPlayerNames = Array.from(inputs).map(input => input.value.trim());
+      
+      // Validate all names are filled
+      if (localPlayerNames.some(name => !name)) {
+        createError.textContent = 'Please enter names for all players';
+        createError.classList.remove('hidden');
+        return;
+      }
+      
+      // Check for duplicate names
+      const uniqueNames = new Set(localPlayerNames);
+      if (uniqueNames.size !== localPlayerNames.length) {
+        createError.textContent = 'Player names must be unique';
+        createError.classList.remove('hidden');
+        return;
+      }
     }
 
     wsClient.send('tournament:create', {
       name,
       maxPlayers: max,
       bracketType: 'single_elimination',
+      isLocal: isLocalMode,
+      localPlayerNames: isLocalMode ? localPlayerNames : undefined,
     });
   });
 

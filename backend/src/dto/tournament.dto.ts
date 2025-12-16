@@ -4,10 +4,14 @@ import {
   IsNumber,
   IsEnum,
   IsOptional,
+  IsBoolean,
+  IsArray,
   MinLength,
   MaxLength,
   Min,
   Max,
+  ArrayMinSize,
+  ArrayMaxSize,
 } from 'class-validator';
 import { BracketType } from '../game/types/tournament.types';
 
@@ -20,13 +24,24 @@ export class CreateTournamentDto {
 
   @IsNumber()
   @IsNotEmpty()
-  @Min(4)
+  @Min(2)
   @Max(32)
   maxPlayers: number;
 
   @IsEnum(BracketType)
   @IsOptional()
   bracketType?: BracketType;
+
+  @IsBoolean()
+  @IsOptional()
+  isLocal?: boolean;
+
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMinSize(2)
+  @ArrayMaxSize(32)
+  @IsOptional()
+  localPlayerNames?: string[];
 }
 
 // Generic DTO for tournament actions that only need tournament ID

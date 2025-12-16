@@ -410,7 +410,22 @@ export class GameService {
         select: { tournamentId: true },
       });
 
-      if (gameInfo?.tournamentId) {
+      // Determine game type and handle appropriately
+      if (room.isLocalTournament && gameInfo?.tournamentId) {
+        const winnerPlayerNumber = room.player1Score > room.player2Score ? 1 : 2;
+        this.connectionManager.broadcast('tournament:game-ended', {
+          gameId,
+          tournamentId: gameInfo.tournamentId,
+          winnerId: 0,
+          winnerPlayerNumber,
+          loserId: 0,
+          player1Id: room.player1Id,
+          player2Id: room.player2Id,
+          score1: room.player1Score,
+          score2: room.player2Score,
+          isLocalTournament: true,
+        });
+      } else if (gameInfo?.tournamentId) {
         console.log(`Tournament game ${gameId} ended, notifying tournament service`);
         this.connectionManager.broadcast('tournament:game-ended', {
           gameId,
@@ -938,6 +953,95 @@ export class GameService {
     return gameId;
   }
 
+  async createLocalTournamentGame(
+    creatorId: number,
+    player1Name: string,
+    player2Name: string,
+    tournamentId: number,
+    round: number,
+    matchId: string
+  ): Promise<number> {
+    // Leave any existing game
+    if (this.userToRoom.has(creatorId)) {
+      this.leaveGame(creatorId);
+    }
+
+    const user = await this.userService.getUser(creatorId);
+    const gameId = await this.generateGameId();
+
+    const newRoom: GameRoom = {
+      id: gameId,
+      player1Id: creatorId,
+      player1Name: player1Name,
+      player1Avatar: user.avatar,
+      player1Score: 0,
+      player1Disconnected: false,
+      paddleLeft: 45,
+      paddleLeftDirection: PaddleDirection.NONE,
+
+      player2Id: creatorId,  // Same user controls both
+      player2Name: player2Name,
+      player2Avatar: user.avatar,
+      player2Score: 0,
+      player2Disconnected: false,
+      paddleRight: 45,
+      paddleRightDirection: PaddleDirection.NONE,
+
+      ballX: 50,
+      ballY: 50,
+      ballSpeedX: 0,
+      ballSpeedY: 0,
+      ballSpeed: this.INITIAL_BALL_SPEED,
+
+      status: GameStatus.STARTING,
+      isPrivate: false,
+      isLocal: true,
+      isLocalTournament: true,  // New flag
+      lastUpdateTime: new Date(),
+    };
+
+    this.rooms.set(gameId, newRoom);
+    this.userToRoom.set(creatorId, gameId);
+
+    this.connectionManager.setStatus(creatorId, UserStatus.IN_GAME);
+
+    // Create DB record for tournament tracking
+    await this.prisma.game.create({
+      data: {
+        id: gameId,
+        player1: creatorId,
+        player2: creatorId,
+        score1: 0,
+        score2: 0,
+        startTime: new Date(),
+        endTime: new Date(),
+        duration: 0,
+        gameType: 'tournament',
+        tournamentId,
+        tournamentRound: round,
+        tournamentMatch: matchId,
+      },
+    });
+
+    // Emit game starting
+    this.connectionManager.emitToUser(creatorId, 'game-starting', {
+      gameId,
+      player1: { id: creatorId, name: player1Name, avatar: user.avatar },
+      player2: { id: creatorId, name: player2Name, avatar: user.avatar },
+      isLocal: true,
+      isLocalTournament: true,
+      tournamentId,
+      round,
+      matchId,
+    });
+
+    setTimeout(() => {
+      this.startGame(gameId);
+    }, 3000);
+
+    return gameId;
+  }
+
   // ==================== GAME LOOP ====================
 
   private startGame(gameId: number) {
@@ -1357,7 +1461,21 @@ export class GameService {
       }
     }
 
-    if (gameInfo?.tournamentId) {
+    if (room.isLocalTournament) {
+      const winnerPlayerNumber = room.player1Score > room.player2Score ? 1 : 2;
+      this.connectionManager.broadcast('tournament:game-ended', {
+        gameId,
+        tournamentId: gameInfo?.tournamentId,
+        winnerId: 0,  // Not a real user ID
+        winnerPlayerNumber,
+        loserId: 0,
+        player1Id: room.player1Id,
+        player2Id: room.player2Id,
+        score1: room.player1Score,
+        score2: room.player2Score,
+        isLocalTournament: true,
+      });
+    } else if (gameInfo?.tournamentId) {
       console.log(`Tournament game ${gameId} ended, notifying tournament service`);
       this.connectionManager.broadcast('tournament:game-ended', {
         gameId,

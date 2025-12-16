@@ -206,6 +206,7 @@ export function GameView(): HTMLElement {
     tournamentName?: string;
     round: number;
     matchId: string;
+    isLocalTournament: boolean;
   } | null = null;
   let hasCheckedActiveGame = false;
 
@@ -630,6 +631,7 @@ export function GameView(): HTMLElement {
           tournamentName: msg.data.tournamentName,
           round: msg.data.round,
           matchId: msg.data.matchId,
+          isLocalTournament: msg.data.isLocalTournament || false,  // Add this
         };
         updateStatus(`Tournament Round ${msg.data.round}`, 'waiting');
       } else {
@@ -691,13 +693,30 @@ export function GameView(): HTMLElement {
       const user = storage.getUserData();
       const finalScore = msg.data.finalScore;
       
-      let won = false;
-      if (msg.data.isLocal) {
+      // Determine if this is a local tournament game
+      const isLocalTournament = tournamentContext && msg.data.isLocal;
+      
+      if (msg.data.isLocal && !isLocalTournament) {
+        // Regular local game
         const winner = finalScore.player1 > finalScore.player2 ? 'Player 1' : 'Player 2';
         showToast(`${winner} Wins!`, 'info');
         soundManager.gameWin();
+      } else if (isLocalTournament) {
+        // Local tournament game
+        const winnerNum = finalScore.player1 > finalScore.player2 ? 1 : 2;
+        const winnerName = winnerNum === 1 ? player1Label.textContent : player2Label.textContent;
+        showToast(`${winnerName} Wins!`, 'success');
+        soundManager.gameWin();
+        
+        // Return to tournament view after delay
+        setTimeout(() => {
+          resetGame();
+          router.navigateTo('/tournament');
+        }, 2500);
+        return;
       } else {
-        won = msg.data.winnerId?.toString() === user?.id?.toString();
+        // Online game
+        const won = msg.data.winnerId?.toString() === user?.id?.toString();
         
         if (msg.data.forfeit) {
           if (msg.data.forfeitedBy?.toString() === user?.id?.toString()) {
@@ -713,8 +732,9 @@ export function GameView(): HTMLElement {
         }
       }
       
-      if (tournamentContext) {
-        const tournamentId = tournamentContext.tournamentId;
+      // Handle tournament context (non-local)
+      if (tournamentContext && !isLocalTournament) {
+        const won = msg.data.winnerId?.toString() === user?.id?.toString();
         setTimeout(() => {
           const returnToTournament = confirm(
             `${won ? 'Congratulations!' : 'Game over!'}\n\nReturn to tournament bracket?`
@@ -727,7 +747,7 @@ export function GameView(): HTMLElement {
             showScreen('menu');
           }
         }, 2000);
-      } else {
+      } else if (!isLocalTournament) {
         setTimeout(() => { 
           resetGame(); 
           showScreen('menu'); 

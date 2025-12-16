@@ -30,6 +30,7 @@ export interface GameRoom {
   status: GameStatus;
   isPrivate: boolean;
   isLocal?: boolean;
+  isLocalTournament?: boolean;
   vsAI?: boolean;
   startTime?: Date;
   lastUpdateTime: Date;
