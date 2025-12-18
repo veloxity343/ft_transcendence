@@ -19,13 +19,13 @@ COPY tailwind.config.js ./
 # 	rm -rf /var/lib/apt/lists/* && \
 # 	npm ci
 
-RUN npm ci
 
 # copy source code
 COPY index.html ./
 COPY public ./public
 COPY src ./src
 
+RUN npm install
 #build
 RUN npm run build
 

@@ -17,7 +17,6 @@ COPY tsconfig.json ./
 # 	rm -rf /var/lib/apt/lists/* && \
 # 	npm ci
 
-RUN npm ci
 
 #copy source code
 COPY prisma ./prisma
@@ -29,6 +28,7 @@ COPY test ./test
 # copy ssl certs. comment-out or remove it if really not required
 COPY ssl ./ssl
 
+RUN npm install
 #generate prisma client
 RUN npx prisma generate
 
