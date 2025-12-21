@@ -11,6 +11,8 @@ export interface ChatMessageDto {
 
 export interface DirectMessageDto {
   targetUserId: number;
+  targetUsername?: string;
+  targetAvatar?: string;
   message: string;
 }
 
@@ -198,7 +200,7 @@ export async function setupChatWebSocket(
           }
 
           case 'chat:send-dm': {
-            const { targetUserId, message: text } = message.data as DirectMessageDto;
+            const { targetUserId, targetUsername, targetAvatar, message: text } = message.data as DirectMessageDto;
             
             if (!targetUserId || !text) {
               throw new Error('Target user ID and message are required');
@@ -232,11 +234,27 @@ export async function setupChatWebSocket(
             senderState.activeWhispers.add(targetUserId);
             targetState.activeWhispers.add(userId);
 
+            // Look up target user info
+            const targetUser = await prisma.user.findUnique({
+              where: { id: targetUserId },
+              select: { username: true, avatar: true },
+            });
+
+            if (!targetUser) {
+              socket.send(JSON.stringify({
+                event: 'chat:error',
+                data: { message: 'User not found' },
+              }));
+              return;
+            }
+
             const dmMessage = chatService.sendDirectMessage(
               userId,
               username,
               avatar,
               targetUserId,
+              targetUsername || '',
+              targetAvatar || '',
               text
             );
 
@@ -306,6 +324,8 @@ export async function setupChatWebSocket(
               username,
               avatar,
               targetUser.id,
+              targetUser.username,
+              targetUser.avatar,
               text
             );
 

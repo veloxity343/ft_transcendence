@@ -109,6 +109,7 @@ export class TournamentService {
       createdAt: dbTournament.createdAt,
       startedAt: dbTournament.startedAt || undefined,
       finishedAt: dbTournament.finishedAt || undefined,
+      isLocal: dbTournament.isLocal || false,
     };
   }
 
@@ -119,12 +120,26 @@ export class TournamentService {
     name: string,
     maxPlayers: number,
     bracketType: BracketType = BracketType.SINGLE_ELIMINATION,
+    isLocal: boolean = false,
+    localPlayerNames?: string[],
   ): Promise<Tournament> {
     // Validate max players is power of 2 for single elimination
     if (bracketType === BracketType.SINGLE_ELIMINATION) {
       if (!this.isPowerOfTwo(maxPlayers)) {
-        throw new Error('Max players must be a power of 2 (4, 8, 16, 32)');
+        throw new Error('Max players must be a power of 2');
       }
+    }
+
+    // For local tournaments, validate player names
+    if (isLocal) {
+      if (!localPlayerNames || localPlayerNames.length < 2) {
+        throw new Error('Local tournaments require at least 2 player names');
+      }
+      if (localPlayerNames.length > maxPlayers) {
+        throw new Error('Too many player names for tournament size');
+      }
+      // Adjust maxPlayers to match actual players for local
+      maxPlayers = this.nextPowerOfTwo(localPlayerNames.length);
     }
 
     const totalRounds = Math.log2(maxPlayers);
@@ -137,9 +152,10 @@ export class TournamentService {
         maxPlayers,
         bracketType,
         totalRounds,
-        status: 'registration',
-        currentPlayers: 0,
+        status: isLocal ? 'starting' : 'registration',
+        currentPlayers: isLocal ? localPlayerNames!.length : 0,
         currentRound: 0,
+        isLocal,
       },
       include: {
         players: true,
@@ -148,6 +164,12 @@ export class TournamentService {
     });
 
     const tournament = this.dbToTournament(dbTournament);
+    tournament.isLocal = isLocal;
+    tournament.localPlayerNames = localPlayerNames;
+
+    if (isLocal && localPlayerNames) {
+      await this.setupLocalTournament(tournament, creatorId, localPlayerNames);
+    }
 
     // Add to cache
     this.activeCache.set(tournament.id, tournament);
@@ -161,10 +183,81 @@ export class TournamentService {
         currentPlayers: tournament.currentPlayers,
         status: tournament.status,
         creatorId: tournament.creatorId,
+        isLocal: tournament.isLocal,
       },
     });
 
     return tournament;
+  }
+
+  private async setupLocalTournament(
+    tournament: Tournament,
+    creatorId: number,
+    playerNames: string[]
+  ): Promise<void> {
+    const players: TournamentPlayer[] = [];
+
+    // Create virtual players in database
+    for (let index = 0; index < playerNames.length; index++) {
+      const dbPlayer = await this.prisma.tournamentPlayer.create({
+        data: {
+          tournamentId: tournament.id,
+          userId: null,
+          username: playerNames[index],
+          avatar: 'default-avatar.png',
+          seed: index + 1,
+          isVirtual: true,
+        },
+      });
+
+      players.push({
+        userId: dbPlayer.id,
+        username: dbPlayer.username,
+        avatar: dbPlayer.avatar,
+        seed: dbPlayer.seed || index + 1,
+        isVirtual: true,
+      });
+    }
+
+    tournament.players = players;
+    tournament.currentPlayers = players.length;
+
+    await this.generateBracket(tournament);
+
+    await this.prisma.tournament.update({
+      where: { id: tournament.id },
+      data: {
+        status: 'in_progress',
+        currentRound: 1,
+        currentPlayers: players.length,
+        startedAt: new Date(),
+      },
+    });
+
+    tournament.status = TournamentStatus.IN_PROGRESS;
+    tournament.currentRound = 1;
+    tournament.startedAt = new Date();
+
+    this.connectionManager.emitToUser(creatorId, 'tournament:local-ready', {
+      tournamentId: tournament.id,
+      bracket: this.getTournamentBracket(tournament.id),
+      nextMatch: this.getNextLocalMatch(tournament.id),
+    });
+  }
+
+  getNextLocalMatch(tournamentId: number): TournamentMatch | null {
+    const tournament = this.activeCache.get(tournamentId);
+    if (!tournament || !tournament.isLocal) return null;
+
+    // Find first match in current round that's ready but not completed
+    const currentRoundMatches = tournament.matches.filter(
+      m => m.round === tournament.currentRound && 
+          m.status === 'ready' && 
+          m.player1Id && 
+          m.player2Id
+    );
+
+    return currentRoundMatches[0] || null;
   }
 
   // ==================== PLAYER MANAGEMENT ====================
@@ -367,6 +460,58 @@ export class TournamentService {
     setTimeout(() => {
       this.notifyReadyMatches(tournamentId, 1);
     }, 3000);
+  }
+
+  async startLocalTournamentMatch(
+    creatorId: number,
+    tournamentId: number,
+    matchId: string
+  ): Promise<{ gameId: number; player1Name: string; player2Name: string }> {
+    const tournament = this.activeCache.get(tournamentId);
+    if (!tournament) throw new Error('Tournament not found');
+    if (!tournament.isLocal) throw new Error('Not a local tournament');
+    if (tournament.creatorId !== creatorId) throw new Error('Only creator can start matches');
+
+    const match = tournament.matches.find(m => m.matchId === matchId);
+    if (!match) throw new Error('Match not found');
+    
+    // For local tournaments, just check that both players exist and match isn't completed/in_progress
+    if (match.status === 'completed') throw new Error('Match already completed');
+    if (match.status === 'in_progress') throw new Error('Match already in progress');
+    if (!match.player1Id || !match.player2Id) throw new Error('Match does not have both players');
+
+    // Get player names
+    const player1 = tournament.players.find(p => p.userId === match.player1Id);
+    const player2 = tournament.players.find(p => p.userId === match.player2Id);
+    if (!player1 || !player2) throw new Error('Players not found');
+
+    // Create local game
+    const gameId = await this.gameService.createLocalTournamentGame(
+      creatorId,
+      player1.username,
+      player2.username,
+      tournamentId,
+      match.round,
+      matchId
+    );
+
+    // Update match
+    match.gameId = gameId;
+    match.status = 'in_progress';
+
+    await this.prisma.tournamentMatch.updateMany({
+      where: { tournamentId, matchId },
+      data: { gameId, status: 'in_progress' },
+    });
+
+    // Track game -> tournament mapping
+    this.gameToTournament.set(gameId, { tournamentId, matchId });
+
+    return {
+      gameId,
+      player1Name: player1.username,
+      player2Name: player2.username,
+    };
   }
 
   // ==================== BRACKET GENERATION ====================
@@ -722,18 +867,30 @@ export class TournamentService {
     player1Id: number,
     player2Id: number,
     score1: number,
-    score2: number
+    score2: number,
+    isLocalGame?: boolean,
+    winnerPlayerNumber?: 1 | 2
   ): Promise<void> {
     // Check if this game is part of a tournament
     const tournamentInfo = this.gameToTournament.get(gameId);
-    if (!tournamentInfo) {
-      return; // Not a tournament game
-    }
+    if (!tournamentInfo) return; // Not a tournament game
 
     const { tournamentId, matchId } = tournamentInfo;
     
     // Clean up tracking
     this.gameToTournament.delete(gameId);
+
+    const tournament = this.activeCache.get(tournamentId);
+    if (!tournament) return;
+
+    // For local tournaments, determine winner by player number
+    let actualWinnerId = winnerId;
+    if (tournament.isLocal && winnerPlayerNumber !== undefined) {
+      const match = tournament.matches.find(m => m.matchId === matchId);
+      if (match) {
+        actualWinnerId = winnerPlayerNumber === 1 ? match.player1Id! : match.player2Id!;
+      }
+    }
 
     // Record the result
     await this.recordMatchResult(tournamentId, matchId, winnerId, score1, score2);
@@ -1087,6 +1244,7 @@ export class TournamentService {
         creatorId: bracket.tournament.creatorId,
         winnerId: bracket.tournament.winnerId,
         winnerName: bracket.tournament.winnerName,
+        isLocal: bracket.tournament.isLocal,
       },
       players: bracket.tournament.players.map(p => ({
         userId: p.userId,
@@ -1178,14 +1336,43 @@ export class TournamentService {
   private setupGameEndListener(): void {
     // Listen for game end events from GameService via ConnectionManager
     this.connectionManager.on('tournament:game-ended', async (data: any) => {
-      await this.handleGameEnd(
-        data.gameId,
-        data.winnerId,
-        data.player1Id,
-        data.player2Id,
-        data.score1,
-        data.score2
-      );
+      if (data.isLocalTournament) {
+        // For local tournaments, determine winner by player number
+        const tournament = this.activeCache.get(data.tournamentId);
+        if (tournament && tournament.isLocal) {
+          const match = tournament.matches.find(m => m.gameId === data.gameId);
+          if (match) {
+            const winnerId = data.winnerPlayerNumber === 1 ? match.player1Id : match.player2Id;
+            await this.handleGameEnd(
+              data.gameId,
+              winnerId!,
+              match.player1Id!,
+              match.player2Id!,
+              data.score1,
+              data.score2
+            );
+            
+            // Notify creator about next match
+            const nextMatch = this.getNextLocalMatch(data.tournamentId);
+            this.connectionManager.emitToUser(tournament.creatorId, 'tournament:local-match-complete', {
+              tournamentId: data.tournamentId,
+              completedMatchId: match.matchId,
+              nextMatch,
+              bracket: this.getTournamentBracket(data.tournamentId),
+            });
+          }
+        }
+      } else {
+        // Regular online tournament game
+        await this.handleGameEnd(
+          data.gameId,
+          data.winnerId,
+          data.player1Id,
+          data.player2Id,
+          data.score1,
+          data.score2
+        );
+      }
     });
   }
 

@@ -32,14 +32,22 @@ export async function setupTournamentWebSocket(
       try {
         switch (message.event) {
           case 'tournament:create': {
-            const { name, maxPlayers, bracketType } = message.data as CreateTournamentMessage;
+            const { name, maxPlayers, bracketType, isLocal, localPlayerNames } = message.data as CreateTournamentMessage & {
+              isLocal?: boolean;
+              localPlayerNames?: string[];
+            };
 
             if (!name || !maxPlayers) {
               throw new Error('Name and maxPlayers are required');
             }
 
-            if (maxPlayers < 4 || maxPlayers > 32) {
-              throw new Error('Max players must be between 4 and 32');
+            const minPlayers = isLocal ? 2 : 2;
+            if (maxPlayers < minPlayers || maxPlayers > 32) {
+              throw new Error(`Max players must be between ${minPlayers} and 32`);
+            }
+
+            if (isLocal && (!localPlayerNames || localPlayerNames.length < 2)) {
+              throw new Error('Local tournaments require at least 2 player names');
             }
 
             try {
@@ -47,7 +55,9 @@ export async function setupTournamentWebSocket(
                 userId,
                 name,
                 maxPlayers,
-                bracketType
+                bracketType,
+                isLocal,
+                localPlayerNames
               );
 
               // Send confirmation to creator
@@ -61,6 +71,7 @@ export async function setupTournamentWebSocket(
                     maxPlayers: tournament.maxPlayers,
                     currentPlayers: tournament.currentPlayers,
                     status: tournament.status,
+                    isLocal: tournament.isLocal,
                   },
                 },
               }));
@@ -130,6 +141,38 @@ export async function setupTournamentWebSocket(
               await tournamentService.startTournament(tournamentId, userId);
               // Note: tournament:started is broadcast by the service to all participants
               // No need to send a separate confirmation here
+            } catch (error: any) {
+              socket.send(JSON.stringify({
+                event: 'tournament:error',
+                data: { message: error.message },
+              }));
+            }
+            break;
+          }
+
+          case 'tournament:start-local-match': {
+            const { tournamentId, matchId } = message.data as { tournamentId: number; matchId: string };
+
+            if (!tournamentId || !matchId) {
+              socket.send(JSON.stringify({
+                event: 'tournament:error',
+                data: { message: 'Tournament ID and Match ID are required' },
+              }));
+              break;
+            }
+
+            try {
+              const result = await tournamentService.startLocalTournamentMatch(userId, tournamentId, matchId);
+
+              socket.send(JSON.stringify({
+                event: 'tournament:local-match-starting',
+                data: {
+                  success: true,
+                  ...result,
+                  tournamentId,
+                  matchId,
+                },
+              }));
             } catch (error: any) {
               socket.send(JSON.stringify({
                 event: 'tournament:error',

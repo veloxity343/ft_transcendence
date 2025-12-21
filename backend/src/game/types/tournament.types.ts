@@ -19,6 +19,7 @@ export interface TournamentPlayer {
   avatar: string;
   seed?: number;
   eliminatedInRound?: number;
+  isVirtual?: boolean;
 }
 
 export interface TournamentMatch {
@@ -54,6 +55,8 @@ export interface Tournament {
   createdAt: Date;
   startedAt?: Date;
   finishedAt?: Date;
+  isLocal: boolean;
+  localPlayerNames?: string[];
 }
 
 export interface TournamentBracket {
