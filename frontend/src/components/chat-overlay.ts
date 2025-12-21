@@ -1020,10 +1020,21 @@ export class ChatOverlay {
       return;
     }
 
-    // Open or get whisper tab
-    const isFromMe = userId === parseInt(this.currentUser?.id || '0');
-    const otherUserId = isFromMe ? parseInt(roomId.split('-')[2]) : userId;
-    const otherUsername = isFromMe ? (data.toUsername || 'User') : username;
+    // Determine who the "other" user is
+    const currentUserId = parseInt(this.currentUser?.id || '0');
+    const isFromMe = userId === currentUserId;
+    
+    // Parse room ID: dm-1-3 → [1, 3]
+    const roomParts = roomId.split('-');
+    const roomUser1 = parseInt(roomParts[1]);
+    const roomUser2 = parseInt(roomParts[2]);
+    
+    // Other user is whichever one isn't me
+    const otherUserId = roomUser1 === currentUserId ? roomUser2 : roomUser1;
+    const otherUsername = isFromMe 
+      ? (data.toUsername || `User ${otherUserId}`) 
+      : username;
+
 
     let tab = this.state.tabs.find(t => t.type === 'whisper' && t.targetUserId === otherUserId);
     if (!tab) {
@@ -1220,18 +1231,6 @@ export class ChatOverlay {
       case 'whisper':
         if (activeTab.targetUserId) {
           wsClient.send('chat:send-dm', { targetUserId: activeTab.targetUserId, message: text });
-          // Add message locally
-          this.addLocalMessage(activeTab.id, {
-            id: `dm-${Date.now()}`,
-            userId: parseInt(this.currentUser?.id || '0'),
-            username: this.currentUser?.username || 'You',
-            userAvatar: '',
-            message: text,
-            timestamp: new Date(),
-            type: 'message',
-            isWhisper: true,
-            fromMe: true,
-          });
         }
         break;
     }

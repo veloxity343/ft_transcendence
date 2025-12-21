@@ -589,7 +589,7 @@ export function TournamentView(): HTMLElement {
     localPlayerInputs.innerHTML = Array.from({ length: count }, (_, i) => `
       <input 
         type="text" 
-        class="local-player-input input-glass w-full" 
+        class="local-player-input input-glass w-full mb-2" 
         placeholder="Player ${i + 1} name"
         data-index="${i}"
         maxlength="20"

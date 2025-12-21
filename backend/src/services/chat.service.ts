@@ -231,6 +231,8 @@ export class ChatService {
     fromUsername: string,
     fromAvatar: string,
     toUserId: number,
+    toUsername: string,
+    toAvatar: string,
     messageText: string
   ): ChatMessage {
     // Create or get private room between users
@@ -269,9 +271,20 @@ export class ChatService {
 
     room.messages.push(message);
 
-    // Send to both users
-    this.connectionManager.emitToUser(fromUserId, 'chat:dm', message);
-    this.connectionManager.emitToUser(toUserId, 'chat:dm', message);
+    // Send to both users with recipient info included
+    this.connectionManager.emitToUser(fromUserId, 'chat:dm', {
+      ...message,
+      toUserId,
+      toUsername,
+      toAvatar,
+    });
+    
+    this.connectionManager.emitToUser(toUserId, 'chat:dm', {
+      ...message,
+      toUserId,
+      toUsername,
+      toAvatar,
+    });
 
     return message;
   }

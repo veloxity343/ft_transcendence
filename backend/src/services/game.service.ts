@@ -193,7 +193,7 @@ export class GameService {
 
     // For AI games, leaving means ending the game
     if (room.vsAI) {
-      return this.immediateLeaveCleanup(userId, gameId, room);
+      return this.leaveWithReconnection(userId, gameId, room);
     }
 
     // For games not in progress, do immediate cleanup (cancel)

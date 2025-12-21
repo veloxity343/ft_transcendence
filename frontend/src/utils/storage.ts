@@ -152,12 +152,24 @@ class Storage {
 
   // User Data
   setUserData(user: User): void {
-    localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
+    // Normalize ID to always be a number for consistency
+    const normalizedUser = {
+      ...user,
+      id: typeof user.id === 'string' ? parseInt(user.id, 10) : user.id,
+    };
+    localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(normalizedUser));
   }
 
   getUserData(): User | null {
     const data = localStorage.getItem(STORAGE_KEYS.USER_DATA);
-    return data ? JSON.parse(data) : null;
+    if (!data) return null;
+    
+    const user = JSON.parse(data);
+    // Ensure ID is always a number
+    if (user && typeof user.id === 'string') {
+      user.id = parseInt(user.id, 10);
+    }
+    return user;
   }
 
   removeUserData(): void {
