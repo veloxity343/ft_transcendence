@@ -89,10 +89,17 @@ export class ChatService {
 
   // ==================== MEMBER MANAGEMENT ====================
 
-  joinRoom(userId: number, roomId: string): boolean {
+  joinRoom(userId: number, roomId: string, username?: string): boolean {
     const room = this.rooms.get(roomId);
     if (!room) {
       throw new Error(`Room ${roomId} not found`);
+    }
+
+    // Check if user is already in room
+    if (room.members.has(userId)) {
+      // Just send history, don't re-announce
+      this.sendRoomHistory(userId, roomId);
+      return true;
     }
 
     room.members.add(userId);
@@ -104,11 +111,13 @@ export class ChatService {
     this.userRooms.get(userId)!.add(roomId);
 
     // Send join notification
-    this.sendSystemMessage(
-      roomId,
-      `User joined the chat`,
-      userId
-    );
+    if (roomId !== 'global' && username) {
+      this.sendSystemMessage(
+        roomId,
+        `${username} joined the chat`,
+        userId
+      );
+    }
 
     // Send room history to new member
     this.sendRoomHistory(userId, roomId);
@@ -116,7 +125,7 @@ export class ChatService {
     return true;
   }
 
-  leaveRoom(userId: number, roomId: string): boolean {
+  leaveRoom(userId: number, roomId: string, username?: string): boolean {
     const room = this.rooms.get(roomId);
     if (!room) return false;
 
@@ -132,21 +141,24 @@ export class ChatService {
     }
 
     // Send leave notification
-    this.sendSystemMessage(
-      roomId,
-      `User left the chat`,
-      userId
-    );
+    if (roomId !== 'global' && username) {
+      this.sendSystemMessage(
+        roomId,
+        `${username} left the chat`,
+        userId
+      );
+    }
 
     return true;
   }
 
-  leaveAllRooms(userId: number): void {
+  leaveAllRooms(userId: number, username?: string): void {
     const userRooms = this.userRooms.get(userId);
     if (!userRooms) return;
 
-    userRooms.forEach(roomId => {
-      this.leaveRoom(userId, roomId);
+    const roomsCopy = Array.from(userRooms);
+    roomsCopy.forEach(roomId => {
+      this.leaveRoom(userId, roomId, username);
     });
   }
 

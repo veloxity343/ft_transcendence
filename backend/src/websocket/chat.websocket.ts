@@ -133,7 +133,7 @@ export async function setupChatWebSocket(
             }
 
             try {
-              chatService.joinRoom(userId, roomId);
+              chatService.joinRoom(userId, roomId, username);
               
               socket.send(JSON.stringify({
                 event: 'chat:joined',
@@ -155,7 +155,7 @@ export async function setupChatWebSocket(
               throw new Error('Room ID is required');
             }
 
-            chatService.leaveRoom(userId, roomId);
+            chatService.leaveRoom(userId, roomId, username);
             
             socket.send(JSON.stringify({
               event: 'chat:left',
@@ -799,7 +799,7 @@ export async function setupChatWebSocket(
             const roomId = `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             
             const room = chatService.createRoom(roomId, type, name);
-            chatService.joinRoom(userId, roomId);
+            chatService.joinRoom(userId, roomId, username);
 
             socket.send(JSON.stringify({
               event: 'chat:room-created',
@@ -841,8 +841,8 @@ export async function setupChatWebSocket(
     },
 
     // Cleanup when user disconnects
-    handleDisconnect: (userId: number) => {
-      chatService.leaveAllRooms(userId);
+    handleDisconnect: (userId: number, username: string) => {
+      chatService.leaveAllRooms(userId, username);
       // Don't clear chat state - preserve ignore list and DND for session
     },
   };
