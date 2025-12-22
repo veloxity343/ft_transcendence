@@ -1,6 +1,10 @@
 import { router } from '../router';
 import { authApi } from '../api/auth';
 import { storage } from '../utils/storage';
+import { userApi } from '../api/user';
+import { historyApi, formatDate, getEloChangeDisplay, getRankColor, getRankTitle } from '../api/history';
+import { API_BASE_URL } from '../constants';
+import { wsClient } from '../websocket/client';
 
 // SVG Icons
 const icons = {
@@ -44,8 +48,27 @@ const icons = {
   history: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <circle cx="12" cy="12" r="10"></circle>
     <polyline points="12 6 12 12 16 14"></polyline>
+  </svg>`,
+  spinner: `<svg class="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+    <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
   </svg>`
 };
+
+function getAvatarUrl(avatar?: string): string {
+  if (!avatar || avatar === 'default-avatar.png') {
+    return '';
+  }
+  if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+    return avatar;
+  }
+  return `${API_BASE_URL}/uploads/${avatar}`;
+}
+
+function getAvatarFallback(username: string): string {
+  const initial = username?.[0]?.toUpperCase() || '?';
+  return `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%231a1a2e%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2250%22 font-size=%2240%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22 fill=%22%234A7CC9%22>${initial}</text></svg>`;
+}
 
 export function HomeView(): HTMLElement {
   const container = document.createElement('div');
@@ -103,23 +126,34 @@ export function HomeView(): HTMLElement {
           <span class="icon text-blue">${icons.profile}</span>
           <h3>Profile</h3>
         </div>
-        <div class="user-profile-card">
+        <div class="user-profile-card cursor-pointer" id="profileCard">
           <div class="flex flex-col items-center">
-            <div class="user-avatar bg-blue"></div>
+            <img 
+              id="userAvatar"
+              src="${getAvatarUrl(user?.avatar)}" 
+              alt="${user?.username}"
+              class="user-avatar bg-blue object-cover"
+              onerror="this.src='${getAvatarFallback(user?.username || 'U')}'"
+            />
             <div class="user-name">${user?.username || 'Player'}</div>
-            <div class="text-sm text-navy-muted">${user?.email || ''}</div>
+            <div id="userRankBadge" class="text-sm text-navy-muted mt-1">
+              <span class="inline-flex items-center gap-1">
+                ${icons.spinner}
+                <span>Loading...</span>
+              </span>
+            </div>
           </div>
           <div class="user-stats">
             <div class="user-stat-item">
-              <div class="user-stat-value">0</div>
+              <div id="userWins" class="user-stat-value">-</div>
               <div class="user-stat-label">Wins</div>
             </div>
             <div class="user-stat-item">
-              <div class="user-stat-value">0</div>
+              <div id="userLosses" class="user-stat-value">-</div>
               <div class="user-stat-label">Losses</div>
             </div>
             <div class="user-stat-item">
-              <div class="user-stat-value">0</div>
+              <div id="userRank" class="user-stat-value">-</div>
               <div class="user-stat-label">Rank</div>
             </div>
           </div>
@@ -127,14 +161,14 @@ export function HomeView(): HTMLElement {
       </div>
 
       <!-- Friends List -->
-      <div class="sidebar-section">
+      <div class="sidebar-section flex-1 overflow-hidden flex flex-col">
         <div class="glass-header mb-4">
           <span class="icon text-blue">${icons.friends}</span>
           <h3>Friends</h3>
         </div>
-        <div class="scrollable">
-          <div class="text-center text-navy-muted p-4">
-            <p>No friends online</p>
+        <div id="friendsList" class="scrollable flex-1">
+          <div class="flex items-center justify-center p-4">
+            ${icons.spinner}
           </div>
         </div>
       </div>
@@ -199,60 +233,30 @@ export function HomeView(): HTMLElement {
     <aside class="sidebar sidebar-right slide-in-right">
       <!-- Leaderboard -->
       <div class="sidebar-section">
-        <div class="glass-header mb-4">
-          <span class="icon text-blue">${icons.leaderboard}</span>
-          <h3>Leaderboard</h3>
+        <div class="flex items-center justify-between mb-4">
+          <div class="glass-header">
+            <span class="icon text-blue">${icons.leaderboard}</span>
+            <h3>Leaderboard</h3>
+          </div>
         </div>
-        <div class="scrollable">
-          <div class="leaderboard-container leaderboard-container-1">
-            <span class="leaderboard-rank">1</span>
-            <span class="leaderboard-name">PlayerOne</span>
-            <span class="leaderboard-points">1250</span>
-          </div>
-          <div class="leaderboard-container leaderboard-container-2">
-            <span class="leaderboard-rank">2</span>
-            <span class="leaderboard-name">AcePlayer</span>
-            <span class="leaderboard-points">1100</span>
-          </div>
-          <div class="leaderboard-container leaderboard-container-3">
-            <span class="leaderboard-rank">3</span>
-            <span class="leaderboard-name">ProGamer</span>
-            <span class="leaderboard-points">980</span>
-          </div>
-          <div class="leaderboard-container leaderboard-container-default">
-            <span class="leaderboard-rank">4</span>
-            <span class="leaderboard-name">ChampX</span>
-            <span class="leaderboard-points">850</span>
-          </div>
-          <div class="leaderboard-container leaderboard-container-default">
-            <span class="leaderboard-rank">5</span>
-            <span class="leaderboard-name">MasterY</span>
-            <span class="leaderboard-points">720</span>
+        <div id="leaderboardList" class="scrollable">
+          <div class="flex items-center justify-center p-4">
+            ${icons.spinner}
           </div>
         </div>
       </div>
 
       <!-- Match History -->
-      <div class="sidebar-section">
-        <div class="glass-header mb-4">
-          <span class="icon text-blue">${icons.history}</span>
-          <h3>Match History</h3>
+      <div class="sidebar-section flex-1 overflow-hidden flex flex-col">
+        <div class="flex items-center justify-between mb-4">
+          <div class="glass-header">
+            <span class="icon text-blue">${icons.history}</span>
+            <h3>Match History</h3>
+          </div>
         </div>
-        <div class="scrollable">
-          <div class="match-history-container match-history-container-win">
-            <span class="match-opponent">vs. Player123</span>
-            <span class="match-score">11-8</span>
-            <span class="match-result match-result-win">WIN</span>
-          </div>
-          <div class="match-history-container match-history-container-loss">
-            <span class="match-opponent">vs. ProGamer</span>
-            <span class="match-score">5-11</span>
-            <span class="match-result match-result-loss">LOSS</span>
-          </div>
-          <div class="match-history-container match-history-container-win">
-            <span class="match-opponent">vs. AcePlayer</span>
-            <span class="match-score">11-9</span>
-            <span class="match-result match-result-win">WIN</span>
+        <div id="matchHistoryList" class="scrollable flex-1">
+          <div class="flex items-center justify-center p-4">
+            ${icons.spinner}
           </div>
         </div>
       </div>
@@ -276,5 +280,214 @@ export function HomeView(): HTMLElement {
     router.navigateTo('/tournament');
   });
 
+  // Profile card click
+  container.querySelector('#profileCard')?.addEventListener('click', () => {
+    router.navigateTo('/profile');
+  });
+
+  // Load real data
+  loadUserStats(container);
+  loadLeaderboard(container);
+  loadMatchHistory(container);
+  loadFriends(container);
+
   return container;
+}
+
+async function loadUserStats(container: HTMLElement): Promise<void> {
+  const userWins = container.querySelector('#userWins') as HTMLElement;
+  const userLosses = container.querySelector('#userLosses') as HTMLElement;
+  const userRank = container.querySelector('#userRank') as HTMLElement;
+  const userRankBadge = container.querySelector('#userRankBadge') as HTMLElement;
+
+  try {
+    const response = await historyApi.getMyStats();
+    
+    if (response.success && response.data) {
+      const stats = response.data;
+      
+      userWins.textContent = stats.wins.toString();
+      userLosses.textContent = stats.losses.toString();
+      userRank.textContent = stats.leaderboardRank > 0 ? `#${stats.leaderboardRank}` : '-';
+      
+      const rankColor = getRankColor(stats.currentElo);
+      userRankBadge.innerHTML = `
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold" style="background-color: ${rankColor}20; color: ${rankColor}; border: 1px solid ${rankColor}">
+          ${stats.rankTitle} • ${stats.currentElo} ELO
+        </span>
+      `;
+    }
+  } catch (error) {
+    console.error('Failed to load user stats:', error);
+    userRankBadge.innerHTML = '<span class="text-navy-muted text-xs">Stats unavailable</span>';
+  }
+}
+
+async function loadLeaderboard(container: HTMLElement): Promise<void> {
+  const leaderboardList = container.querySelector('#leaderboardList') as HTMLElement;
+
+  try {
+    const response = await userApi.getLeaderboard(5);
+    
+    if (response.success && response.data && response.data.length > 0) {
+      response.data.sort((a: any, b: any) => b.score - a.score);
+      const user = storage.getUserData();
+      const currentUserId = user?.id ? parseInt(user.id as string, 10) : null;
+      
+      leaderboardList.innerHTML = response.data.map((entry: any, index: number) => {
+        const rank = index + 1;
+        const isCurrentUser = entry.id === currentUserId;
+        
+        let containerClass = 'leaderboard-container leaderboard-container-default';
+        if (rank === 1) containerClass = 'leaderboard-container leaderboard-container-1';
+        else if (rank === 2) containerClass = 'leaderboard-container leaderboard-container-2';
+        else if (rank === 3) containerClass = 'leaderboard-container leaderboard-container-3';
+        
+        if (isCurrentUser) {
+          containerClass += ' ring-2 ring-blue';
+        }
+        
+        return `
+          <div class="${containerClass}" data-user-id="${entry.id}">
+            <span class="leaderboard-rank">${rank}</span>
+            <img 
+              src="${getAvatarUrl(entry.avatar)}" 
+              alt="${entry.username}"
+              class="w-8 h-8 rounded-full object-cover mr-2"
+              onerror="this.src='${getAvatarFallback(entry.username)}'"
+            />
+            <span class="leaderboard-name ${isCurrentUser ? 'text-blue font-bold' : ''}">${entry.username}</span>
+            <span class="leaderboard-points">${entry.score}</span>
+          </div>
+        `;
+      }).join('');
+
+      // Add click handlers to navigate to user profiles
+      leaderboardList.querySelectorAll('.leaderboard-container').forEach(item => {
+        item.addEventListener('click', () => {
+          router.navigateTo('/leaderboard');
+          // const userId = item.getAttribute('data-user-id');
+          // router.navigateTo(`/profile/${userId}`);
+        });
+      });
+    } else {
+      leaderboardList.innerHTML = `
+        <div class="text-center text-navy-muted p-4">
+          <p>No rankings yet</p>
+          <p class="text-xs mt-1">Play games to get ranked!</p>
+        </div>
+      `;
+    }
+  } catch (error) {
+    console.error('Failed to load leaderboard:', error);
+    leaderboardList.innerHTML = `
+      <div class="text-center text-red-500 p-4">
+        <p>Failed to load</p>
+      </div>
+    `;
+  }
+}
+
+async function loadMatchHistory(container: HTMLElement): Promise<void> {
+  const matchHistoryList = container.querySelector('#matchHistoryList') as HTMLElement;
+
+  try {
+    const response = await historyApi.getMyMatchHistory(5, 0, 'all');
+    
+    if (response.success && response.data && response.data.matches.length > 0) {
+      matchHistoryList.innerHTML = response.data.matches.map((match: any) => {
+        const isWin = match.winnerId === match.player1Id;
+        const containerClass = isWin 
+          ? 'match-history-container match-history-container-win' 
+          : 'match-history-container match-history-container-loss';
+        const resultClass = isWin ? 'match-result-win' : 'match-result-loss';
+        
+        return `
+          <div class="${containerClass}">
+            <img 
+              src="${getAvatarUrl(match.player2Avatar)}" 
+              alt="${match.player2Name}"
+              class="w-6 h-6 rounded-full object-cover mr-2"
+              onerror="this.src='${getAvatarFallback(match.player2Name)}'"
+            />
+            <span class="match-opponent">vs. ${match.player2Name}</span>
+            <span class="match-score">${match.player1Score}-${match.player2Score}</span>
+          </div>
+        `;
+      }).join('');
+      // Add click handlers to navigate to full history
+      matchHistoryList.querySelectorAll('.match-history-container').forEach(item => {
+        item.addEventListener('click', () => {
+          router.navigateTo('/history');
+        });
+      });
+    } else {
+      matchHistoryList.innerHTML = `
+        <div class="text-center text-navy-muted p-4">
+          <p>No matches yet</p>
+          <a href="/game" class="text-blue hover:text-blue-dark text-xs mt-1 inline-block">Play your first game!</a>
+        </div>
+      `;
+    }
+  } catch (error) {
+    console.error('Failed to load match history:', error);
+    matchHistoryList.innerHTML = `
+      <div class="text-center text-red-500 p-4">
+        <p>Failed to load</p>
+      </div>
+    `;
+  }
+}
+
+async function loadFriends(container: HTMLElement): Promise<void> {
+  const friendsList = container.querySelector('#friendsList') as HTMLElement;
+
+  try {
+    const response = await userApi.getFriends();
+    
+    if (response.success && response.data && response.data.length > 0) {
+      friendsList.innerHTML = response.data.map((friend: any) => {
+        return `
+          <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-white/30 transition-colors cursor-pointer" data-friend-id="${friend.id}">
+            <div class="relative">
+              <img 
+                src="${getAvatarUrl(friend.avatar)}" 
+                alt="${friend.username}"
+                class="w-10 h-10 rounded-full object-cover border-2 border-white/50"
+                onerror="this.src='${getAvatarFallback(friend.username)}'"
+              />
+              <!-- Online status dot - would need real-time data -->
+              <div class="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-gray-400 border-2 border-white"></div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold text-navy text-sm truncate">${friend.username}</div>
+              <div class="text-xs text-navy-muted">Rank #${friend.rank || '-'}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Add click handlers
+      friendsList.querySelectorAll('[data-friend-id]').forEach(item => {
+        item.addEventListener('click', () => {
+          // Could open chat or show profile
+          // const friendId = item.getAttribute('data-friend-id');
+        });
+      });
+    } else {
+      friendsList.innerHTML = `
+        <div class="text-center text-navy-muted p-4">
+          <p>No friends yet</p>
+          <a href="/profile" class="text-blue hover:text-blue-dark text-xs mt-1 inline-block">Add friends</a>
+        </div>
+      `;
+    }
+  } catch (error) {
+    console.error('Failed to load friends:', error);
+    friendsList.innerHTML = `
+      <div class="text-center text-red-500 p-4">
+        <p>Failed to load</p>
+      </div>
+    `;
+  }
 }

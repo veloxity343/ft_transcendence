@@ -56,6 +56,9 @@ export class UserService {
         gamesPlayed: {
           gt: 0,
         },
+        email: {
+          not: 'ai@transcendence.local',
+        },
       },
       select: {
         id: true,
@@ -69,7 +72,7 @@ export class UserService {
         winRate: true,
       },
       orderBy: {
-        rank: 'asc',
+        rank: 'desc',
       },
       take: limit,
     });
