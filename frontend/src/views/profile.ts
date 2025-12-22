@@ -348,7 +348,7 @@ export function ProfileView(): HTMLElement {
       
       if (response.success && response.data) {
         const stats = response.data;
-        const winRateDisplay = Math.floor(stats.winRate * 100) / 100;
+        const winRateDisplay = Math.floor(stats.winRate * 100);
         
         // Update rank badge
         const rankBadge = container.querySelector('#rankBadge') as HTMLDivElement;

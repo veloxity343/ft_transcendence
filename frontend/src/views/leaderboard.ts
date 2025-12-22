@@ -1,7 +1,17 @@
 import { storage } from '../utils/storage';
 import { userApi } from '../api/user';
-import { historyApi, getRankColor, getRankTitle } from '../api/history';
 import { API_BASE_URL } from '../constants';
+import {
+  historyApi,
+  formatDuration,
+  formatDate,
+  getEloChangeDisplay,
+  getMatchTypeDisplay,
+  getRankColor,
+  getRankTitle,
+  type MatchHistoryEntry,
+  type PlayerStats,
+} from '../api/history';
 
 // SVG Icons
 const icons = {
@@ -75,7 +85,7 @@ export function LeaderboardView(): HTMLElement {
       <!-- Header -->
       <div class="text-center mb-8">
         <h1 class="text-4xl font-bold mb-2">
-          <span class="text-blue animate-glow">Global</span> <span class="text-navy">Leaderboard</span>
+          <span class="text-blue animate-glow">Leaderboard</span>
         </h1>
         <p class="text-navy-muted">Top players ranked by ELO rating</p>
       </div>
@@ -86,6 +96,8 @@ export function LeaderboardView(): HTMLElement {
           <div class="text-navy-muted">${icons.spinner}</div>
         </div>
       </div>
+
+      <div class="h-20"></div>
 
       <!-- Top 3 Podium -->
       <div id="podium" class="mb-8">
@@ -170,7 +182,7 @@ async function loadLeaderboardData(container: HTMLElement, currentUserId: number
               <div class="text-xs text-navy-muted">Losses</div>
             </div>
             <div>
-              <div class="text-2xl font-bold text-blue">${Math.round(stats.winRate)}%</div>
+              <div class="text-2xl font-bold text-blue">${Math.floor(stats.winRate * 100)}%</div>
               <div class="text-xs text-navy-muted">Win Rate</div>
             </div>
           </div>
@@ -256,10 +268,10 @@ async function loadLeaderboardData(container: HTMLElement, currentUserId: number
         const isCurrentUser = currentUserId === Number(entry.id);
         const rankColor = getRankColor(entry.score);
         const winRate = entry.gamesPlayed > 0 
-          ? Math.round((entry.gamesWon / entry.gamesPlayed) * 100) 
+          ? Math.floor((entry.gamesWon / entry.gamesPlayed) * 100)
           : 0;
         
-        let rowClass = 'flex items-center p-4 rounded-lg transition-all hover:bg-white/50';
+        let rowClass = 'flex items-center mb-2 p-4 rounded-lg transition-all hover:bg-white/50';
         if (rank === 1) rowClass += ' bg-yellow-50 border-2 border-yellow-300';
         else if (rank === 2) rowClass += ' bg-gray-50 border-2 border-gray-300';
         else if (rank === 3) rowClass += ' bg-amber-50 border-2 border-amber-300';

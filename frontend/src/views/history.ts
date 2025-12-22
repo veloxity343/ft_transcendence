@@ -195,7 +195,7 @@ export function HistoryView(): HTMLElement {
       
       if (response.success && response.data) {
         const stats = response.data;
-        const winRateDisplay = Math.floor(stats.winRate * 100) / 100;
+        const winRateDisplay = Math.floor(stats.winRate * 100);
         
         (container.querySelector('#statElo') as HTMLDivElement).textContent = stats.currentElo.toString();
         (container.querySelector('#statElo') as HTMLDivElement).style.color = getRankColor(stats.currentElo);

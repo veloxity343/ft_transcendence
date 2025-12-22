@@ -61,9 +61,6 @@ export function Navbar(): HTMLElement {
         ` : `
           <!-- Guest Navigation -->
           <div class="flex items-center gap-6">
-            <a href="/leaderboard" class="text-navy hover:text-blue transition-colors font-semibold">
-              Leaderboard
-            </a>
             <a href="/login" class="text-navy hover:text-blue transition-colors font-semibold">
               Login
             </a>
