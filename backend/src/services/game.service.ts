@@ -146,6 +146,25 @@ export class GameService {
 
     room.status = GameStatus.FINISHED;
 
+    // Determine winner based on current scores
+    let winnerPlayerNumber: 1 | 2;
+    
+    if (room.player1Score > room.player2Score) {
+      winnerPlayerNumber = 1;
+    } else if (room.player2Score > room.player1Score) {
+      winnerPlayerNumber = 2;
+    } else {
+      // Scores are tied, randomly pick a winner
+      winnerPlayerNumber = Math.random() < 0.5 ? 1 : 2;
+    }
+
+    // Set winner's score to WIN_SCORE
+    if (winnerPlayerNumber === 1) {
+      room.player1Score = this.WIN_SCORE;
+    } else {
+      room.player2Score = this.WIN_SCORE;
+    }
+
     this.connectionManager.emitToUser(userId, 'game-ended', {
       gameId,
       finalScore: {
@@ -155,6 +174,11 @@ export class GameService {
       forfeit: true,
       isLocal: true,
     });
+
+    // Handle tournament game end if this is a tournament match
+    if (room.isLocalTournament) {
+      this.handleTournamentGameEnd(gameId, 0, 0, room);
+    }
 
     // Cleanup
     this.userToRoom.delete(userId);
