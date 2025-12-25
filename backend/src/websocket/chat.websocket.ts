@@ -529,6 +529,9 @@ export async function setupChatWebSocket(
                   username,
                 });
 
+                connectionManager.emitToUser(targetUser.id, 'friend:list-updated', {});
+                connectionManager.emitToUser(userId, 'friend:list-updated', {});
+
                 return;
               }
             }
@@ -608,6 +611,82 @@ export async function setupChatWebSocket(
                 username: targetUser.username,
               },
             }));
+
+            connectionManager.emitToUser(targetUser.id, 'friend:list-updated', {});
+            connectionManager.emitToUser(userId, 'friend:list-updated', {});
+            break;
+          }
+
+          case 'chat:friend-decline': {
+            const { username: targetUsername } = message.data as FriendActionDto;
+            
+            if (!targetUsername) {
+              throw new Error('Username is required');
+            }
+
+            const targetUser = await getUserByUsername(targetUsername);
+            if (!targetUser) {
+              socket.send(JSON.stringify({
+                event: 'chat:error',
+                data: { message: `User "${targetUsername}" not found` },
+              }));
+              return;
+            }
+
+            // Get current user's data
+            const currentUser = await prisma.user.findUnique({
+              where: { id: userId },
+              select: { added: true },
+            });
+
+            if (!currentUser) return;
+
+            const addedList = parseJsonArray(currentUser.added);
+            
+            if (!addedList.includes(targetUser.id)) {
+              socket.send(JSON.stringify({
+                event: 'chat:error',
+                data: { message: 'No pending friend request from this user' },
+              }));
+              return;
+            }
+
+            // Remove from both users' pending lists
+            const newAddedList = addedList.filter((id: number) => id !== targetUser.id);
+            await prisma.user.update({
+              where: { id: userId },
+              data: { added: stringifyJsonArray(newAddedList) },
+            });
+
+            // Remove from target's adding list
+            const targetUserData = await prisma.user.findUnique({
+              where: { id: targetUser.id },
+              select: { adding: true },
+            });
+
+            if (targetUserData) {
+              const targetAddingList = parseJsonArray(targetUserData.adding);
+              const newTargetAddingList = targetAddingList.filter((id: number) => id !== userId);
+              await prisma.user.update({
+                where: { id: targetUser.id },
+                data: { adding: stringifyJsonArray(newTargetAddingList) },
+              });
+            }
+
+            socket.send(JSON.stringify({
+              event: 'chat:friend-request-declined',
+              data: {
+                userId: targetUser.id,
+                username: targetUser.username,
+              },
+            }));
+
+            // Notify the sender that their request was declined
+            connectionManager.emitToUser(targetUser.id, 'friend:request-declined', {
+              userId,
+              username,
+            });
+            
             break;
           }
 

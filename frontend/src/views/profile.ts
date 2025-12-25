@@ -447,12 +447,31 @@ export function ProfileView(): HTMLElement {
           });
         });
 
-        // Reject button handlers (TODO: implement reject endpoint)
+        // Reject button handlers
         requestsList.querySelectorAll('.reject-request-btn').forEach(btn => {
           btn.addEventListener('click', async (e) => {
             const userId = (e.target as HTMLButtonElement).dataset.userId!;
-            showToast('Reject functionality coming soon', 'info');
-            // For now, you could implement a removeFriendRequest endpoint
+            const button = e.target as HTMLButtonElement;
+            button.disabled = true;
+            button.textContent = 'Declining...';
+
+            try {
+              const response = await userApi.declineFriendRequest(userId);
+              
+              if (response.success) {
+                showToast('Friend request declined', 'success');
+                // Reload friend requests
+                loadFriendRequests();
+              } else {
+                showToast(response.error || 'Failed to decline', 'error');
+                button.disabled = false;
+                button.textContent = 'Decline';
+              }
+            } catch (error) {
+              showToast('An error occurred', 'error');
+              button.disabled = false;
+              button.textContent = 'Decline';
+            }
           });
         });
       }
@@ -656,6 +675,26 @@ export function ProfileView(): HTMLElement {
     const minutes = Math.floor((seconds % 3600) / 60);
     return `${hours}h ${minutes}m`;
   }
+
+  // Listen for friend updates via WebSocket
+  const friendAcceptedHandler = wsClient.on('friend:request-accepted', () => {
+    loadFriendRequests();
+    loadFriends();
+  });
+
+  // Listen for friend list updates
+  const friendListUpdatedHandler = wsClient.on('friend:list-updated', () => {
+    loadFriendRequests();
+    loadFriends();
+  });
+
+  // Cleanup on unmount
+  const existingCleanup = (container as any).__cleanup;
+  (container as any).__cleanup = () => {
+    if (existingCleanup) existingCleanup();
+    friendAcceptedHandler();
+    friendListUpdatedHandler();
+  };
 
   return container;
 }

@@ -410,6 +410,34 @@ export function HomeView(): HTMLElement {
   loadMatchHistory(container);
   loadFriends(container);
 
+  // Listen for friend updates via WebSocket to auto-refresh
+  const friendAcceptedHandler = wsClient.on('friend:request-accepted', () => {
+    loadFriends(container);
+  });
+
+  const friendRequestReceivedHandler = wsClient.on('friend:request-received', () => {
+    // Could also show a notification here
+    loadFriends(container);
+  });
+
+  const friendRemovedHandler = wsClient.on('chat:friend-removed', () => {
+    loadFriends(container);
+  });
+
+  const friendListUpdatedHandler = wsClient.on('friend:list-updated', () => {
+    loadFriends(container);
+  });
+
+  // Cleanup on unmount
+  const existingCleanup = (container as any).__cleanup;
+  (container as any).__cleanup = () => {
+    if (existingCleanup) existingCleanup();
+    friendAcceptedHandler();
+    friendRequestReceivedHandler();
+    friendRemovedHandler();
+    friendListUpdatedHandler();
+  };
+
   return container;
 }
 

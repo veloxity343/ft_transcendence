@@ -35,6 +35,10 @@ export const userApi = {
     return httpClient.delete<void>(`/users/${userId}/friend`);
   },
 
+  async declineFriendRequest(userId: string): Promise<ApiResponse<void>> {
+    return httpClient.delete<void>(`/users/${userId}/friend-request`);
+  },
+
   async blockUser(userId: string): Promise<ApiResponse<void>> {
     return httpClient.post<void>(`/users/${userId}/block`, {});
   },

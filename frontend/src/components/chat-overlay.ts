@@ -94,6 +94,7 @@ export class ChatOverlay {
     this.render();
     this.setupEventListeners();
     this.setupWebSocketHandlers();
+    this.loadChatHistory();
     this.loadState();
   }
 
@@ -118,6 +119,69 @@ export class ChatOverlay {
   private saveState(): void {
     localStorage.setItem('chat_ignored_users', JSON.stringify([...this.state.ignoredUsers]));
     localStorage.setItem('chat_dnd_mode', this.state.dndMode.toString());
+  }
+
+  private loadChatHistory(): void {
+    const saved = localStorage.getItem('chat_history');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        
+        // Restore message history for each tab
+        parsed.forEach((tabData: any) => {
+          let tab = this.state.tabs.find(t => t.id === tabData.id);
+          
+          if (!tab && tabData.type === 'whisper') {
+            tab = {
+              id: tabData.id,
+              type: 'whisper',
+              name: tabData.name,
+              targetUserId: tabData.targetUserId,
+              targetUsername: tabData.targetUsername,
+              unreadCount: 0,
+              messages: [],
+            };
+            this.state.tabs.push(tab);
+          } else if (!tab && tabData.type === 'tournament') {
+            tab = {
+              id: tabData.id,
+              type: 'tournament',
+              name: tabData.name,
+              tournamentId: tabData.tournamentId,
+              unreadCount: 0,
+              messages: [],
+            };
+            this.state.tabs.push(tab);
+          }
+          
+          if (tab) {
+            tab.messages = tabData.messages.map((msg: any) => ({
+              ...msg,
+              timestamp: new Date(msg.timestamp),
+            }));
+          }
+        });
+      } catch (e) {
+        console.error('Failed to load chat history:', e);
+      }
+    }
+  }
+
+  private saveChatHistory(): void {
+    try {
+      const historyData = this.state.tabs.map(tab => ({
+        id: tab.id,
+        type: tab.type,
+        name: tab.name,
+        targetUserId: tab.targetUserId,
+        targetUsername: tab.targetUsername,
+        tournamentId: tab.tournamentId,
+        messages: tab.messages.slice(-50), // Keep last 50 messages per tab
+      }));
+      localStorage.setItem('chat_history', JSON.stringify(historyData));
+    } catch (e) {
+      console.error('Failed to save chat history:', e);
+    }
   }
 
   public mount(parent: HTMLElement): void {
@@ -880,7 +944,7 @@ export class ChatOverlay {
         userId: 0,
         username: 'System',
         userAvatar: '',
-        message: `${fromUsername} sent you a friend request. Type /f add ${fromUsername} to accept.`,
+        message: `${fromUsername} sent you a friend request. Type /f add ${fromUsername} to accept, or /f decline ${fromUsername} to decline.`,
         timestamp: new Date(),
         type: 'system',
       });
@@ -941,6 +1005,35 @@ export class ChatOverlay {
         username: 'System',
         userAvatar: '',
         message: `Friend request sent to ${msg.data.username}`,
+        timestamp: new Date(),
+        type: 'system',
+      });
+    }));
+
+    // Friend request declined (by you)
+    this.unsubscribers.push(wsClient.on('chat:friend-request-declined', (msg) => {
+      this.addLocalMessage(this.state.activeTabId, {
+        id: `system-${Date.now()}`,
+        userId: 0,
+        username: 'System',
+        userAvatar: '',
+        message: `Declined friend request from ${msg.data.username}`,
+        timestamp: new Date(),
+        type: 'system',
+      });
+    }));
+
+    // Friend request declined (by them)
+    this.unsubscribers.push(wsClient.on('friend:request-declined', (msg) => {
+      const { username } = msg.data;
+      showToast(`${username} declined your friend request`, 'info');
+      
+      this.addLocalMessage('global', {
+        id: `system-${Date.now()}`,
+        userId: 0,
+        username: 'System',
+        userAvatar: '',
+        message: `${username} declined your friend request`,
         timestamp: new Date(),
         type: 'system',
       });
@@ -1144,6 +1237,7 @@ export class ChatOverlay {
       tab.unreadCount++;
     }
 
+    this.saveChatHistory();
     this.render();
   }
 
@@ -1351,8 +1445,10 @@ export class ChatOverlay {
           wsClient.send('chat:friend-add', { username, message: message || '' });
         } else if (action === 'remove' && username) {
           wsClient.send('chat:friend-remove', { username });
+        } else if (action === 'decline' && username) {
+          wsClient.send('chat:friend-decline', { username });
         } else {
-          this.showError('Usage: /f add <username> [message] or /f remove <username>');
+          this.showError('Usage: /f add <username> [message], /f remove <username>, or /f decline <username>');
         }
         break;
       }
@@ -1440,6 +1536,10 @@ export class ChatOverlay {
             <tr class="even:bg-white/10 align-top">
               <td class="px-2 py-1 h-12 whitespace-nowrap">/f add &lt;usr&gt; [msg]</td>
               <td class="px-2 py-1 h-12">Add friend</td>
+            </tr>
+            <tr class="even:bg-white/10 align-top">
+              <td class="px-2 py-1 h-12 whitespace-nowrap">/f decline &lt;usr&gt;</td>
+              <td class="px-2 py-1 h-12">Decline friend request</td>
             </tr>
             <tr class="even:bg-white/10 align-top">
               <td class="px-2 py-1 h-12 whitespace-nowrap">/f remove &lt;usr&gt;</td>
