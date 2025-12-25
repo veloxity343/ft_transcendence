@@ -194,6 +194,19 @@ const userRoutes: FastifyPluginAsync = async (fastify) => {
 
     try {
       const result = await userService.addFriend(userId, parseInt(id, 10));
+      // Add WebSocket notification
+      const connectionManager = (fastify as any).connectionManager;
+      const targetUser = await userService.getUser(parseInt(id, 10));
+      const currentUser = await userService.getUser(userId);
+
+      if (connectionManager && targetUser && currentUser) {
+        connectionManager.emitToUser(parseInt(id, 10), 'friend:request-received', {
+          fromUserId: userId,
+          fromUsername: currentUser.username,
+          fromAvatar: currentUser.avatar,
+          message: 'Hi there! Sent you a friend request!',
+        });
+      }
       reply.send(result);
     } catch (error: any) {
       reply.code(400).send({ error: error.message });

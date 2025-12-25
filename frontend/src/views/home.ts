@@ -5,6 +5,7 @@ import { userApi } from '../api/user';
 import { historyApi, formatDate, getEloChangeDisplay, getRankColor, getRankTitle } from '../api/history';
 import { API_BASE_URL } from '../constants';
 import { wsClient } from '../websocket/client';
+import { showToast } from '../utils/toast';
 
 // SVG Icons
 const icons = {
@@ -52,7 +53,11 @@ const icons = {
   spinner: `<svg class="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
     <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
     <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
-  </svg>`
+  </svg>`,
+  plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="12" y1="5" x2="12" y2="19"></line>
+    <line x1="5" y1="12" x2="19" y2="12"></line>
+  </svg>`,
 };
 
 function getAvatarUrl(avatar?: string): string {
@@ -162,9 +167,14 @@ export function HomeView(): HTMLElement {
 
       <!-- Friends List -->
       <div class="sidebar-section flex-1 overflow-hidden flex flex-col">
-        <div class="glass-header mb-4">
-          <span class="icon text-blue">${icons.friends}</span>
-          <h3>Friends</h3>
+        <div class="flex items-center justify-between mb-4">
+          <div class="glass-header">
+            <span class="icon text-blue">${icons.friends}</span>
+            <h3>Friends</h3>
+          </div>
+          <button id="addFriendBtnHome" class="btn-primary px-3 py-2 text-sm flex items-center gap-1" title="Add Friend">
+            <span class="w-4 h-4 inline-block">${icons.plus}</span>
+          </button>
         </div>
         <div id="friendsList" class="scrollable flex-1">
           <div class="flex items-center justify-center p-4">
@@ -261,6 +271,29 @@ export function HomeView(): HTMLElement {
         </div>
       </div>
     </aside>
+
+    <!-- Add Friend Modal -->
+    <div id="addFriendModalHome" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+      <div class="glass-card p-6 max-w-md w-full mx-4">
+        <h3 class="text-xl font-semibold mb-4 text-navy">Add Friend</h3>
+        <div class="space-y-4">
+          <input
+            type="text"
+            id="friendSearchInputHome"
+            class="input-glass mb-4 w-full"
+            placeholder="Search by username..."
+          />
+          <div id="searchResultsHome" class="max-h-60 overflow-y-auto space-y-2">
+            <!-- Search results will appear here -->
+          </div>
+          <div class="flex justify-end">
+            <button id="closeModalBtnHome" class="btn-secondary px-4">
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   `;
 
   // Event listeners for game modes
@@ -285,6 +318,92 @@ export function HomeView(): HTMLElement {
     router.navigateTo('/profile');
   });
 
+  // Add Friend Modal handlers
+  const addFriendBtnHome = container.querySelector('#addFriendBtnHome');
+  const addFriendModalHome = container.querySelector('#addFriendModalHome') as HTMLDivElement;
+  const closeModalBtnHome = container.querySelector('#closeModalBtnHome');
+  const friendSearchInputHome = container.querySelector('#friendSearchInputHome') as HTMLInputElement;
+  const searchResultsHome = container.querySelector('#searchResultsHome') as HTMLDivElement;
+
+  addFriendBtnHome?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    addFriendModalHome.classList.remove('hidden');
+    addFriendModalHome.classList.add('flex');
+    friendSearchInputHome.focus();
+  });
+
+  closeModalBtnHome?.addEventListener('click', () => {
+    addFriendModalHome.classList.add('hidden');
+    addFriendModalHome.classList.remove('flex');
+    friendSearchInputHome.value = '';
+    searchResultsHome.innerHTML = '';
+  });
+
+  addFriendModalHome?.addEventListener('click', (e) => {
+    if (e.target === addFriendModalHome) {
+      addFriendModalHome.classList.add('hidden');
+      addFriendModalHome.classList.remove('flex');
+    }
+  });
+
+  // Search for users (home)
+  let searchTimeoutHome: ReturnType<typeof setTimeout>;
+  friendSearchInputHome?.addEventListener('input', () => {
+    clearTimeout(searchTimeoutHome);
+    const query = friendSearchInputHome.value.trim();
+    
+    if (query.length < 2) {
+      searchResultsHome.innerHTML = '<p class="text-navy-muted text-sm text-center py-2">Type at least 2 characters to search</p>';
+      return;
+    }
+
+    searchResultsHome.innerHTML = '<p class="text-navy-muted text-sm text-center py-2">Searching...</p>';
+
+    searchTimeoutHome = setTimeout(async () => {
+      try {
+        const response = await userApi.searchUsers(query);
+        
+        if (response.success && response.data) {
+          if (response.data.length === 0) {
+            searchResultsHome.innerHTML = '<p class="text-navy-muted text-sm text-center py-2">No users found</p>';
+            return;
+          }
+
+          searchResultsHome.innerHTML = response.data
+            .filter((u: any) => u.id !== user?.id)
+            .map((u: any) => `
+              <div class="flex items-center justify-between p-2 bg-navy-dark/30 rounded-lg">
+                <div class="flex items-center gap-2">
+                  <img 
+                    src="${getAvatarUrl(u.avatar)}" 
+                    alt="${u.username}"
+                    class="w-8 h-8 rounded-full object-cover"
+                    onerror="this.src='${getAvatarFallback(u.username)}'"
+                  />
+                  <span class="text-navy">${u.username}</span>
+                </div>
+                <button 
+                  class="add-friend-action-home btn-primary px-3 py-1 text-xs"
+                  data-user-id="${u.id}"
+                >
+                  Add
+                </button>
+              </div>
+            `).join('');
+
+          searchResultsHome.querySelectorAll('.add-friend-action-home').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+              const userId = (e.target as HTMLButtonElement).dataset.userId!;
+              await addFriendFromHome(userId, e.target as HTMLButtonElement, container);
+            });
+          });
+        }
+      } catch (error) {
+        searchResultsHome.innerHTML = '<p class="text-red-500 text-sm text-center py-2">Search failed</p>';
+      }
+    }, 300);
+  });
+
   // Load real data
   loadUserStats(container);
   loadLeaderboard(container);
@@ -292,6 +411,33 @@ export function HomeView(): HTMLElement {
   loadFriends(container);
 
   return container;
+}
+
+async function addFriendFromHome(userId: string, button: HTMLButtonElement, container: HTMLElement) {
+  button.disabled = true;
+  button.textContent = 'Adding...';
+
+  try {
+    const response = await userApi.addFriend(userId);
+    
+    if (response.success) {
+      showToast('Friend request sent!', 'success');
+      button.textContent = 'Sent';
+      button.classList.remove('btn-primary');
+      button.classList.add('btn-secondary');
+      
+      // Reload friends list
+      loadFriends(container);
+    } else {
+      showToast(response.error || 'Failed to add friend', 'error');
+      button.textContent = 'Add';
+      button.disabled = false;
+    }
+  } catch (error) {
+    showToast('An error occurred', 'error');
+    button.textContent = 'Add';
+    button.disabled = false;
+  }
 }
 
 async function loadUserStats(container: HTMLElement): Promise<void> {
@@ -362,12 +508,10 @@ async function loadLeaderboard(container: HTMLElement): Promise<void> {
         `;
       }).join('');
 
-      // Add click handlers to navigate to user profiles
+      // Add click handlers to navigate to leaderboard
       leaderboardList.querySelectorAll('.leaderboard-container').forEach(item => {
         item.addEventListener('click', () => {
           router.navigateTo('/leaderboard');
-          // const userId = item.getAttribute('data-user-id');
-          // router.navigateTo(`/profile/${userId}`);
         });
       });
     } else {
@@ -400,7 +544,6 @@ async function loadMatchHistory(container: HTMLElement): Promise<void> {
         const containerClass = isWin 
           ? 'match-history-container match-history-container-win' 
           : 'match-history-container match-history-container-loss';
-        const resultClass = isWin ? 'match-result-win' : 'match-result-loss';
         
         return `
           <div class="${containerClass}">
@@ -415,6 +558,7 @@ async function loadMatchHistory(container: HTMLElement): Promise<void> {
           </div>
         `;
       }).join('');
+      
       // Add click handlers to navigate to full history
       matchHistoryList.querySelectorAll('.match-history-container').forEach(item => {
         item.addEventListener('click', () => {
@@ -478,7 +622,7 @@ async function loadFriends(container: HTMLElement): Promise<void> {
       friendsList.innerHTML = `
         <div class="text-center text-navy-muted p-4">
           <p>No friends yet</p>
-          <a href="/profile" class="text-blue hover:text-blue-dark text-xs mt-1 inline-block">Add friends</a>
+          <p class="text-xs mt-1">Click + to add friends</p>
         </div>
       `;
     }

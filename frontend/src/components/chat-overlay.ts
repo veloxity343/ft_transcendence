@@ -867,18 +867,67 @@ export class ChatOverlay {
       router.navigateTo('/tournament');
     }));
 
-    // Handle friend added notification
-    this.unsubscribers.push(wsClient.on('chat:friend-added', (msg) => {
-      const { username, message } = msg.data;
-      showToast(`${username} added you as a friend!`, 'info');
-      this.addLocalMessage('global', {
-        id: `friend-${Date.now()}`,
+    // Handle friend request received
+    this.unsubscribers.push(wsClient.on('friend:request-received', (msg) => {
+      const { fromUserId, fromUsername, fromAvatar, message } = msg.data;
+      
+      // Open whisper tab with the user
+      const tab = this.openWhisperTab(fromUserId, fromUsername);
+      
+      // Add system notification in that tab
+      this.addLocalMessage(tab.id, {
+        id: `friend-req-${Date.now()}`,
         userId: 0,
         username: 'System',
         userAvatar: '',
-        message: message 
-          ? `${username} added you as a friend: "${message}"`
-          : `${username} added you as a friend!`,
+        message: `${fromUsername} sent you a friend request. Type /f add ${fromUsername} to accept.`,
+        timestamp: new Date(),
+        type: 'system',
+      });
+
+      // If custom message, add as a regular message
+      if (message) {
+        this.addLocalMessage(tab.id, {
+          id: `friend-msg-${Date.now()}`,
+          userId: fromUserId,
+          username: fromUsername,
+          userAvatar: fromAvatar,
+          message: message,
+          timestamp: new Date(),
+          type: 'message',
+          isWhisper: true,
+        });
+      }
+
+      showToast(`${fromUsername} sent you a friend request!`, 'info');
+    }));
+
+    // Friend request accepted
+    this.unsubscribers.push(wsClient.on('friend:request-accepted', (msg) => {
+      const { userId, username } = msg.data;
+      showToast(`${username} accepted your friend request!`, 'success');
+      
+      this.addLocalMessage('global', {
+        id: `friend-accepted-${Date.now()}`,
+        userId: 0,
+        username: 'System',
+        userAvatar: '',
+        message: `${username} is now your friend!`,
+        timestamp: new Date(),
+        type: 'system',
+      });
+    }));
+
+    // Friend request sent confirmation
+    this.unsubscribers.push(wsClient.on('chat:friend-accepted', (msg) => {
+      showToast(`You and ${msg.data.username} are now friends!`, 'success');
+      
+      this.addLocalMessage(this.state.activeTabId, {
+        id: `system-${Date.now()}`,
+        userId: 0,
+        username: 'System',
+        userAvatar: '',
+        message: `You and ${msg.data.username} are now friends!`,
         timestamp: new Date(),
         type: 'system',
       });

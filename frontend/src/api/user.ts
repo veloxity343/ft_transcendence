@@ -36,7 +36,7 @@ export const userApi = {
   },
 
   async blockUser(userId: string): Promise<ApiResponse<void>> {
-    return httpClient.post<void>(`/users/${userId}/block`);
+    return httpClient.post<void>(`/users/${userId}/block`, {});
   },
 
   async unblockUser(userId: string): Promise<ApiResponse<void>> {

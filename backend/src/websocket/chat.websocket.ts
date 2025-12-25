@@ -434,15 +434,16 @@ export async function setupChatWebSocket(
               return;
             }
 
-            // Get current user's friends list
+            // Get current user's data
             const currentUser = await prisma.user.findUnique({
               where: { id: userId },
-              select: { friends: true },
+              select: { friends: true, adding: true, added: true },
             });
 
             if (!currentUser) return;
 
             const friendsList = parseJsonArray(currentUser.friends);
+            const addingList = parseJsonArray(currentUser.adding);
             
             if (friendsList.includes(targetUser.id)) {
               socket.send(JSON.stringify({
@@ -452,27 +453,83 @@ export async function setupChatWebSocket(
               return;
             }
 
-            // Add to friends list
-            friendsList.push(targetUser.id);
+            if (addingList.includes(targetUser.id)) {
+              socket.send(JSON.stringify({
+                event: 'chat:error',
+                data: { message: 'Friend request already sent' },
+              }));
+              return;
+            }
+
+            // Add to sender's adding list
+            addingList.push(targetUser.id);
             await prisma.user.update({
               where: { id: userId },
-              data: { friends: stringifyJsonArray(friendsList) },
+              data: { adding: stringifyJsonArray(addingList) },
             });
 
-            // Add current user to target's friends list
+            // Add to receiver's added list
             const targetUserData = await prisma.user.findUnique({
               where: { id: targetUser.id },
-              select: { friends: true },
+              select: { added: true, adding: true, friends: true },
             });
 
             if (targetUserData) {
-              const targetFriendsList = parseJsonArray(targetUserData.friends);
-              if (!targetFriendsList.includes(userId)) {
-                targetFriendsList.push(userId);
-                await prisma.user.update({
-                  where: { id: targetUser.id },
-                  data: { friends: stringifyJsonArray(targetFriendsList) },
+              const targetAddedList = parseJsonArray(targetUserData.added);
+              const targetAddingList = parseJsonArray(targetUserData.adding);
+              
+              targetAddedList.push(userId);
+              await prisma.user.update({
+                where: { id: targetUser.id },
+                data: { added: stringifyJsonArray(targetAddedList) },
+              });
+
+              // Check if mutual - if target also sent request, finalize friendship
+              if (targetAddingList.includes(userId)) {
+                // Remove from adding/added lists
+                const newAddingList = addingList.filter(id => id !== targetUser.id);
+                const newAddedList = parseJsonArray(currentUser.added).filter(id => id !== targetUser.id);
+                const newFriendsList = [...friendsList, targetUser.id];
+
+                const newTargetAddingList = targetAddingList.filter(id => id !== userId);
+                const newTargetAddedList = targetAddedList.filter(id => id !== userId);
+                const newTargetFriendsList = parseJsonArray(targetUserData.friends || '[]');
+                newTargetFriendsList.push(userId);
+
+                await Promise.all([
+                  prisma.user.update({
+                    where: { id: userId },
+                    data: {
+                      adding: stringifyJsonArray(newAddingList),
+                      added: stringifyJsonArray(newAddedList),
+                      friends: stringifyJsonArray(newFriendsList),
+                    },
+                  }),
+                  prisma.user.update({
+                    where: { id: targetUser.id },
+                    data: {
+                      adding: stringifyJsonArray(newTargetAddingList),
+                      added: stringifyJsonArray(newTargetAddedList),
+                      friends: stringifyJsonArray(newTargetFriendsList),
+                    },
+                  }),
+                ]);
+
+                socket.send(JSON.stringify({
+                  event: 'chat:friend-accepted',
+                  data: {
+                    userId: targetUser.id,
+                    username: targetUser.username,
+                  },
+                }));
+
+                // Notify both users they're now friends
+                connectionManager.emitToUser(targetUser.id, 'friend:request-accepted', {
+                  userId,
+                  username,
                 });
+
+                return;
               }
             }
 
@@ -484,10 +541,14 @@ export async function setupChatWebSocket(
               },
             }));
 
-            // Notify target user
-            connectionManager.emitToUser(targetUser.id, 'chat:friend-added', {
-              userId,
-              username,
+            // Open DM tab for target user and send notification + message
+            const roomId = getRoomId(userId, targetUser.id);
+            
+            // Send notification in DM
+            connectionManager.emitToUser(targetUser.id, 'friend:request-received', {
+              fromUserId: userId,
+              fromUsername: username,
+              fromAvatar: avatar,
               message: friendMessage || '',
             });
             break;
@@ -846,4 +907,10 @@ export async function setupChatWebSocket(
       // Don't clear chat state - preserve ignore list and DND for session
     },
   };
+}
+
+// Helper function at the bottom of the file
+function getRoomId(userId1: number, userId2: number): string {
+  const [lower, higher] = [userId1, userId2].sort((a, b) => a - b);
+  return `dm-${lower}-${higher}`;
 }
