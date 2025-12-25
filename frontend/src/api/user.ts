@@ -28,7 +28,7 @@ export const userApi = {
   },
 
   async addFriend(userId: string): Promise<ApiResponse<void>> {
-    return httpClient.post<void>(`/users/${userId}/friend`);
+    return httpClient.post<void>(`/users/${userId}/friend`, {});
   },
 
   async removeFriend(userId: string): Promise<ApiResponse<void>> {
