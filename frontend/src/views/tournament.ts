@@ -153,6 +153,19 @@ export function TournamentView(): HTMLElement {
   let myReadyState: Record<string, boolean> = {}; // matchId -> ready state
   const unsubscribers: (() => void)[] = [];
 
+  // Check for joined tournament from /join command
+  const checkJoinedTournament = () => {
+    const joinedTournamentId = sessionStorage.getItem('joined_tournament_id');
+    if (joinedTournamentId) {
+      sessionStorage.removeItem('joined_tournament_id');
+      const id = parseInt(joinedTournamentId);
+      if (!isNaN(id)) {
+        // View this tournament directly
+        setTimeout(() => viewTournament(id), 100);
+      }
+    }
+  };
+
   // Get current user
   const currentUser = storage.getUserData();
   const currentUserId = currentUser ? parseInt(currentUser.id) : 0;
@@ -1308,8 +1321,12 @@ export function TournamentView(): HTMLElement {
         delete myReadyState[msg.data.matchId];
       }
       // Refresh bracket
-      if (selectedTournamentId === msg.data.tournamentId && currentView === 'bracket') {
+      if (selectedTournamentId === msg.data.tournamentId) {
         wsClient.send('tournament:get-bracket', { tournamentId: selectedTournamentId });
+      } else if (msg.data.tournamentId) {
+        selectedTournamentId = msg.data.tournamentId;
+        wsClient.send('tournament:get-bracket', { tournamentId: selectedTournamentId });
+        showView('bracket');
       }
     }));
 
@@ -1464,6 +1481,7 @@ export function TournamentView(): HTMLElement {
   // Initialize
   setupWSHandlers();
   loadTournaments();
+  checkJoinedTournament();
 
   // Cleanup
   (container as any).__cleanup = () => {

@@ -758,9 +758,48 @@ export async function setupChatWebSocket(
                 name: activeTournament.name,
               });
             } else {
-              // Game invite - create private game if not in one
-              const currentGameId = gameService?.getUserGameId(userId);
+              // Game invite - create private game if not already in one waiting
+              let currentGameId = gameService?.getUserGameId(userId);
               
+              // Check if user is already in a waiting private game
+              if (currentGameId) {
+                const gameInfo = gameService?.getGameInfo(currentGameId);
+                // If already in a game that's in progress or local, can't invite
+                const rooms = (gameService as any).rooms;
+                const room = rooms?.get(currentGameId);
+                if (room && room.status !== 'waiting') {
+                  socket.send(JSON.stringify({
+                    event: 'chat:error',
+                    data: { message: 'You are already in an active game. Leave first to invite someone.' },
+                  }));
+                  return;
+                }
+              }
+              
+              // If not in a waiting game, create one
+              if (!currentGameId) {
+                try {
+                  const playerInfo = await gameService?.createPrivateGame(userId);
+                  currentGameId = playerInfo?.gameId;
+                  
+                  // Notify the inviter that a private game was created
+                  socket.send(JSON.stringify({
+                    event: 'chat:game-created-for-invite',
+                    data: {
+                      gameId: currentGameId,
+                      targetUsername: targetUser.username,
+                    },
+                  }));
+                } catch (err: any) {
+                  socket.send(JSON.stringify({
+                    event: 'chat:error',
+                    data: { message: err.message || 'Failed to create private game' },
+                  }));
+                  return;
+                }
+              }
+              
+              // Send game invite with the game ID
               connectionManager.emitToUser(targetUser.id, 'chat:invite-received', {
                 type: 'game',
                 fromUserId: userId,
@@ -798,10 +837,32 @@ export async function setupChatWebSocket(
               return;
             }
 
-            // Check if target is in a game
+            // Check if target is in a waiting private game (for /invite -> /join flow)
             const targetGameId = gameService?.getUserGameId(targetUser.id);
             if (targetGameId) {
-              // Try to join as spectator or player 2
+              const rooms = (gameService as any).rooms;
+              const room = rooms?.get(targetGameId);
+              
+              // If target is waiting in a private game, join directly
+              if (room && room.status === 'waiting' && room.isPrivate) {
+                try {
+                  const playerInfo = await gameService?.joinPrivateGame(userId, targetGameId);
+                  socket.send(JSON.stringify({
+                    event: 'chat:join-game-direct',
+                    data: { 
+                      gameId: targetGameId, 
+                      username: targetUser.username,
+                      playerInfo,
+                    },
+                  }));
+                  return;
+                } catch (err: any) {
+                  // If join failed, fall through to other options
+                  console.log('Failed to join private game directly:', err.message);
+                }
+              }
+              
+              // Target is in an active game - offer to spectate
               socket.send(JSON.stringify({
                 event: 'chat:join-game',
                 data: { gameId: targetGameId, username: targetUser.username },
@@ -809,57 +870,35 @@ export async function setupChatWebSocket(
               return;
             }
 
-            // Check if target is in a tournament
+            // Check if target is in a tournament with open registration
             const targetTournaments = tournamentService?.getUserTournaments(targetUser.id);
             const openTournament = targetTournaments?.find(
               (t: any) => t.status === 'registration'
             );
 
             if (openTournament) {
-              socket.send(JSON.stringify({
-                event: 'chat:join-tournament',
-                data: { tournamentId: openTournament.id, name: openTournament.name },
-              }));
+              // Join the tournament directly
+              try {
+                await tournamentService?.joinTournament(userId, openTournament.id);
+                socket.send(JSON.stringify({
+                  event: 'chat:joined-tournament-direct',
+                  data: { 
+                    tournamentId: openTournament.id, 
+                    name: openTournament.name,
+                  },
+                }));
+              } catch (err: any) {
+                socket.send(JSON.stringify({
+                  event: 'chat:error',
+                  data: { message: err.message || 'Failed to join tournament' },
+                }));
+              }
               return;
             }
 
             socket.send(JSON.stringify({
               event: 'chat:error',
-              data: { message: `${targetUser.username} is not in an active session` },
-            }));
-            break;
-          }
-
-          // ==================== VIEW PROFILE ====================
-
-          case 'chat:view-profile': {
-            const { username: targetUsername } = message.data as ViewProfileDto;
-            
-            if (!targetUsername) {
-              throw new Error('Username is required');
-            }
-
-            const targetUser = await getUserByUsername(targetUsername);
-            if (!targetUser) {
-              socket.send(JSON.stringify({
-                event: 'chat:error',
-                data: { message: `User "${targetUsername}" not found` },
-              }));
-              return;
-            }
-
-            socket.send(JSON.stringify({
-              event: 'chat:profile-data',
-              data: {
-                userId: targetUser.id,
-                username: targetUser.username,
-                avatar: targetUser.avatar,
-                score: targetUser.score,
-                rank: targetUser.rank,
-                gamesPlayed: targetUser.gamesPlayed,
-                gamesWon: targetUser.gamesWon,
-                winRate: targetUser.winRate,
-              },
+              data: { message: `${targetUser.username} is not in an active session you can join` },
             }));
             break;
           }

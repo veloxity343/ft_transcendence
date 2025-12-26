@@ -923,6 +923,44 @@ export class ChatOverlay {
       router.navigateTo('/game');
     }));
 
+    // Handle game created for invite (sender side)
+    this.unsubscribers.push(wsClient.on('chat:game-created-for-invite', (msg) => {
+      const { gameId, targetUsername } = msg.data;
+      showToast(`Invite sent to ${targetUsername}!`, 'info');
+      
+      // Store the game info and navigate to game view
+      // The game view will pick this up and show waiting screen
+      sessionStorage.setItem('pending_invite_game', JSON.stringify({
+        gameId,
+        targetUsername,
+      }));
+      
+      // Only navigate if not already on game page
+      if (window.location.pathname !== '/game') {
+        router.navigateTo('/game');
+      } else {
+        // If already on game page, trigger a re-check
+        window.dispatchEvent(new CustomEvent('game:check-pending-invite'));
+      }
+    }));
+
+    // Handle direct game join (receiver side - bypasses game ID entry)
+    this.unsubscribers.push(wsClient.on('chat:join-game-direct', (msg) => {
+      const { gameId, username } = msg.data;
+      showToast(`Joining ${username}'s game...`, 'success');
+      // Navigate to game - the game-starting event will handle the rest
+      router.navigateTo('/game');
+    }));
+
+    // Handle direct tournament join (receiver side)
+    this.unsubscribers.push(wsClient.on('chat:joined-tournament-direct', (msg) => {
+      const { tournamentId, name } = msg.data;
+      showToast(`Joined tournament: ${name}!`, 'success');
+      // Store tournament ID for the view to pick up
+      sessionStorage.setItem('joined_tournament_id', tournamentId.toString());
+      router.navigateTo('/tournament');
+    }));
+
     // Handle join tournament response  
     this.unsubscribers.push(wsClient.on('chat:join-tournament', (msg) => {
       const { tournamentId, name } = msg.data;
@@ -1067,18 +1105,31 @@ export class ChatOverlay {
 
     // Invite received
     this.unsubscribers.push(wsClient.on('chat:invite-received', (msg) => {
-      const { fromUsername, type, id } = msg.data;
-      showToast(`${fromUsername} invited you to ${type === 'tournament' ? 'a tournament' : 'a game'}!`, 'info');
+      const { fromUsername, type, id, gameId } = msg.data;
       
-      this.addLocalMessage('global', {
-        id: `invite-${Date.now()}`,
-        userId: 0,
-        username: 'System',
-        userAvatar: '',
-        message: `${fromUsername} invited you to ${type === 'tournament' ? 'a tournament' : 'a game'}. Use /join ${fromUsername} to accept.`,
-        timestamp: new Date(),
-        type: 'notification',
-      });
+      if (type === 'tournament') {
+        showToast(`${fromUsername} invited you to a tournament!`, 'info');
+        this.addLocalMessage('global', {
+          id: `invite-${Date.now()}`,
+          userId: 0,
+          username: 'System',
+          userAvatar: '',
+          message: `${fromUsername} invited you to tournament "${msg.data.name}". Type /join ${fromUsername} to join.`,
+          timestamp: new Date(),
+          type: 'notification',
+        });
+      } else {
+        showToast(`${fromUsername} invited you to a private game!`, 'info');
+        this.addLocalMessage('global', {
+          id: `invite-${Date.now()}`,
+          userId: 0,
+          username: 'System',
+          userAvatar: '',
+          message: `${fromUsername} invited you to a private game. Type /join ${fromUsername} to accept.`,
+          timestamp: new Date(),
+          type: 'notification',
+        });
+      }
     }));
 
     // Tournament chat join

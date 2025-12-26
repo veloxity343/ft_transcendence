@@ -355,6 +355,36 @@ export function GameView(): HTMLElement {
     }
   };
 
+  // Check for pending invite game (from /invite command)
+  const checkPendingInviteGame = () => {
+    const pendingInvite = sessionStorage.getItem('pending_invite_game');
+    if (pendingInvite) {
+      try {
+        const { gameId: inviteGameId, targetUsername } = JSON.parse(pendingInvite);
+        sessionStorage.removeItem('pending_invite_game');
+        
+        // Set game state
+        gameId = inviteGameId;
+        playerNumber = 1;
+        isLocalGame = false;
+        
+        // Show waiting screen with invite info
+        const myUsername = storage.getUserData()?.username || 'you';
+        showWaiting(
+          `Waiting for ${targetUsername}...`, 
+          `They need to type /join ${myUsername} to accept`,
+          true,
+          inviteGameId
+        );
+        return true;
+      } catch (e) {
+        console.error('Failed to parse pending invite:', e);
+        sessionStorage.removeItem('pending_invite_game');
+      }
+    }
+    return false;
+  };
+
   // Show waiting screen with custom message
   const showWaiting = (title: string, message: string, showPrivateInfo = false, gameIdToShow?: number) => {
     waitingTitle.textContent = title;
@@ -736,18 +766,14 @@ export function GameView(): HTMLElement {
       if (tournamentContext && !isLocalTournament) {
         const won = msg.data.winnerId?.toString() === user?.id?.toString();
         setTimeout(() => {
-          const returnToTournament = confirm(
-            `${won ? 'Congratulations!' : 'Game over!'}\n\nReturn to tournament bracket?`
-          );
-          
+          // Always return to tournament page after tournament match
+          showToast(won ? 'Advancing to next round!' : 'Match complete', won ? 'success' : 'info');
           resetGame();
-          if (returnToTournament) {
-            router.navigateTo('/tournament');
-          } else {
-            showScreen('menu');
-          }
-        }, 2000);
-      } else if (!isLocalTournament) {
+          router.navigateTo('/tournament');
+        }, 2500);
+      } else if (isLocalTournament) {
+        // Already handled above - returns to tournament
+      } else {
         setTimeout(() => { 
           resetGame(); 
           showScreen('menu'); 
@@ -1064,9 +1090,17 @@ export function GameView(): HTMLElement {
   
   // Setup handlers
   setupWSHandlers();
+
+   // Listen for pending invite check
+  const handlePendingInviteCheck = () => {
+    checkPendingInviteGame();
+  };
+  window.addEventListener('game:check-pending-invite', handlePendingInviteCheck);
+
+  const hasPendingInvite = checkPendingInviteGame();
   
   // Check for active game immediately if already connected
-  if (wsClient.isConnected() && !hasCheckedActiveGame) {
+  if (!hasPendingInvite && wsClient.isConnected() && !hasCheckedActiveGame) {
     hasCheckedActiveGame = true;
     console.log('Already connected, checking for active game...');
     wsClient.send('game:get-active-state', {});
@@ -1084,6 +1118,7 @@ export function GameView(): HTMLElement {
     unsubscribers.forEach(unsub => unsub());
     document.removeEventListener('keydown', handleKeyDown);
     document.removeEventListener('keyup', handleKeyUp);
+    window.removeEventListener('game:check-pending-invite', handlePendingInviteCheck);
   };
 
   return container;
