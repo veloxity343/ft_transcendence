@@ -153,15 +153,29 @@ export function TournamentView(): HTMLElement {
   let myReadyState: Record<string, boolean> = {}; // matchId -> ready state
   const unsubscribers: (() => void)[] = [];
 
-  // Check for joined tournament from /join command
-  const checkJoinedTournament = () => {
+  // Check for joined tournament from /join command or returning from game
+  const checkTournamentNavigation = () => {
+    // Check if returning from a tournament game
+    const returnToTournament = sessionStorage.getItem('return_to_tournament');
+    if (returnToTournament) {
+      sessionStorage.removeItem('return_to_tournament');
+      const id = parseInt(returnToTournament);
+      if (!isNaN(id)) {
+        console.log('Returning to tournament:', id);
+        setTimeout(() => viewTournament(id), 100);
+        return;
+      }
+    }
+    
+    // Check if joined via /join command
     const joinedTournamentId = sessionStorage.getItem('joined_tournament_id');
     if (joinedTournamentId) {
       sessionStorage.removeItem('joined_tournament_id');
       const id = parseInt(joinedTournamentId);
       if (!isNaN(id)) {
-        // View this tournament directly
+        console.log('Joined tournament via /join:', id);
         setTimeout(() => viewTournament(id), 100);
+        return;
       }
     }
   };
@@ -1481,7 +1495,7 @@ export function TournamentView(): HTMLElement {
   // Initialize
   setupWSHandlers();
   loadTournaments();
-  checkJoinedTournament();
+  checkTournamentNavigation();
 
   // Cleanup
   (container as any).__cleanup = () => {

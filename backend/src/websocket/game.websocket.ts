@@ -256,7 +256,7 @@ export async function setupGameWebSocket(
           // ==================== FORFEIT ====================
           case 'game:forfeit': {
             try {
-              const result = gameService.forfeitGame(userId);
+              const result = await gameService.forfeitGame(userId);
               
               if (result.success) {
                 socket.send(JSON.stringify({
