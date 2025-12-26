@@ -355,6 +355,36 @@ export function GameView(): HTMLElement {
     }
   };
 
+  // Check for pending invite game (from /invite command)
+  const checkPendingInviteGame = () => {
+    const pendingInvite = sessionStorage.getItem('pending_invite_game');
+    if (pendingInvite) {
+      try {
+        const { gameId: inviteGameId, targetUsername } = JSON.parse(pendingInvite);
+        sessionStorage.removeItem('pending_invite_game');
+        
+        // Set game state
+        gameId = inviteGameId;
+        playerNumber = 1;
+        isLocalGame = false;
+        
+        // Show waiting screen with invite info
+        const myUsername = storage.getUserData()?.username || 'you';
+        showWaiting(
+          `Waiting for ${targetUsername}...`, 
+          `They need to type /join ${myUsername} to accept`,
+          true,
+          inviteGameId
+        );
+        return true;
+      } catch (e) {
+        console.error('Failed to parse pending invite:', e);
+        sessionStorage.removeItem('pending_invite_game');
+      }
+    }
+    return false;
+  };
+
   // Show waiting screen with custom message
   const showWaiting = (title: string, message: string, showPrivateInfo = false, gameIdToShow?: number) => {
     waitingTitle.textContent = title;
@@ -625,14 +655,16 @@ export function GameView(): HTMLElement {
       if (msg.data.isLocal) isLocalGame = true;
       if (msg.data.vsAI) isLocalGame = false;
 
+      // Capture tournament context from the event
       if (msg.data.tournamentId) {
         tournamentContext = {
           tournamentId: msg.data.tournamentId,
           tournamentName: msg.data.tournamentName,
           round: msg.data.round,
           matchId: msg.data.matchId,
-          isLocalTournament: msg.data.isLocalTournament || false,  // Add this
+          isLocalTournament: msg.data.isLocalTournament || msg.data.isLocal || false,
         };
+        console.log('Tournament context set:', tournamentContext);
         updateStatus(`Tournament Round ${msg.data.round}`, 'waiting');
       } else {
         tournamentContext = null;
@@ -686,36 +718,82 @@ export function GameView(): HTMLElement {
     // Handle game end
     unsubscribers.push(wsClient.on('game-ended', (msg) => {
       gameEnded = true;
-      console.log('game-ended', msg.data);
+      console.log('=== GAME ENDED ===');
+      console.log('Event data:', JSON.stringify(msg.data, null, 2));
+      console.log('Current tournamentContext:', JSON.stringify(tournamentContext, null, 2));
+      
       updateStatus('Game Over!', '');
       hideOpponentDisconnected();
       
       const user = storage.getUserData();
       const finalScore = msg.data.finalScore;
       
-      // Determine if this is a local tournament game
-      const isLocalTournament = tournamentContext && msg.data.isLocal;
+      const eventTournamentId = msg.data.tournamentId;
+      const contextTournamentId = tournamentContext?.tournamentId;
+      const effectiveTournamentId = eventTournamentId || contextTournamentId;
       
-      if (msg.data.isLocal && !isLocalTournament) {
-        // Regular local game
+      const isTournamentGame = !!effectiveTournamentId;
+      const isLocalTournament = msg.data.isLocalTournament || tournamentContext?.isLocalTournament || false;
+      
+      console.log('Tournament detection:', {
+        eventTournamentId,
+        contextTournamentId,
+        effectiveTournamentId,
+        isTournamentGame,
+        isLocalTournament,
+        isLocal: msg.data.isLocal
+      });
+      
+      if (msg.data.isLocal && !isTournamentGame) {
+        // Regular local game (not tournament)
+        console.log('Handling as: Regular local game');
         const winner = finalScore.player1 > finalScore.player2 ? 'Player 1' : 'Player 2';
         showToast(`${winner} Wins!`, 'info');
         soundManager.gameWin();
-      } else if (isLocalTournament) {
-        // Local tournament game
-        const winnerNum = finalScore.player1 > finalScore.player2 ? 1 : 2;
-        const winnerName = winnerNum === 1 ? player1Label.textContent : player2Label.textContent;
-        showToast(`${winnerName} Wins!`, 'success');
-        soundManager.gameWin();
         
-        // Return to tournament view after delay
+        setTimeout(() => { 
+          resetGame(); 
+          showScreen('menu'); 
+        }, 3000);
+      } else if (isTournamentGame) {
+        // Tournament game (local or online)
+        console.log('Handling as: Tournament game, will redirect to /tournament');
+        
+        if (isLocalTournament) {
+          const winnerNum = finalScore.player1 > finalScore.player2 ? 1 : 2;
+          const winnerName = winnerNum === 1 ? player1Label.textContent : player2Label.textContent;
+          showToast(`${winnerName} Wins!`, 'success');
+          soundManager.gameWin();
+        } else {
+          const won = msg.data.winnerId?.toString() === user?.id?.toString();
+          if (msg.data.forfeit) {
+            if (msg.data.forfeitedBy?.toString() === user?.id?.toString()) {
+              showToast('You forfeited the match', 'info');
+              soundManager.gameLose();
+            } else {
+              showToast('Opponent forfeited - You Win!', 'success');
+              soundManager.gameWin();
+            }
+          } else {
+            showToast(won ? 'You Won! Advancing...' : 'Match complete', won ? 'success' : 'info');
+            soundManager[won ? 'gameWin' : 'gameLose']();
+          }
+        }
+        
+        // Store tournament ID before reset and navigate
+        const tournamentIdToReturn = effectiveTournamentId;
+        
         setTimeout(() => {
+          console.log('Navigating to tournament:', tournamentIdToReturn);
           resetGame();
+          if (tournamentIdToReturn) {
+            sessionStorage.setItem('return_to_tournament', tournamentIdToReturn.toString());
+          }
           router.navigateTo('/tournament');
         }, 2500);
-        return;
       } else {
-        // Online game
+        // Regular online game (not tournament)
+        console.log('Handling as: Regular online game');
         const won = msg.data.winnerId?.toString() === user?.id?.toString();
         
         if (msg.data.forfeit) {
@@ -730,24 +808,7 @@ export function GameView(): HTMLElement {
           showToast(won ? 'You Won!' : 'You Lost!', won ? 'success' : 'error');
           soundManager[won ? 'gameWin' : 'gameLose']();
         }
-      }
-      
-      // Handle tournament context (non-local)
-      if (tournamentContext && !isLocalTournament) {
-        const won = msg.data.winnerId?.toString() === user?.id?.toString();
-        setTimeout(() => {
-          const returnToTournament = confirm(
-            `${won ? 'Congratulations!' : 'Game over!'}\n\nReturn to tournament bracket?`
-          );
-          
-          resetGame();
-          if (returnToTournament) {
-            router.navigateTo('/tournament');
-          } else {
-            showScreen('menu');
-          }
-        }, 2000);
-      } else if (!isLocalTournament) {
+        
         setTimeout(() => { 
           resetGame(); 
           showScreen('menu'); 
@@ -1064,9 +1125,17 @@ export function GameView(): HTMLElement {
   
   // Setup handlers
   setupWSHandlers();
+
+   // Listen for pending invite check
+  const handlePendingInviteCheck = () => {
+    checkPendingInviteGame();
+  };
+  window.addEventListener('game:check-pending-invite', handlePendingInviteCheck);
+
+  const hasPendingInvite = checkPendingInviteGame();
   
   // Check for active game immediately if already connected
-  if (wsClient.isConnected() && !hasCheckedActiveGame) {
+  if (!hasPendingInvite && wsClient.isConnected() && !hasCheckedActiveGame) {
     hasCheckedActiveGame = true;
     console.log('Already connected, checking for active game...');
     wsClient.send('game:get-active-state', {});
@@ -1084,6 +1153,7 @@ export function GameView(): HTMLElement {
     unsubscribers.forEach(unsub => unsub());
     document.removeEventListener('keydown', handleKeyDown);
     document.removeEventListener('keyup', handleKeyUp);
+    window.removeEventListener('game:check-pending-invite', handlePendingInviteCheck);
   };
 
   return container;

@@ -28,15 +28,19 @@ export const userApi = {
   },
 
   async addFriend(userId: string): Promise<ApiResponse<void>> {
-    return httpClient.post<void>(`/users/${userId}/friend`);
+    return httpClient.post<void>(`/users/${userId}/friend`, {});
   },
 
   async removeFriend(userId: string): Promise<ApiResponse<void>> {
     return httpClient.delete<void>(`/users/${userId}/friend`);
   },
 
+  async declineFriendRequest(userId: string): Promise<ApiResponse<void>> {
+    return httpClient.delete<void>(`/users/${userId}/friend-request`);
+  },
+
   async blockUser(userId: string): Promise<ApiResponse<void>> {
-    return httpClient.post<void>(`/users/${userId}/block`);
+    return httpClient.post<void>(`/users/${userId}/block`, {});
   },
 
   async unblockUser(userId: string): Promise<ApiResponse<void>> {

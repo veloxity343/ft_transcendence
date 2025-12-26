@@ -56,6 +56,9 @@ export class UserService {
         gamesPlayed: {
           gt: 0,
         },
+        email: {
+          not: 'ai@transcendence.local',
+        },
       },
       select: {
         id: true,
@@ -69,7 +72,7 @@ export class UserService {
         winRate: true,
       },
       orderBy: {
-        rank: 'asc',
+        rank: 'desc',
       },
       take: limit,
     });
@@ -299,6 +302,45 @@ export class UserService {
     ]);
 
     return { message: 'Friend removed' };
+  }
+
+  async declineFriendRequest(userId: number, targetId: number) {
+    if (userId === targetId) {
+      throw new Error('Invalid operation');
+    }
+
+    const [user, target] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: userId } }),
+      this.prisma.user.findUnique({ where: { id: targetId } }),
+    ]);
+
+    if (!user || !target) {
+      throw new Error('User not found');
+    }
+
+    // Check if there's actually a pending request
+    const userAdded = parseJsonArray(user.added);
+    if (!userAdded.includes(targetId)) {
+      throw new Error('No pending friend request from this user');
+    }
+
+    // Remove from both users' pending lists
+    await Promise.all([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          added: removeFromJsonArray(user.added, targetId),
+        },
+      }),
+      this.prisma.user.update({
+        where: { id: targetId },
+        data: {
+          adding: removeFromJsonArray(target.adding, userId),
+        },
+      }),
+    ]);
+
+    return { message: 'Friend request declined' };
   }
 
   // ==================== BLOCK SYSTEM ====================

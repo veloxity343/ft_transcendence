@@ -37,6 +37,7 @@
   padding: 1.5rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
   transition: all 0.3s ease;
+  overflow: hidden;
 }
 
 .sidebar-section:hover {
@@ -220,10 +221,15 @@
   cursor: pointer;
   border: 2px solid;
   transition: all 0.2s;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .leaderboard-container:hover {
-  transform: translateX(4px);
+  transform: translateX(2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .leaderboard-container-1 {
@@ -274,8 +280,12 @@
 
 .leaderboard-name {
   flex: 1;
+  min-width: 0;
   font-weight: 600;
   color: var(--color-navy);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .leaderboard-points {
@@ -319,8 +329,12 @@
 
 .match-opponent {
   flex: 1;
+  min-width: 0;
   font-weight: 600;
   color: var(--color-navy);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .match-score {
@@ -350,6 +364,8 @@
   overflow-y: auto;
   overflow-x: hidden;
   max-height: 400px;
+  width: 100%;
+  padding: 0.25rem;
 }
 
 .scrollable::-webkit-scrollbar {

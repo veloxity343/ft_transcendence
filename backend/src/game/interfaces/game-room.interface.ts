@@ -35,6 +35,10 @@ export interface GameRoom {
   startTime?: Date;
   lastUpdateTime: Date;
 
+  tournamentId?: number;
+  tournamentRound?: number;
+  tournamentMatch?: string;
+
   intervalId?: NodeJS.Timeout;
 }
 

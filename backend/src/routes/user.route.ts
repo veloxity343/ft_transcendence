@@ -194,6 +194,50 @@ const userRoutes: FastifyPluginAsync = async (fastify) => {
 
     try {
       const result = await userService.addFriend(userId, parseInt(id, 10));
+
+      // Add WebSocket notification
+      const connectionManager = (fastify as any).connectionManager;
+      if (connectionManager) {
+        const targetUser = await userService.getUser(parseInt(id, 10));
+        const currentUser = await userService.getUser(userId);
+
+        if (targetUser && currentUser) {
+          // Check if this completed a mutual friendship
+          const userAfter = await fastify.prisma.user.findUnique({
+            where: { id: userId },
+            select: { friends: true },
+          });
+          
+          const friendsList = JSON.parse(userAfter?.friends || '[]');
+          const isMutual = friendsList.includes(parseInt(id, 10));
+          
+          if (isMutual) {
+            // send acceptance notification to BOTH users
+            connectionManager.emitToUser(parseInt(id, 10), 'friend:request-accepted', {
+              userId,
+              username: currentUser.username,
+            });
+            
+            connectionManager.emitToUser(userId, 'friend:request-accepted', {
+              userId: parseInt(id, 10),
+              username: targetUser.username,
+            });
+            
+            //emit a general friend list update event for both
+            connectionManager.emitToUser(parseInt(id, 10), 'friend:list-updated', {});
+            connectionManager.emitToUser(userId, 'friend:list-updated', {});
+          } else {
+            // New friend request
+            connectionManager.emitToUser(parseInt(id, 10), 'friend:request-received', {
+              fromUserId: userId,
+              fromUsername: currentUser.username,
+              fromAvatar: currentUser.avatar,
+              message: '',
+            });
+          }
+        }
+      }
+
       reply.send(result);
     } catch (error: any) {
       reply.code(400).send({ error: error.message });
@@ -209,6 +253,42 @@ const userRoutes: FastifyPluginAsync = async (fastify) => {
 
     try {
       const result = await userService.removeFriend(userId, parseInt(id, 10));
+      
+      // Notify both users that friendship was removed
+      const connectionManager = (fastify as any).connectionManager;
+      if (connectionManager) {
+        connectionManager.emitToUser(parseInt(id, 10), 'friend:list-updated', {});
+        connectionManager.emitToUser(userId, 'friend:list-updated', {});
+      }
+      
+      reply.send(result);
+    } catch (error: any) {
+      reply.code(400).send({ error: error.message });
+    }
+  });
+
+  // Decline friend request
+  fastify.delete('/:id/friend-request', {
+    onRequest: [authenticate],
+  }, async (request, reply) => {
+    const userId = getUserId(request);
+    const { id } = request.params as { id: string };
+
+    try {
+      const result = await userService.declineFriendRequest(userId, parseInt(id, 10));
+      
+      // Notify the sender that their request was declined
+      const connectionManager = (fastify as any).connectionManager;
+      if (connectionManager) {
+        const currentUser = await userService.getUser(userId);
+        
+        if (currentUser) {
+          connectionManager.emitToUser(parseInt(id, 10), 'friend:request-declined', {
+            userId,
+            username: currentUser.username,
+          });
+        }
+      }
       reply.send(result);
     } catch (error: any) {
       reply.code(400).send({ error: error.message });

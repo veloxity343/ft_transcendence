@@ -45,7 +45,7 @@ export class GameService {
    * Forfeit the current game - opponent wins immediately.
    * This is permanent and cannot be undone.
    */
-  forfeitGame(userId: number): { success: boolean; error?: string } {
+  async forfeitGame(userId: number): Promise<{ success: boolean; error?: string }> {
     const gameId = this.userToRoom.get(userId);
     
     if (!gameId) {
@@ -94,7 +94,17 @@ export class GameService {
 
     const duration = room.startTime ? Date.now() - room.startTime.getTime() : 0;
 
-    // Emit game ended to both players
+    // Get tournament info before emitting
+    const gameInfo = await this.prisma.game.findUnique({
+      where: { id: gameId },
+      select: { 
+        tournamentId: true,
+        tournamentRound: true,
+        tournamentMatch: true,
+      },
+    });
+
+    // Emit game ended to both players (include tournament info)
     this.emitToRoom(gameId, 'game-ended', {
       gameId,
       winnerId,
@@ -105,7 +115,37 @@ export class GameService {
       forfeit: true,
       forfeitedBy: userId,
       isLocal: false,
+      isLocalTournament: room.isLocalTournament || false,
+      tournamentId: gameInfo?.tournamentId || null,
+      tournamentRound: gameInfo?.tournamentRound || null,
+      tournamentMatch: gameInfo?.tournamentMatch || null,
     });
+
+    // Handle tournament game
+    if (gameInfo?.tournamentId) {
+      this.connectionManager.broadcast('tournament:game-ended', {
+        gameId,
+        tournamentId: gameInfo.tournamentId,
+        winnerId,
+        loserId,
+        player1Id: room.player1Id,
+        player2Id: room.player2Id,
+        score1: room.player1Score,
+        score2: room.player2Score,
+      });
+    }
+
+    // Determine game type
+    let gameType: 'quickplay' | 'private' | 'ai' | 'local' | 'tournament' = 'quickplay';
+    if (gameInfo?.tournamentId) {
+      gameType = 'tournament';
+    } else if (room.vsAI) {
+      gameType = 'ai';
+    } else if (room.isLocal) {
+      gameType = 'local';
+    } else if (room.isPrivate) {
+      gameType = 'private';
+    }
 
     // Save game and update stats
     this.saveGame(
@@ -116,7 +156,14 @@ export class GameService {
       room.player2Score,
       room.startTime || new Date(),
       new Date(),
-      duration
+      duration,
+      gameType,
+      gameInfo?.tournamentId || undefined,
+      gameInfo?.tournamentRound || undefined,
+      gameInfo?.tournamentMatch || undefined,
+      room.isLocal,
+      room.vsAI,
+      room.isPrivate,
     ).catch(err => console.error('Failed to save forfeit game:', err));
 
     this.updateGameStats(winnerId, loserId, gameId, duration)
@@ -146,6 +193,25 @@ export class GameService {
 
     room.status = GameStatus.FINISHED;
 
+    // Determine winner based on current scores
+    let winnerPlayerNumber: 1 | 2;
+    
+    if (room.player1Score > room.player2Score) {
+      winnerPlayerNumber = 1;
+    } else if (room.player2Score > room.player1Score) {
+      winnerPlayerNumber = 2;
+    } else {
+      // Scores are tied, randomly pick a winner
+      winnerPlayerNumber = Math.random() < 0.5 ? 1 : 2;
+    }
+
+    // Set winner's score to WIN_SCORE
+    if (winnerPlayerNumber === 1) {
+      room.player1Score = this.WIN_SCORE;
+    } else {
+      room.player2Score = this.WIN_SCORE;
+    }
+
     this.connectionManager.emitToUser(userId, 'game-ended', {
       gameId,
       finalScore: {
@@ -155,6 +221,11 @@ export class GameService {
       forfeit: true,
       isLocal: true,
     });
+
+    // Handle tournament game end if this is a tournament match
+    if (room.isLocalTournament) {
+      this.handleTournamentGameEnd(gameId, 0, 0, room);
+    }
 
     // Cleanup
     this.userToRoom.delete(userId);
@@ -405,17 +476,27 @@ export class GameService {
     room: GameRoom
   ): Promise<void> {
     try {
-      const gameInfo = await this.prisma.game.findUnique({
-        where: { id: gameId },
-        select: { tournamentId: true },
-      });
+      // Use tournament info from room first, fall back to DB query
+      let tournamentId = room.tournamentId;
+      
+      if (!tournamentId) {
+        const gameInfo = await this.prisma.game.findUnique({
+          where: { id: gameId },
+          select: { tournamentId: true },
+        });
+        tournamentId = gameInfo?.tournamentId || undefined;
+      }
+
+      if (!tournamentId) {
+        return; // Not a tournament game
+      }
 
       // Determine game type and handle appropriately
-      if (room.isLocalTournament && gameInfo?.tournamentId) {
+      if (room.isLocalTournament) {
         const winnerPlayerNumber = room.player1Score > room.player2Score ? 1 : 2;
         this.connectionManager.broadcast('tournament:game-ended', {
           gameId,
-          tournamentId: gameInfo.tournamentId,
+          tournamentId,
           winnerId: 0,
           winnerPlayerNumber,
           loserId: 0,
@@ -425,11 +506,11 @@ export class GameService {
           score2: room.player2Score,
           isLocalTournament: true,
         });
-      } else if (gameInfo?.tournamentId) {
+      } else {
         console.log(`Tournament game ${gameId} ended, notifying tournament service`);
         this.connectionManager.broadcast('tournament:game-ended', {
           gameId,
-          tournamentId: gameInfo.tournamentId,
+          tournamentId,
           winnerId,
           loserId,
           player1Id: room.player1Id,
@@ -439,7 +520,7 @@ export class GameService {
         });
       }
     } catch (err) {
-      console.error('Error checking tournament game:', err);
+      console.error('Error handling tournament game end:', err);
     }
   }
 
@@ -901,6 +982,10 @@ export class GameService {
       status: GameStatus.STARTING,
       isPrivate: false,
       lastUpdateTime: new Date(),
+
+      tournamentId: tournamentId,
+      tournamentRound: round,
+      tournamentMatch: matchId,
     };
 
     this.rooms.set(gameId, gameRoom);
@@ -998,6 +1083,10 @@ export class GameService {
       isLocal: true,
       isLocalTournament: true,  // New flag
       lastUpdateTime: new Date(),
+
+      tournamentId: tournamentId,
+      tournamentRound: round,
+      tournamentMatch: matchId,
     };
 
     this.rooms.set(gameId, newRoom);
@@ -1384,7 +1473,19 @@ export class GameService {
 
     const winnerId = room.player1Score > room.player2Score ? room.player1Id : room.player2Id;
     const loserId = room.player1Score > room.player2Score ? room.player2Id : room.player1Id;
+    const duration = room.startTime ? Date.now() - room.startTime.getTime() : 0;
+    
+    // Query tournament info BEFORE emitting game-ended
+    const gameInfo = await this.prisma.game.findUnique({
+      where: { id: gameId },
+      select: { 
+        tournamentId: true,
+        tournamentRound: true,
+        tournamentMatch: true,
+      },
+    });
 
+    // Emit game ended WITH tournament info
     this.emitToRoom(gameId, 'game-ended', {
       gameId,
       winnerId,
@@ -1393,13 +1494,10 @@ export class GameService {
         player2: room.player2Score,
       },
       isLocal: room.isLocal || false,
-    });
-
-    const duration = room.startTime ? Date.now() - room.startTime.getTime() : 0;
-    
-    const gameInfo = await this.prisma.game.findUnique({
-      where: { id: gameId },
-      select: { tournamentId: true },
+      isLocalTournament: room.isLocalTournament || false,
+      tournamentId: gameInfo?.tournamentId || null,
+      tournamentRound: gameInfo?.tournamentRound || null,
+      tournamentMatch: gameInfo?.tournamentMatch || null,
     });
 
     let gameType: 'quickplay' | 'private' | 'ai' | 'local' | 'tournament' = 'quickplay';
@@ -1423,18 +1521,17 @@ export class GameService {
       new Date(),
       duration,
       gameType,
-      undefined,  // tournamentId
-      undefined,  // tournamentRound  
-      undefined,  // tournamentMatch
+      gameInfo?.tournamentId || undefined,
+      gameInfo?.tournamentRound || undefined,
+      gameInfo?.tournamentMatch || undefined,
       room.isLocal,
       room.vsAI,
       room.isPrivate,
     );
 
     // Only update ELO for quickplay and tournament games
-    // Local, AI, and private games do NOT affect ELO
     const isTournament = !!gameInfo?.tournamentId;
-    const shouldUpdateElo = !room.isLocal && !room.vsAI && !room.isPrivate || isTournament;
+    const shouldUpdateElo = (!room.isLocal && !room.vsAI && !room.isPrivate) || isTournament;
 
     if (shouldUpdateElo) {
       await this.updateGameStats(winnerId, loserId, gameId, duration);
@@ -1461,12 +1558,12 @@ export class GameService {
       }
     }
 
-    if (room.isLocalTournament) {
+    if (room.isLocalTournament && gameInfo?.tournamentId) {
       const winnerPlayerNumber = room.player1Score > room.player2Score ? 1 : 2;
       this.connectionManager.broadcast('tournament:game-ended', {
         gameId,
-        tournamentId: gameInfo?.tournamentId,
-        winnerId: 0,  // Not a real user ID
+        tournamentId: gameInfo.tournamentId,
+        winnerId: 0,
         winnerPlayerNumber,
         loserId: 0,
         player1Id: room.player1Id,

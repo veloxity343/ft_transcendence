@@ -20,6 +20,7 @@ import { ProfileView } from './views/profile';
 import { SettingsView } from './views/settings';
 import { OAuthCallbackView } from './views/oauth-callback';
 import { HistoryView } from './views/history';
+import { LeaderboardView } from './views/leaderboard';
 import { Footer } from './components/footer';
 import { PrivacyPolicyView } from './views/privacy';
 import { TermsOfServiceView } from './views/tos';
@@ -259,17 +260,7 @@ function registerRoutes(): void {
   router.registerRoute({
     path: '/leaderboard',
     title: 'Leaderboard',
-    component: () => {
-      const div = document.createElement('div');
-      div.className = 'flex-1 flex items-center justify-center';
-      div.innerHTML = `
-        <div class="text-center">
-          <h1 class="text-4xl font-bold mb-4" style="color: var(--color-navy)">Leaderboard</h1>
-          <p style="color: var(--color-navy-muted)">Leaderboard interface coming soon...</p>
-        </div>
-      `;
-      return div;
-    },
+    component: LeaderboardView,
     requiresAuth: false,
   });
 

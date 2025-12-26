@@ -4,6 +4,7 @@ import { API_BASE_URL } from '../constants';
 import { wsClient } from '../websocket/client';
 import { userApi } from '../api/user';
 import { authApi } from '../api/auth';
+import { httpClient } from '../api/client';
 import {
   historyApi,
   formatDuration,
@@ -115,7 +116,6 @@ export function ProfileView(): HTMLElement {
       <div class="glass-card p-6 mb-6">
         <h2 class="text-xl font-semibold mb-4 text-navy">ELO Progression</h2>
         <div id="eloChart" class="h-32 flex items-end gap-1">
-          <!-- Simple bar chart will be rendered here -->
           <div class="text-center text-navy-muted w-full py-8">Loading ELO history...</div>
         </div>
       </div>
@@ -133,6 +133,20 @@ export function ProfileView(): HTMLElement {
           <div class="text-center text-navy-muted py-8">
             Loading recent matches...
           </div>
+        </div>
+      </div>
+
+      <!-- Friend Requests Section (NEW) -->
+      <div id="friendRequestsSection" class="glass-card p-6 mb-6 hidden">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-semibold text-navy">
+            Friend Requests
+            <span id="requestCount" class="ml-2 text-sm bg-blue text-white px-2 py-1 rounded-full">0</span>
+          </h2>
+        </div>
+        
+        <div id="friendRequestsList" class="space-y-2">
+          <!-- Friend requests will appear here -->
         </div>
       </div>
 
@@ -180,6 +194,7 @@ export function ProfileView(): HTMLElement {
   // Load data
   loadPlayerStats();
   loadRecentMatches();
+  loadFriendRequests(); // NEW
   loadFriends();
 
   // Avatar upload handler
@@ -342,13 +357,137 @@ export function ProfileView(): HTMLElement {
     }
   }
 
+  // NEW: Load friend requests
+  async function loadFriendRequests() {
+    const section = container.querySelector('#friendRequestsSection') as HTMLDivElement;
+    const requestsList = container.querySelector('#friendRequestsList') as HTMLDivElement;
+    const requestCount = container.querySelector('#requestCount') as HTMLSpanElement;
+    
+    try {
+      // Get current user's full data including 'added' field
+      const response = await httpClient.get<any>(`/users/${user?.id}`);
+      
+      if (response.success && response.data) {
+        const added = response.data.added || [];
+        
+        if (added.length === 0) {
+          section.classList.add('hidden');
+          return;
+        }
+
+        section.classList.remove('hidden');
+        requestCount.textContent = added.length.toString();
+
+        // Get details for each user who sent a request
+        const requests = await Promise.all(
+          added.map((userId: number) => httpClient.get<any>(`/users/${userId}`))
+        );
+
+        requestsList.innerHTML = requests
+          .filter(r => r.success && r.data)
+          .map(r => r.data)
+          .map((requester: any) => `
+            <div class="flex items-center justify-between p-3 bg-navy-dark/30 rounded-lg border-l-4 border-yellow-500">
+              <div class="flex items-center gap-3">
+                <img 
+                  src="${getAvatarUrl(requester.avatar)}" 
+                  alt="${requester.username}"
+                  class="w-10 h-10 rounded-full object-cover"
+                  onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%231a1a2e%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2250%22 font-size=%2240%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22 fill=%22%2300d4ff%22>${requester.username[0].toUpperCase()}</text></svg>'"
+                />
+                <div>
+                  <p class="text-navy font-medium">${requester.username}</p>
+                  <p class="text-sm text-navy-muted">wants to be friends</p>
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <button 
+                  class="accept-request-btn btn-primary px-3 py-1 text-xs"
+                  data-user-id="${requester.id}"
+                >
+                  Accept
+                </button>
+                <button 
+                  class="reject-request-btn btn-secondary px-3 py-1 text-xs text-red-500 border-red-500 hover:bg-red-500 hover:text-white"
+                  data-user-id="${requester.id}"
+                >
+                  Decline
+                </button>
+              </div>
+            </div>
+          `).join('');
+
+        // Accept button handlers
+        requestsList.querySelectorAll('.accept-request-btn').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            const userId = (e.target as HTMLButtonElement).dataset.userId!;
+            const button = e.target as HTMLButtonElement;
+            button.disabled = true;
+            button.textContent = 'Accepting...';
+
+            try {
+              // Send friend request back to accept
+              const response = await userApi.addFriend(userId);
+              
+              if (response.success) {
+                showToast('Friend request accepted!', 'success');
+                // Reload both sections
+                loadFriendRequests();
+                loadFriends();
+              } else {
+                showToast(response.error || 'Failed to accept', 'error');
+                button.disabled = false;
+                button.textContent = 'Accept';
+              }
+            } catch (error) {
+              showToast('An error occurred', 'error');
+              button.disabled = false;
+              button.textContent = 'Accept';
+            }
+          });
+        });
+
+        // Reject button handlers
+        requestsList.querySelectorAll('.reject-request-btn').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            const userId = (e.target as HTMLButtonElement).dataset.userId!;
+            const button = e.target as HTMLButtonElement;
+            button.disabled = true;
+            button.textContent = 'Declining...';
+
+            try {
+              const response = await userApi.declineFriendRequest(userId);
+              
+              if (response.success) {
+                showToast('Friend request declined', 'success');
+                // Reload friend requests
+                loadFriendRequests();
+              } else {
+                showToast(response.error || 'Failed to decline', 'error');
+                button.disabled = false;
+                button.textContent = 'Decline';
+              }
+            } catch (error) {
+              showToast('An error occurred', 'error');
+              button.disabled = false;
+              button.textContent = 'Decline';
+            }
+          });
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load friend requests:', error);
+      section.classList.add('hidden');
+    }
+  }
+
   async function loadPlayerStats() {
     try {
       const response = await historyApi.getMyStats();
       
       if (response.success && response.data) {
         const stats = response.data;
-        const winRateDisplay = Math.floor(stats.winRate * 100) / 100;
+        const winRateDisplay = Math.floor(stats.winRate * 100);
         
         // Update rank badge
         const rankBadge = container.querySelector('#rankBadge') as HTMLDivElement;
@@ -387,9 +526,6 @@ export function ProfileView(): HTMLElement {
     
     try {
       const response = await historyApi.getMyMatchHistory(5, 0, 'all');
-
-      console.log('Match history response:', response);  // Add this
-      console.log('Matches:', response.data?.matches);   // Add this
       
       if (response.success && response.data) {
         const matches = response.data.matches;
@@ -499,7 +635,6 @@ export function ProfileView(): HTMLElement {
   function renderEloChart(currentElo: number, highestElo: number) {
     const eloChart = container.querySelector('#eloChart') as HTMLDivElement;
     
-    // Simple visualization showing current vs highest
     const minElo = Math.max(1000, Math.min(currentElo, highestElo) - 100);
     const maxElo = Math.max(currentElo, highestElo) + 100;
     const range = maxElo - minElo;
@@ -540,6 +675,26 @@ export function ProfileView(): HTMLElement {
     const minutes = Math.floor((seconds % 3600) / 60);
     return `${hours}h ${minutes}m`;
   }
+
+  // Listen for friend updates via WebSocket
+  const friendAcceptedHandler = wsClient.on('friend:request-accepted', () => {
+    loadFriendRequests();
+    loadFriends();
+  });
+
+  // Listen for friend list updates
+  const friendListUpdatedHandler = wsClient.on('friend:list-updated', () => {
+    loadFriendRequests();
+    loadFriends();
+  });
+
+  // Cleanup on unmount
+  const existingCleanup = (container as any).__cleanup;
+  (container as any).__cleanup = () => {
+    if (existingCleanup) existingCleanup();
+    friendAcceptedHandler();
+    friendListUpdatedHandler();
+  };
 
   return container;
 }

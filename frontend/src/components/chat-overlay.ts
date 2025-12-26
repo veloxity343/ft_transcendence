@@ -94,6 +94,7 @@ export class ChatOverlay {
     this.render();
     this.setupEventListeners();
     this.setupWebSocketHandlers();
+    this.loadChatHistory();
     this.loadState();
   }
 
@@ -118,6 +119,69 @@ export class ChatOverlay {
   private saveState(): void {
     localStorage.setItem('chat_ignored_users', JSON.stringify([...this.state.ignoredUsers]));
     localStorage.setItem('chat_dnd_mode', this.state.dndMode.toString());
+  }
+
+  private loadChatHistory(): void {
+    const saved = localStorage.getItem('chat_history');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        
+        // Restore message history for each tab
+        parsed.forEach((tabData: any) => {
+          let tab = this.state.tabs.find(t => t.id === tabData.id);
+          
+          if (!tab && tabData.type === 'whisper') {
+            tab = {
+              id: tabData.id,
+              type: 'whisper',
+              name: tabData.name,
+              targetUserId: tabData.targetUserId,
+              targetUsername: tabData.targetUsername,
+              unreadCount: 0,
+              messages: [],
+            };
+            this.state.tabs.push(tab);
+          } else if (!tab && tabData.type === 'tournament') {
+            tab = {
+              id: tabData.id,
+              type: 'tournament',
+              name: tabData.name,
+              tournamentId: tabData.tournamentId,
+              unreadCount: 0,
+              messages: [],
+            };
+            this.state.tabs.push(tab);
+          }
+          
+          if (tab) {
+            tab.messages = tabData.messages.map((msg: any) => ({
+              ...msg,
+              timestamp: new Date(msg.timestamp),
+            }));
+          }
+        });
+      } catch (e) {
+        console.error('Failed to load chat history:', e);
+      }
+    }
+  }
+
+  private saveChatHistory(): void {
+    try {
+      const historyData = this.state.tabs.map(tab => ({
+        id: tab.id,
+        type: tab.type,
+        name: tab.name,
+        targetUserId: tab.targetUserId,
+        targetUsername: tab.targetUsername,
+        tournamentId: tab.tournamentId,
+        messages: tab.messages.slice(-50), // Keep last 50 messages per tab
+      }));
+      localStorage.setItem('chat_history', JSON.stringify(historyData));
+    } catch (e) {
+      console.error('Failed to save chat history:', e);
+    }
   }
 
   public mount(parent: HTMLElement): void {
@@ -859,6 +923,44 @@ export class ChatOverlay {
       router.navigateTo('/game');
     }));
 
+    // Handle game created for invite (sender side)
+    this.unsubscribers.push(wsClient.on('chat:game-created-for-invite', (msg) => {
+      const { gameId, targetUsername } = msg.data;
+      showToast(`Invite sent to ${targetUsername}!`, 'info');
+      
+      // Store the game info and navigate to game view
+      // The game view will pick this up and show waiting screen
+      sessionStorage.setItem('pending_invite_game', JSON.stringify({
+        gameId,
+        targetUsername,
+      }));
+      
+      // Only navigate if not already on game page
+      if (window.location.pathname !== '/game') {
+        router.navigateTo('/game');
+      } else {
+        // If already on game page, trigger a re-check
+        window.dispatchEvent(new CustomEvent('game:check-pending-invite'));
+      }
+    }));
+
+    // Handle direct game join (receiver side - bypasses game ID entry)
+    this.unsubscribers.push(wsClient.on('chat:join-game-direct', (msg) => {
+      const { gameId, username } = msg.data;
+      showToast(`Joining ${username}'s game...`, 'success');
+      // Navigate to game - the game-starting event will handle the rest
+      router.navigateTo('/game');
+    }));
+
+    // Handle direct tournament join (receiver side)
+    this.unsubscribers.push(wsClient.on('chat:joined-tournament-direct', (msg) => {
+      const { tournamentId, name } = msg.data;
+      showToast(`Joined tournament: ${name}!`, 'success');
+      // Store tournament ID for the view to pick up
+      sessionStorage.setItem('joined_tournament_id', tournamentId.toString());
+      router.navigateTo('/tournament');
+    }));
+
     // Handle join tournament response  
     this.unsubscribers.push(wsClient.on('chat:join-tournament', (msg) => {
       const { tournamentId, name } = msg.data;
@@ -867,18 +969,67 @@ export class ChatOverlay {
       router.navigateTo('/tournament');
     }));
 
-    // Handle friend added notification
-    this.unsubscribers.push(wsClient.on('chat:friend-added', (msg) => {
-      const { username, message } = msg.data;
-      showToast(`${username} added you as a friend!`, 'info');
-      this.addLocalMessage('global', {
-        id: `friend-${Date.now()}`,
+    // Handle friend request received
+    this.unsubscribers.push(wsClient.on('friend:request-received', (msg) => {
+      const { fromUserId, fromUsername, fromAvatar, message } = msg.data;
+      
+      // Open whisper tab with the user
+      const tab = this.openWhisperTab(fromUserId, fromUsername);
+      
+      // Add system notification in that tab
+      this.addLocalMessage(tab.id, {
+        id: `friend-req-${Date.now()}`,
         userId: 0,
         username: 'System',
         userAvatar: '',
-        message: message 
-          ? `${username} added you as a friend: "${message}"`
-          : `${username} added you as a friend!`,
+        message: `${fromUsername} sent you a friend request. Type /f add ${fromUsername} to accept, or /f decline ${fromUsername} to decline.`,
+        timestamp: new Date(),
+        type: 'system',
+      });
+
+      // If custom message, add as a regular message
+      if (message) {
+        this.addLocalMessage(tab.id, {
+          id: `friend-msg-${Date.now()}`,
+          userId: fromUserId,
+          username: fromUsername,
+          userAvatar: fromAvatar,
+          message: message,
+          timestamp: new Date(),
+          type: 'message',
+          isWhisper: true,
+        });
+      }
+
+      showToast(`${fromUsername} sent you a friend request!`, 'info');
+    }));
+
+    // Friend request accepted
+    this.unsubscribers.push(wsClient.on('friend:request-accepted', (msg) => {
+      const { userId, username } = msg.data;
+      showToast(`${username} accepted your friend request!`, 'success');
+      
+      this.addLocalMessage('global', {
+        id: `friend-accepted-${Date.now()}`,
+        userId: 0,
+        username: 'System',
+        userAvatar: '',
+        message: `${username} is now your friend!`,
+        timestamp: new Date(),
+        type: 'system',
+      });
+    }));
+
+    // Friend request sent confirmation
+    this.unsubscribers.push(wsClient.on('chat:friend-accepted', (msg) => {
+      showToast(`You and ${msg.data.username} are now friends!`, 'success');
+      
+      this.addLocalMessage(this.state.activeTabId, {
+        id: `system-${Date.now()}`,
+        userId: 0,
+        username: 'System',
+        userAvatar: '',
+        message: `You and ${msg.data.username} are now friends!`,
         timestamp: new Date(),
         type: 'system',
       });
@@ -892,6 +1043,35 @@ export class ChatOverlay {
         username: 'System',
         userAvatar: '',
         message: `Friend request sent to ${msg.data.username}`,
+        timestamp: new Date(),
+        type: 'system',
+      });
+    }));
+
+    // Friend request declined (by you)
+    this.unsubscribers.push(wsClient.on('chat:friend-request-declined', (msg) => {
+      this.addLocalMessage(this.state.activeTabId, {
+        id: `system-${Date.now()}`,
+        userId: 0,
+        username: 'System',
+        userAvatar: '',
+        message: `Declined friend request from ${msg.data.username}`,
+        timestamp: new Date(),
+        type: 'system',
+      });
+    }));
+
+    // Friend request declined (by them)
+    this.unsubscribers.push(wsClient.on('friend:request-declined', (msg) => {
+      const { username } = msg.data;
+      showToast(`${username} declined your friend request`, 'info');
+      
+      this.addLocalMessage('global', {
+        id: `system-${Date.now()}`,
+        userId: 0,
+        username: 'System',
+        userAvatar: '',
+        message: `${username} declined your friend request`,
         timestamp: new Date(),
         type: 'system',
       });
@@ -925,18 +1105,31 @@ export class ChatOverlay {
 
     // Invite received
     this.unsubscribers.push(wsClient.on('chat:invite-received', (msg) => {
-      const { fromUsername, type, id } = msg.data;
-      showToast(`${fromUsername} invited you to ${type === 'tournament' ? 'a tournament' : 'a game'}!`, 'info');
+      const { fromUsername, type, id, gameId } = msg.data;
       
-      this.addLocalMessage('global', {
-        id: `invite-${Date.now()}`,
-        userId: 0,
-        username: 'System',
-        userAvatar: '',
-        message: `${fromUsername} invited you to ${type === 'tournament' ? 'a tournament' : 'a game'}. Use /join ${fromUsername} to accept.`,
-        timestamp: new Date(),
-        type: 'notification',
-      });
+      if (type === 'tournament') {
+        showToast(`${fromUsername} invited you to a tournament!`, 'info');
+        this.addLocalMessage('global', {
+          id: `invite-${Date.now()}`,
+          userId: 0,
+          username: 'System',
+          userAvatar: '',
+          message: `${fromUsername} invited you to tournament "${msg.data.name}". Type /join ${fromUsername} to join.`,
+          timestamp: new Date(),
+          type: 'notification',
+        });
+      } else {
+        showToast(`${fromUsername} invited you to a private game!`, 'info');
+        this.addLocalMessage('global', {
+          id: `invite-${Date.now()}`,
+          userId: 0,
+          username: 'System',
+          userAvatar: '',
+          message: `${fromUsername} invited you to a private game. Type /join ${fromUsername} to accept.`,
+          timestamp: new Date(),
+          type: 'notification',
+        });
+      }
     }));
 
     // Tournament chat join
@@ -1095,6 +1288,7 @@ export class ChatOverlay {
       tab.unreadCount++;
     }
 
+    this.saveChatHistory();
     this.render();
   }
 
@@ -1302,8 +1496,10 @@ export class ChatOverlay {
           wsClient.send('chat:friend-add', { username, message: message || '' });
         } else if (action === 'remove' && username) {
           wsClient.send('chat:friend-remove', { username });
+        } else if (action === 'decline' && username) {
+          wsClient.send('chat:friend-decline', { username });
         } else {
-          this.showError('Usage: /f add <username> [message] or /f remove <username>');
+          this.showError('Usage: /f add <username> [message], /f remove <username>, or /f decline <username>');
         }
         break;
       }
@@ -1377,10 +1573,6 @@ export class ChatOverlay {
               <td class="px-2 py-1 h-12">Send to global chat</td>
             </tr>
             <tr class="even:bg-white/10 align-top">
-              <td class="px-2 py-1 h-12 whitespace-nowrap">/t [msg]</td>
-              <td class="px-2 py-1 h-12">Send to tournament chat</td>
-            </tr>
-            <tr class="even:bg-white/10 align-top">
               <td class="px-2 py-1 h-12 whitespace-nowrap">/w &lt;usr&gt; [msg]</td>
               <td class="px-2 py-1 h-12">Whisper to user</td>
             </tr>
@@ -1391,6 +1583,10 @@ export class ChatOverlay {
             <tr class="even:bg-white/10 align-top">
               <td class="px-2 py-1 h-12 whitespace-nowrap">/f add &lt;usr&gt; [msg]</td>
               <td class="px-2 py-1 h-12">Add friend</td>
+            </tr>
+            <tr class="even:bg-white/10 align-top">
+              <td class="px-2 py-1 h-12 whitespace-nowrap">/f decline &lt;usr&gt;</td>
+              <td class="px-2 py-1 h-12">Decline friend request</td>
             </tr>
             <tr class="even:bg-white/10 align-top">
               <td class="px-2 py-1 h-12 whitespace-nowrap">/f remove &lt;usr&gt;</td>
@@ -1407,10 +1603,6 @@ export class ChatOverlay {
             <tr class="even:bg-white/10 align-top">
               <td class="px-2 py-1 h-12 whitespace-nowrap">/join &lt;usr&gt;</td>
               <td class="px-2 py-1 h-12">Join user's session</td>
-            </tr>
-            <tr class="even:bg-white/10 align-top">
-              <td class="px-2 py-1 h-12 whitespace-nowrap">/profile &lt;usr&gt;</td>
-              <td class="px-2 py-1 h-12">View profile</td>
             </tr>
             <tr class="align-top">
               <td class="px-2 py-1 h-12 whitespace-nowrap">/dnd</td>
