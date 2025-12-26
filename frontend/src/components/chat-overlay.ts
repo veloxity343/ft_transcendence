@@ -1573,10 +1573,6 @@ export class ChatOverlay {
               <td class="px-2 py-1 h-12">Send to global chat</td>
             </tr>
             <tr class="even:bg-white/10 align-top">
-              <td class="px-2 py-1 h-12 whitespace-nowrap">/t [msg]</td>
-              <td class="px-2 py-1 h-12">Send to tournament chat</td>
-            </tr>
-            <tr class="even:bg-white/10 align-top">
               <td class="px-2 py-1 h-12 whitespace-nowrap">/w &lt;usr&gt; [msg]</td>
               <td class="px-2 py-1 h-12">Whisper to user</td>
             </tr>
@@ -1607,10 +1603,6 @@ export class ChatOverlay {
             <tr class="even:bg-white/10 align-top">
               <td class="px-2 py-1 h-12 whitespace-nowrap">/join &lt;usr&gt;</td>
               <td class="px-2 py-1 h-12">Join user's session</td>
-            </tr>
-            <tr class="even:bg-white/10 align-top">
-              <td class="px-2 py-1 h-12 whitespace-nowrap">/profile &lt;usr&gt;</td>
-              <td class="px-2 py-1 h-12">View profile</td>
             </tr>
             <tr class="align-top">
               <td class="px-2 py-1 h-12 whitespace-nowrap">/dnd</td>
