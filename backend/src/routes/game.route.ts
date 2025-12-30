@@ -1,3 +1,8 @@
+/**
+ * Game Routes
+ * HTTP endpoints for game-related operations
+ * Most game interactions happen via WebSocket, these are for querying game state
+ */
 import { FastifyPluginAsync } from 'fastify';
 import { GameService } from '../services/game.service';
 import { authenticate, getUserId } from '../middleware/auth.middleware';

@@ -1,6 +1,12 @@
+/**
+ * Match History Service
+ * Manages game and tournament history, player statistics, and ELO tracking
+ * Records match results and calculates comprehensive player stats
+ */
 import { PrismaClient } from '@prisma/client';
 import { EloService } from './elo.service';
 
+/** Individual match history entry with full details */
 export interface MatchHistoryEntry {
   id: number;
   date: string;
@@ -101,10 +107,15 @@ export interface PlayerStats {
 }
 
 export class MatchHistoryService {
+  // Cache AI user ID to avoid repeated database queries
   private aiUserId: number | null = null;
 
   constructor(private prisma: PrismaClient) {}
 
+  /**
+   * Get AI user ID (cached for performance)
+   * AI user is identified by special email address
+   */
   private async getAIUserId(): Promise<number | null> {
     if (this.aiUserId !== null) return this.aiUserId;
     
@@ -119,6 +130,10 @@ export class MatchHistoryService {
 
   /**
    * Record a completed game and update player stats/ELO
+   * This is called at the end of every game to persist results
+   * Updates both players' stats, calculates ELO changes, and stores match history
+   * AI games don't affect ELO for either player
+   * @returns Complete match history entry with all calculated values
    */
   async recordGameResult(
     gameId: number,

@@ -1,5 +1,15 @@
 /**
+ * JSON array helper utilities
+ * These utilities manage arrays stored as JSON strings in the database
+ * Used for user relationships (friends, blocks) and game history
+ * All functions are defensive and return safe defaults on parse errors
+ */
+
+/**
  * Parse a JSON string array, returning empty array if invalid
+ * Filters out non-number values for type safety
+ * @param jsonString - JSON stringified array from database
+ * @returns Parsed array of numbers, or empty array if parsing fails
  */
 export function parseJsonArray(jsonString: string | null | undefined): number[] {
   if (!jsonString) return [];
@@ -24,6 +34,8 @@ export function stringifyJsonArray(arr: number[]): string {
 
 /**
  * Add an item to a JSON array string
+ * Ensures uniqueness - item is only added if not already present
+ * @returns Updated JSON string with item added
  */
 export function addToJsonArray(jsonString: string | null | undefined, item: number): string {
   const arr = parseJsonArray(jsonString);
@@ -52,6 +64,8 @@ export function isInJsonArray(jsonString: string | null | undefined, item: numbe
 
 /**
  * Parse a generic JSON array (for game history, etc.)
+ * Unlike parseJsonArray, this preserves any type of array elements
+ * @returns Parsed array of any type, or empty array if parsing fails
  */
 export function parseGenericJsonArray<T>(jsonString: string | null | undefined): T[] {
   if (!jsonString) return [];
@@ -69,6 +83,8 @@ export function parseGenericJsonArray<T>(jsonString: string | null | undefined):
 
 /**
  * Add to generic JSON array
+ * Optionally limits array size by removing oldest entries (FIFO)
+ * Useful for limiting match history or activity logs
  */
 export function addToGenericJsonArray<T>(jsonString: string | null | undefined, item: T, maxLength?: number): string {
   const arr = parseGenericJsonArray<T>(jsonString);

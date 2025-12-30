@@ -1,9 +1,19 @@
+/**
+ * Authentication Service
+ * Handles user authentication, password hashing, and refresh token management
+ * Uses Argon2 for secure password hashing (resistant to GPU attacks)
+ */
 import { PrismaClient } from '@prisma/client';
 import * as argon from 'argon2';
 
 export class AuthService {
   constructor(private prisma: PrismaClient) {}
 
+  /**
+   * Register a new user
+   * Hashes password with Argon2 before storage
+   * @throws Error if email or username already exists (P2002 unique constraint violation)
+   */
   async signup(email: string, username: string, password: string) {
     const hash = await argon.hash(password);
 
@@ -25,6 +35,12 @@ export class AuthService {
     }
   }
 
+  /**
+   * Authenticate user with credentials
+   * Supports login with either email or username
+   * Returns partial object if 2FA is required, full user object otherwise
+   * @throws Error if user doesn't exist or password is invalid
+   */
   async signin(username: string, password: string) {
     const user = await this.prisma.user.findFirst({
       where: {
@@ -49,6 +65,10 @@ export class AuthService {
     return user;
   }
 
+  /**
+   * Sign out user by invalidating their refresh token
+   * This prevents the refresh token from being used again
+   */
   async signout(userId: number) {
     await this.prisma.user.updateMany({
       where: {
@@ -61,6 +81,10 @@ export class AuthService {
     });
   }
 
+  /**
+   * Store hashed refresh token for user
+   * Called when issuing new tokens
+   */
   async updateRefreshToken(userId: number, refreshToken: string) {
     const hash = await argon.hash(refreshToken);
     await this.prisma.user.update({
@@ -69,6 +93,11 @@ export class AuthService {
     });
   }
 
+  /**
+   * Verify refresh token and return user for token refresh
+   * Validates that the provided token matches the stored hash
+   * @throws Error if token is invalid or user has no stored token
+   */
   async refreshTokens(userId: number, refreshToken: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

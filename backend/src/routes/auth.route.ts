@@ -1,3 +1,7 @@
+/**
+ * Authentication Routes
+ * Handles user registration, login, logout, token refresh, and 2FA
+ */
 import { FastifyPluginAsync } from 'fastify';
 import { AuthService } from '../services/auth.service';
 import { TwoFactorService } from '../services/twofa.service';

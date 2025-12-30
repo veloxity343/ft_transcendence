@@ -1,5 +1,12 @@
+/**
+ * Chat Service
+ * Manages real-time chat rooms and messages across the application
+ * Supports multiple room types: global, game-specific, private messages, spectator, and lobby
+ * Messages are stored in-memory with configurable history limits
+ */
 import { ConnectionManager } from '../websocket/connection.manager';
 
+/** Types of chat rooms in the system */
 export enum ChatRoomType {
   GLOBAL = 'global',
   GAME = 'game',
@@ -8,6 +15,7 @@ export enum ChatRoomType {
   LOBBY = 'lobby',
 }
 
+/** Individual chat message structure */
 export interface ChatMessage {
   id: string;
   roomId: string;
@@ -16,9 +24,10 @@ export interface ChatMessage {
   userAvatar: string;
   message: string;
   timestamp: Date;
-  type: 'message' | 'system' | 'notification';
+  type: 'message' | 'system' | 'notification';  // system messages for joins/leaves, notifications for game events
 }
 
+/** Chat room structure with member tracking */
 export interface ChatRoom {
   id: string;
   type: ChatRoomType;
@@ -30,17 +39,23 @@ export interface ChatRoom {
 }
 
 export class ChatService {
+  // In-memory storage for chat rooms and messages
   private rooms = new Map<string, ChatRoom>();
   private userRooms = new Map<number, Set<string>>(); // Track which rooms each user is in
   private messageHistory = new Map<string, ChatMessage[]>();
   
   constructor(private connectionManager: ConnectionManager) {
-    // Create global chat room
+    // Create global chat room on startup
     this.createRoom('global', ChatRoomType.GLOBAL, 'Global Chat');
   }
 
   // ==================== ROOM MANAGEMENT ====================
 
+  /**
+   * Create a new chat room
+   * @param maxMessages - Maximum messages to keep in history (older messages are removed)
+   * @throws Error if room already exists
+   */
   createRoom(
     roomId: string,
     type: ChatRoomType,
@@ -65,6 +80,10 @@ export class ChatService {
     return room;
   }
 
+  /**
+   * Delete a chat room and remove all members
+   * Cleans up all associated data
+   */
   deleteRoom(roomId: string): boolean {
     const room = this.rooms.get(roomId);
     if (!room) return false;
@@ -89,6 +108,12 @@ export class ChatService {
 
   // ==================== MEMBER MANAGEMENT ====================
 
+  /**
+   * Add user to a chat room
+   * Sends room history to the user and notifies other members
+   * If user is already in room, just sends history without re-announcing
+   * @throws Error if room doesn't exist
+   */
   joinRoom(userId: number, roomId: string, username?: string): boolean {
     const room = this.rooms.get(roomId);
     if (!room) {

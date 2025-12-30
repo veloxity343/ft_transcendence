@@ -1,3 +1,8 @@
+/**
+ * User Service
+ * Manages user profiles, relationships (friends, blocks), and leaderboard
+ * User relationships are stored as JSON arrays in the database for simplicity
+ */
 import { PrismaClient } from '@prisma/client';
 import * as argon from 'argon2';
 import { parseJsonArray, stringifyJsonArray, addToJsonArray, removeFromJsonArray } from '../utils/array-helpers';
@@ -7,6 +12,11 @@ export class UserService {
 
   // ==================== READ OPERATIONS ====================
 
+  /**
+   * Get user by ID with sensitive fields removed
+   * Parses JSON array fields (friends, blocks, etc.) for easier consumption
+   * @throws Error if user not found
+   */
   async getUser(id: number) {
     const user = await this.prisma.user.findUnique({
       where: { id },
@@ -30,6 +40,10 @@ export class UserService {
     };
   }
 
+  /**
+   * Search users by username or email
+   * Returns limited public information for search results
+   */
   async searchUsers(query: string, limit: number = 10) {
     const users = await this.prisma.user.findMany({
       where: {
@@ -50,6 +64,11 @@ export class UserService {
     return users;
   }
 
+  /**
+   * Get ranked leaderboard of players
+   * Excludes AI opponent and users with no games played
+   * Ordered by rank (ELO-based) descending
+   */
   async getLeaderboard(limit: number = 100) {
     const users = await this.prisma.user.findMany({
       where: {
@@ -82,6 +101,10 @@ export class UserService {
 
   // ==================== UPDATE PROFILE ====================
 
+  /**
+   * Update user's username
+   * @throws Error if username is already taken (unique constraint)
+   */
   async updateUsername(userId: number, newUsername: string) {
     try {
       const user = await this.prisma.user.update({
@@ -114,6 +137,11 @@ export class UserService {
     }
   }
 
+  /**
+   * Change user password
+   * Requires current password verification for security
+   * @throws Error if current password is incorrect
+   */
   async updatePassword(userId: number, currentPassword: string, newPassword: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -141,6 +169,10 @@ export class UserService {
 
   // ==================== FRIEND SYSTEM ====================
 
+  /**
+   * Get user's friend list with basic profile info
+   * Returns empty array if user has no friends
+   */
   async getFriends(userId: number) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -172,6 +204,12 @@ export class UserService {
     return friends;
   }
 
+  /**
+   * Send friend request or accept pending request
+   * If target has already sent a request, both become friends immediately
+   * Otherwise, adds user to target's 'added' list (pending requests)
+   * Blocks are checked to prevent friend requests to/from blocked users
+   */
   async addFriend(userId: number, targetId: number) {
     if (userId === targetId) {
       throw new Error('Cannot add yourself as friend');

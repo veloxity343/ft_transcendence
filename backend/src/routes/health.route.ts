@@ -1,3 +1,8 @@
+/**
+ * Health Check Routes
+ * Provides endpoints for monitoring server health and status
+ * Used by load balancers and monitoring systems
+ */
 import { FastifyPluginAsync } from 'fastify';
 
 const healthRoutes: FastifyPluginAsync = async (fastify) => {

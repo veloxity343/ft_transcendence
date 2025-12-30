@@ -1,7 +1,21 @@
+/**
+ * Validation utilities
+ * Provides DTO validation, sanitization, and validation helper functions
+ * Uses class-validator for declarative validation rules
+ */
 import { plainToInstance } from 'class-transformer';
 import { validate, ValidationError } from 'class-validator';
 import { FastifyReply } from 'fastify';
 
+/**
+ * Validates request body against a DTO class using class-validator decorators
+ * Automatically sends 400 Bad Request with formatted errors if validation fails
+ * Strips unknown properties (whitelist) and rejects if non-whitelisted properties are present
+ * @param DtoClass - The DTO class with validation decorators
+ * @param body - The request body to validate
+ * @param reply - Fastify reply object for sending error responses
+ * @returns Validated DTO instance or null if validation failed (response already sent)
+ */
 export async function validateDto<T extends object>(
   DtoClass: new () => T,
   body: any,
@@ -34,6 +48,8 @@ export async function validateDto<T extends object>(
 
 /**
  * Format validation errors into a readable format
+ * Converts class-validator errors into a simple key-value structure
+ * @returns Object with field names as keys and error messages as values
  */
 function formatValidationErrors(errors: ValidationError[]): Record<string, string[]> {
   const formatted: Record<string, string[]> = {};
@@ -60,6 +76,8 @@ function formatValidationErrors(errors: ValidationError[]): Record<string, strin
 
 /**
  * Sanitize a string to prevent XSS attacks
+ * Escapes HTML special characters that could be used for injection
+ * Should be applied to user-generated content before displaying in HTML
  */
 export function sanitizeString(str: string): string {
   return str
@@ -89,6 +107,8 @@ export function isValidUsername(username: string): boolean {
 
 /**
  * Validate password strength
+ * Enforces minimum length for basic security without being overly restrictive
+ * @returns Object with validation result and error message if invalid
  */
 export function isStrongPassword(password: string): { valid: boolean; message?: string } {
   if (password.length < 8) {
