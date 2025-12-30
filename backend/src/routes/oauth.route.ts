@@ -1,3 +1,8 @@
+/**
+ * OAuth Routes
+ * Handles OAuth 2.0 authentication flow with external providers
+ * Supports Google OAuth
+ */
 import { FastifyPluginAsync } from 'fastify';
 import { OAuthService } from '../services/oauth.service';
 import { AuthService } from '../services/auth.service';

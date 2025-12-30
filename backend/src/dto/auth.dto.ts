@@ -1,3 +1,8 @@
+/**
+ * Authentication Data Transfer Objects
+ * Defines validation rules for authentication endpoints
+ * Uses class-validator decorators for declarative validation
+ */
 import {
   IsEmail,
   IsNotEmpty,
@@ -6,6 +11,7 @@ import {
   MaxLength,
 } from 'class-validator';
 
+/** DTO for user registration */
 export class SignUpDto {
   @IsEmail()
   @IsNotEmpty()
@@ -24,6 +30,7 @@ export class SignUpDto {
   username: string;
 }
 
+/** DTO for user login */
 export class SignInDto {
   @IsString()
   @IsNotEmpty()
@@ -34,6 +41,7 @@ export class SignInDto {
   password: string;
 }
 
+/** DTO for completing 2FA challenge during login */
 export class TwoFactorDto {
   @IsNotEmpty()
   @IsString()
@@ -44,6 +52,7 @@ export class TwoFactorDto {
   twoFAcode: string;
 }
 
+/** DTO for verifying 2FA code when enabling/disabling */
 export class VerifyTwoFactorDto {
   @IsNotEmpty()
   @IsString()

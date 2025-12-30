@@ -1,3 +1,30 @@
+/**
+ * Tournament Service
+ * Manages tournament lifecycle, bracket generation, and match progression
+ * 
+ * Tournament Flow:
+ * 1. Creation: Tournament is created with size (power of 2)
+ * 2. Registration: Players join until max is reached
+ * 3. Starting: Bracket is generated, matches are created
+ * 4. In Progress: Matches are played, winners advance
+ * 5. Finished: Final match determines winner
+ * 
+ * Bracket Generation:
+ * - Single elimination: losers are eliminated immediately
+ * - Seeds are assigned for fair matchups (1 vs lowest seed, etc.)
+ * - Byes are given to early seeds if needed
+ * 
+ * Match Progression:
+ * - Players must ready-up before match starts
+ * - Match is created in game service when both players ready
+ * - Winner advances to next round automatically
+ * - Tournament ends when final match completes
+ * 
+ * Local Tournaments:
+ * - Supports offline tournaments with named players (not user accounts)
+ * - All games are played on one device
+ * - No ELO changes for local tournaments
+ */
 import { PrismaClient } from '@prisma/client';
 import { UserService } from './user.service';
 import { GameService } from './game.service';
@@ -14,8 +41,9 @@ import {
 } from '../game/types/tournament.types';
 
 export class TournamentService {
+  // Active tournaments cached in memory for performance
   private activeCache = new Map<number, Tournament>();
-  // Track which games belong to which tournaments
+  // Track which games belong to which tournaments for automatic progression
   private gameToTournament = new Map<number, { tournamentId: number; matchId: string }>();
 
   constructor(
@@ -24,12 +52,18 @@ export class TournamentService {
     private gameService: GameService,
     private connectionManager: ConnectionManager,
   ) {
+    // Load active tournaments from database on startup (handles server restarts)
     this.setupGameEndListener();
     this.loadActiveTournaments();
   }
 
   // ==================== INITIALIZATION ====================
 
+  /**
+   * Load active tournaments from database on startup
+   * Rebuilds in-memory state from persistent storage
+   * Critical for handling server restarts during tournaments
+   */
   private async loadActiveTournaments() {
     try {
       const activeTournaments = await this.prisma.tournament.findMany({

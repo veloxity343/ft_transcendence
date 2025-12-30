@@ -1,5 +1,10 @@
+/**
+ * User Data Transfer Objects
+ * Validation rules for user profile and relationship management endpoints
+ */
 import { IsString, IsEmail, IsNotEmpty, IsNumber, MaxLength, MinLength } from 'class-validator';
 
+/** DTO for updating username */
 export class UpdateUsernameDto {
   @IsString()
   @IsNotEmpty()
@@ -7,6 +12,7 @@ export class UpdateUsernameDto {
   username: string;
 }
 
+/** DTO for updating email address */
 export class UpdateEmailDto {
   @IsEmail()
   @IsNotEmpty()
@@ -14,6 +20,7 @@ export class UpdateEmailDto {
   email: string;
 }
 
+/** DTO for changing password (requires current password for security) */
 export class UpdatePasswordDto {
   @IsString()
   @IsNotEmpty()
@@ -26,6 +33,7 @@ export class UpdatePasswordDto {
   newPassword: string;
 }
 
+/** DTO for user relationship actions (add friend, block, etc.) */
 export class UserRelationshipDto {
   @IsNumber()
   @IsNotEmpty()

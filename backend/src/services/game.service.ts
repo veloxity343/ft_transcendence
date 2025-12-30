@@ -1,3 +1,24 @@
+/**
+ * Game Service
+ * Core game engine for the Pong game
+ * Manages game rooms, physics simulation, matchmaking, and AI opponents
+ * 
+ * Game Loop:
+ * - Runs at REFRESH_RATE (10ms) for smooth 100 FPS physics
+ * - Updates ball position, checks collisions, handles scoring
+ * - Broadcasts game state to players and spectators
+ * 
+ * Physics:
+ * - Ball accelerates on paddle hits for increasing difficulty
+ * - Paddle momentum affects ball trajectory (moving paddle = faster ball)
+ * - Spin influence allows players to angle shots
+ * - Speed decay prevents infinite acceleration
+ * 
+ * Reconnection:
+ * - Players can disconnect and reconnect within RECONNECT_TIMEOUT
+ * - Game pauses during reconnection period
+ * - Forfeit if reconnection timeout expires
+ */
 import { PrismaClient } from '@prisma/client';
 import { GameRoom, GameState, PlayerInfo } from '../game/interfaces/game-room.interface';
 import { GameStatus, PaddleDirection } from '../game/types/game.types';
@@ -6,18 +27,19 @@ import { ConnectionManager, UserStatus } from '../websocket/connection.manager';
 import { parseJsonArray, stringifyJsonArray } from '../utils/array-helpers';
 
 export class GameService {
-  private rooms = new Map<number, GameRoom>();
-  private userToRoom = new Map<number, number>();
-  private aiUserId: number | null = null;
+  // In-memory game state
+  private rooms = new Map<number, GameRoom>();  // gameId -> GameRoom
+  private userToRoom = new Map<number, number>();  // userId -> gameId
+  private aiUserId: number | null = null;  // Cached AI user ID
 
-  // Game constants
-  private readonly REFRESH_RATE = 10; // ms
-  private readonly PADDLE_SPEED = 1;
-  private readonly INITIAL_BALL_SPEED = 0.35;
-  private readonly MAX_BALL_SPEED = 1.2;
-  private readonly WIN_SCORE = 11;
-  private readonly PADDLE_HEIGHT = 10;
-  private readonly BALL_RADIUS = 1;
+  // ==================== Game Physics Constants ====================
+  private readonly REFRESH_RATE = 10; // ms (100 FPS game loop)
+  private readonly PADDLE_SPEED = 1;  // % per frame
+  private readonly INITIAL_BALL_SPEED = 0.35;  // % per frame
+  private readonly MAX_BALL_SPEED = 1.2;  // Speed cap
+  private readonly WIN_SCORE = 11;  // First to 11 wins
+  private readonly PADDLE_HEIGHT = 10;  // %
+  private readonly BALL_RADIUS = 1;  // %
   private readonly GAME_ASPECT_RATIO = 16 / 9;
   
   // Paddle collision zones (x positions in %)
@@ -25,10 +47,11 @@ export class GameService {
   private readonly RIGHT_PADDLE_X = 97;
   private readonly PADDLE_WIDTH = 1;
   
-  private readonly BALL_ACCELERATION = 1.08;
-  private readonly PADDLE_MOMENTUM_MULTIPLIER = 0.4;
-  private readonly SPIN_INFLUENCE = 0.8;
-  private readonly BALL_SPEED_DECAY = 0.9995;
+  // Physics modifiers
+  private readonly BALL_ACCELERATION = 1.08;  // Speed increase per paddle hit
+  private readonly PADDLE_MOMENTUM_MULTIPLIER = 0.4;  // How much paddle movement affects ball
+  private readonly SPIN_INFLUENCE = 0.8;  // How much hitting off-center affects angle
+  private readonly BALL_SPEED_DECAY = 0.9995;  // Slight speed reduction per frame
 
   // Reconnection timeout (30 seconds)
   private readonly RECONNECT_TIMEOUT = 30000;

@@ -1,3 +1,9 @@
+/**
+ * User Routes
+ * Handles user profiles, avatar uploads, friend system, and blocking
+ * Public routes: view profiles, search, leaderboard
+ * Protected routes: update profile, manage relationships
+ */
 import { FastifyPluginAsync } from 'fastify';
 import { UserService } from '../services/user.service';
 import { 

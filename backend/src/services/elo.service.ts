@@ -1,6 +1,17 @@
+/**
+ * ELO Rating Service
+ * Implements the ELO rating system for player skill ranking
+ * 
+ * How it works:
+ * - Players start at 1200 ELO
+ * - Winning against higher-rated opponents gives more points
+ * - K-factor determines rating volatility (higher for new players)
+ * - Expected score is calculated using logistic curve based on rating difference
+ * - Actual outcome (1 for win, 0 for loss) is compared to expected score
+ */
 export class EloService {
   // K-factor determines how much ratings change after each game
-  // Higher K = more volatile ratings
+  // Higher K = more volatile ratings (faster adjustments for new players)
   private static readonly K_FACTOR_NEW = 40;      // New players (< 10 games)
   private static readonly K_FACTOR_INTERMEDIATE = 32;  // 10-30 games
   private static readonly K_FACTOR_ESTABLISHED = 24;   // 30+ games
@@ -19,9 +30,11 @@ export class EloService {
 
   /**
    * Calculate expected score (probability of winning)
+   * Uses the standard ELO formula: 1 / (1 + 10^((opponentElo - playerElo) / 400))
+   * Result is between 0 and 1, representing win probability
    * @param playerElo - Current player's ELO
    * @param opponentElo - Opponent's ELO
-   * @returns Expected score between 0 and 1
+   * @returns Expected score between 0 and 1 (0.5 = equal players)
    */
   static calculateExpectedScore(playerElo: number, opponentElo: number): number {
     return 1 / (1 + Math.pow(10, (opponentElo - playerElo) / 400));
@@ -29,11 +42,15 @@ export class EloService {
 
   /**
    * Calculate new ELO rating after a match
+   * Formula: newElo = currentElo + K * (actualScore - expectedScore)
+   * - K-factor adjusts based on experience (see getKFactor)
+   * - Actual score is 1 for win, 0 for loss
+   * - Minimum ELO is capped at 100 to prevent negative ratings
    * @param currentElo - Player's current ELO
    * @param opponentElo - Opponent's ELO
    * @param won - Whether the player won
    * @param gamesPlayed - Player's total games played (for K-factor)
-   * @returns New ELO rating
+   * @returns New ELO rating (minimum 100)
    */
   static calculateNewElo(
     currentElo: number,
@@ -91,7 +108,8 @@ export class EloService {
 
   /**
    * Calculate ELO for tournament matches
-   * Tournament matches have slightly higher K-factor for more impact
+   * Uses slightly higher K-factor (1.25x) to make tournaments more impactful
+   * This rewards tournament success more than casual games
    */
   static calculateTournamentMatchResult(
     player1Elo: number,

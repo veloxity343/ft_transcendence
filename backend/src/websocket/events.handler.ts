@@ -1,3 +1,20 @@
+/**
+ * WebSocket Events Handler
+ * Main WebSocket connection handler and message router
+ * Handles authentication, connection management, and routes messages to appropriate handlers
+ * 
+ * Connection Flow:
+ * 1. Client connects with JWT token in query or header
+ * 2. Token is verified
+ * 3. Connection is registered in ConnectionManager
+ * 4. User auto-joins global chat
+ * 5. Status is broadcast to all users
+ * 
+ * Message Routing:
+ * - Game messages -> game.websocket handler
+ * - Chat messages -> chat.websocket handler
+ * - Tournament messages -> tournament.websocket handler
+ */
 import { FastifyInstance } from 'fastify';
 import { ConnectionManager, UserStatus } from './connection.manager';
 import { GameService } from '../services/game.service';

@@ -1,11 +1,18 @@
+/**
+ * WebSocket Connection Manager
+ * Manages all active WebSocket connections and user presence status
+ * Provides event system for broadcasting and targeted messaging
+ */
 import { WebSocket } from '@fastify/websocket';
 
+/** User online status */
 export enum UserStatus {
   OFFLINE = 'offline',
   ONLINE = 'online',
   IN_GAME = 'in_game',
 }
 
+/** Active WebSocket connection with metadata */
 interface Connection {
   userId: number;
   socket: WebSocket;
@@ -13,11 +20,20 @@ interface Connection {
   connectedAt: Date;
 }
 
+/**
+ * Manages WebSocket connections and user presence
+ * Ensures single connection per user (new connection replaces old)
+ * Provides event system for internal communication between services
+ */
 export class ConnectionManager {
   private connections = new Map<number, Connection>();
   private socketToUser = new Map<WebSocket, number>();
   private eventHandlers = new Map<string, Set<Function>>();
 
+  /**
+   * Add or replace user's WebSocket connection
+   * Old connection is automatically closed when user reconnects
+   */
   addConnection(userId: number, socket: WebSocket) {
     // Remove old connection if exists
     this.removeConnection(userId);
@@ -32,6 +48,7 @@ export class ConnectionManager {
     this.socketToUser.set(socket, userId);
   }
 
+  /** Remove connection by user ID */
   removeConnection(userId: number) {
     const conn = this.connections.get(userId);
     if (conn) {
@@ -49,6 +66,10 @@ export class ConnectionManager {
     return null;
   }
 
+  /**
+   * Register event handler for internal events
+   * Used by services to listen for cross-service events
+   */
   on(event: string, handler: Function): void {
     if (!this.eventHandlers.has(event)) {
       this.eventHandlers.set(event, new Set());
@@ -93,6 +114,10 @@ export class ConnectionManager {
     return Array.from(this.connections.keys());
   }
 
+  /**
+   * Broadcast event to all connected users
+   * Also triggers internal event handlers for cross-service communication
+   */
   broadcast(event: string, data: any): void {
     const message = JSON.stringify({ event, data });
     this.connections.forEach(conn => {
@@ -106,6 +131,10 @@ export class ConnectionManager {
     }
   }
 
+  /**
+   * Send event to a specific user
+   * Fails silently if user is not connected or socket is closed
+   */
   emitToUser(userId: number, event: string, data: any) {
     const socket = this.getSocket(userId);
     if (socket && socket.readyState === socket.OPEN) {

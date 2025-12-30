@@ -1,9 +1,29 @@
+/**
+ * AI Opponent Service
+ * Provides AI-controlled opponents with configurable difficulty levels
+ * 
+ * How AI Works:
+ * - Makes decisions at configurable intervals (updateRate)
+ * - Predicts ball trajectory based on current velocity
+ * - Adds randomness/errors based on difficulty
+ * - Tracks ball position with configurable speed
+ * - Adjusts aggressiveness (forward positioning vs defensive)
+ * 
+ * Difficulty Levels:
+ * - Easy: Slow reactions, inaccurate predictions, stays defensive
+ * - Medium: Balanced speed and accuracy, good for most players
+ * - Hard: Fast reactions, accurate predictions, aggressive positioning
+ * 
+ * The AI is not perfect on purpose - it's designed to be beatable
+ * even on hard mode, but provides a challenging opponent
+ */
 import { PrismaClient } from '@prisma/client';
 import { GameService } from './game.service';
 import { UserService } from './user.service';
 import { ConnectionManager } from '../websocket/connection.manager';
 import { PaddleDirection } from '../game/types/game.types';
 
+/** Configuration for AI difficulty level */
 interface DifficultyConfig {
   updateRate: number;        // How often AI makes decisions (ms)
   reactionTime: number;       // Delay before reacting (ms)
@@ -15,12 +35,15 @@ interface DifficultyConfig {
 }
 
 export class AIOpponentService {
-  private aiInstances = new Map<number, NodeJS.Timeout>();
-  private lastDecisionTime = new Map<number, number>();
-  private targetPosition = new Map<number, number>();
+  // Active AI instances and their state
+  private aiInstances = new Map<number, NodeJS.Timeout>();  // gameId -> update timer
+  private lastDecisionTime = new Map<number, number>();  // gameId -> last decision timestamp
+  private targetPosition = new Map<number, number>();  // gameId -> target Y position
   
   private readonly PADDLE_HEIGHT = 10; // percentage of screen
   
+  // Difficulty configurations - tuned for fun gameplay
+  // Each difficulty is designed to provide a different challenge level
   private readonly DIFFICULTIES: Record<string, DifficultyConfig> = {
     easy: {
       updateRate: 100,          // Update 10x per second
@@ -58,6 +81,12 @@ export class AIOpponentService {
     private connectionManager: ConnectionManager,
   ) {}
 
+  /**
+   * Create a new game against AI opponent
+   * Player side (left/right) is randomized for variety
+   * AI user is created if it doesn't exist
+   * @returns Game ID and player numbers
+   */
   async createAIGame(userId: number, difficulty: 'easy' | 'medium' | 'hard' = 'medium'): Promise<{
     gameId: number;
     playerNumber: 1 | 2;

@@ -1,12 +1,21 @@
+/**
+ * Application configuration module
+ * Loads and validates environment variables and SSL certificates for the application
+ */
 import dotenv from 'dotenv';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
 dotenv.config();
 
-// load ssl certs
+/**
+ * Loads SSL certificate files from the filesystem
+ * Paths are configurable via environment variables to support both Docker and local development
+ * @returns Object containing key and certificate buffers
+ * @throws Process exits if certificates cannot be loaded when SSL is required
+ */
 const loadSSLCerts = () => {
-  // in docker: /app/ssl, in dev: ./ssl
+  // Docker uses /app/ssl, local development uses ./ssl
   const sslDir = process.env.SSL_DIR || join(__dirname, '..', '..', 'ssl');
   const keyPath = process.env.SSL_KEY_PATH || join(sslDir, 'key.pem');
   const certPath = process.env.SSL_CERT_PATH || join(sslDir, 'cert.pem');
@@ -23,8 +32,13 @@ const loadSSLCerts = () => {
   }
 };
 
+// SSL is required in production, optional in development
 const useSSL = process.env.USE_SSL === 'true' || process.env.ENVIRONMENT === 'PRODUCTION';
 
+/**
+ * Central application configuration
+ * All environment variables are loaded and typed here for type safety throughout the app
+ */
 export const config = {
   environment: process.env.ENVIRONMENT || 'DEVELOPMENT',
   port: parseInt(process.env.BACK_PORT || '3000', 10),

@@ -1,3 +1,8 @@
+/**
+ * OAuth Service
+ * Handles OAuth 2.0 authentication with external providers (42 School, Google)
+ * Implements the authorization code flow with PKCE where applicable
+ */
 import { PrismaClient } from '@prisma/client';
 import { config } from '../config/config';
 
@@ -27,6 +32,8 @@ export class OAuthService {
 
   /**
    * Generate the Google OAuth authorization URL
+   * User will be redirected here to grant permissions
+   * Requests offline access to get a refresh token
    */
   getGoogleAuthUrl(): string {
     const params = new URLSearchParams({
@@ -42,7 +49,9 @@ export class OAuthService {
   }
 
   /**
-   * Exchange authorization code for tokens
+   * Exchange authorization code for access and refresh tokens
+   * Called in the OAuth callback after user grants permissions
+   * @throws Error if code exchange fails (invalid code, mismatched redirect URI, etc.)
    */
   async exchangeGoogleCode(code: string): Promise<GoogleTokenResponse> {
     console.log('Exchanging code with Google...');
@@ -93,6 +102,9 @@ export class OAuthService {
 
   /**
    * Handle Google OAuth callback - create or link user account
+   * If user exists with this Google ID, return existing user
+   * If email exists but no Google ID, link the accounts
+   * Otherwise, create a new user
    */
   async handleGoogleCallback(code: string): Promise<{ user: any; isNewUser: boolean }> {
     // Exchange code for tokens
