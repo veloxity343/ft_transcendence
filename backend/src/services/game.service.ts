@@ -65,7 +65,7 @@ export class GameService {
 
     // For local games, just end the game
     if (room.isLocal) {
-      return this.endLocalGameForfeit(gameId, userId);
+      return await this.endLocalGameForfeit(gameId, userId);
     }
 
     // Determine winner (opponent of forfeiting player)
@@ -182,7 +182,7 @@ export class GameService {
     this.emitToRoom(gameId, 'game-sound', { type: soundType });
   }
 
-  private endLocalGameForfeit(gameId: number, userId: number): { success: boolean; error?: string } {
+  private async endLocalGameForfeit(gameId: number, userId: number): Promise<{ success: boolean; error?: string }> {
     const room = this.rooms.get(gameId);
     if (!room) return { success: false, error: 'Game not found' };
 
@@ -212,6 +212,19 @@ export class GameService {
       room.player2Score = this.WIN_SCORE;
     }
 
+    // Query tournament info for local tournament games
+    let gameInfo = null;
+    if (room.isLocalTournament) {
+      gameInfo = await this.prisma.game.findUnique({
+        where: { id: gameId },
+        select: { 
+          tournamentId: true,
+          tournamentRound: true,
+          tournamentMatch: true,
+        },
+      });
+    }
+
     this.connectionManager.emitToUser(userId, 'game-ended', {
       gameId,
       finalScore: {
@@ -220,11 +233,26 @@ export class GameService {
       },
       forfeit: true,
       isLocal: true,
+      isLocalTournament: room.isLocalTournament || false,
+      tournamentId: gameInfo?.tournamentId || null,
+      tournamentRound: gameInfo?.tournamentRound || null,
+      tournamentMatch: gameInfo?.tournamentMatch || null,
     });
 
     // Handle tournament game end if this is a tournament match
-    if (room.isLocalTournament) {
-      this.handleTournamentGameEnd(gameId, 0, 0, room);
+    if (room.isLocalTournament && gameInfo?.tournamentId) {
+      this.connectionManager.broadcast('tournament:game-ended', {
+        gameId,
+        tournamentId: gameInfo.tournamentId,
+        winnerId: 0,
+        winnerPlayerNumber,
+        loserId: 0,
+        player1Id: room.player1Id,
+        player2Id: room.player2Id,
+        score1: room.player1Score,
+        score2: room.player2Score,
+        isLocalTournament: true,
+      });
     }
 
     // Cleanup
@@ -1279,26 +1307,6 @@ export class GameService {
     (room as any).prevBallY = room.ballY;
   }
 
-  private updatePaddles(room: GameRoom) {
-    const prevPaddleLeft = room.paddleLeft;
-    const prevPaddleRight = room.paddleRight;
-
-    if (room.paddleLeftDirection === PaddleDirection.UP) {
-      room.paddleLeft = Math.max(0, room.paddleLeft - this.PADDLE_SPEED);
-    } else if (room.paddleLeftDirection === PaddleDirection.DOWN) {
-      room.paddleLeft = Math.min(90, room.paddleLeft + this.PADDLE_SPEED);
-    }
-
-    if (room.paddleRightDirection === PaddleDirection.UP) {
-      room.paddleRight = Math.max(0, room.paddleRight - this.PADDLE_SPEED);
-    } else if (room.paddleRightDirection === PaddleDirection.DOWN) {
-      room.paddleRight = Math.min(90, room.paddleRight + this.PADDLE_SPEED);
-    }
-
-    (room as any).paddleLeftVelocity = room.paddleLeft - prevPaddleLeft;
-    (room as any).paddleRightVelocity = room.paddleRight - prevPaddleRight;
-  }
-
   private updateBall(room: GameRoom) {
     const prevBallX = room.ballX;
     const prevBallY = room.ballY;
@@ -1558,32 +1566,8 @@ export class GameService {
       }
     }
 
-    if (room.isLocalTournament && gameInfo?.tournamentId) {
-      const winnerPlayerNumber = room.player1Score > room.player2Score ? 1 : 2;
-      this.connectionManager.broadcast('tournament:game-ended', {
-        gameId,
-        tournamentId: gameInfo.tournamentId,
-        winnerId: 0,
-        winnerPlayerNumber,
-        loserId: 0,
-        player1Id: room.player1Id,
-        player2Id: room.player2Id,
-        score1: room.player1Score,
-        score2: room.player2Score,
-        isLocalTournament: true,
-      });
-    } else if (gameInfo?.tournamentId) {
-      console.log(`Tournament game ${gameId} ended, notifying tournament service`);
-      this.connectionManager.broadcast('tournament:game-ended', {
-        gameId,
-        tournamentId: gameInfo.tournamentId,
-        winnerId,
-        loserId,
-        player1Id: room.player1Id,
-        player2Id: room.player2Id,
-        score1: room.player1Score,
-        score2: room.player2Score,
-      });
+    if (gameInfo?.tournamentId) {
+      await this.handleTournamentGameEnd(gameId, winnerId, loserId, room);
     }
 
     this.cleanupAfterGameEnd(gameId, room);
