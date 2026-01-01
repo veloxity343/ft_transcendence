@@ -11,10 +11,6 @@ services:
       - ENVIRONMENT=PRODUCTION
       - FRONT_URL=https://localhost
       - SITE_URL=https://localhost
-      - JWT_SECRET=${JWT_SECRET}
-      - FORTYTWO_ID=${FORTYTWO_ID}
-      - FORTYTWO_SECRET=${FORTYTWO_SECRET}
-      - FORTYTWO_CALLBACK=${FORTYTWO_CALLBACK}
       - USE_SSL=true
       - SSL_DIR=/app/ssl
       - BACK_PORT=3000
@@ -35,6 +31,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: transcendence-init-db
+    env_file:
+      - ./backend/.env
     environment:
       - DATABASE_URL=file:/app/data/transcendence.db
     volumes:
@@ -49,6 +47,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: transcendence-frontend
+    env_file:
+      - ./frontend/.env
     environment:
       - VITE_API_URL=https://localhost/api
       - VITE_WS_URL=wss://localhost/ws
