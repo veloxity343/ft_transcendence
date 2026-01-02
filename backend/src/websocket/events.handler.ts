@@ -16,7 +16,7 @@
  * - Tournament -> tournament.websocket handler
  */
 import { FastifyInstance } from 'fastify';
-import { ConnectionManager, UserStatus } from './connection.manager';
+import { ConnectionManager } from './connection.manager';
 import { GameService } from '../services/game.service';
 import { UserService } from '../services/user.service';
 import { ChatService } from '../services/chat.service';
@@ -68,11 +68,9 @@ export async function websocketHandler(fastify: FastifyInstance) {
 
     // Verify jwt
     let userId: number;
-    let userEmail: string;
     try {
       const decoded = fastify.jwt.verify(token) as any;
       userId = decoded.sub;
-      userEmail = decoded.email;
     } catch (err) {
       ws.close(1008, 'Invalid token');
       return;

@@ -1,4 +1,3 @@
-import { router } from '../router';
 import { authApi } from '../api/auth';
 import { oauthApi } from '../api/oauth';
 import { validators } from '../utils/validators';

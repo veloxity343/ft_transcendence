@@ -79,9 +79,9 @@ export class GameRenderer {
   drawPaddle(x: number, y: number, width: number, height: number, isPlayer: boolean = false): void {
     const paddleColor = this.theme.paddle;
     
-    // Optional glow effect
+    // Glow effect
     if (this.theme.glowEffects && this.theme.ballGlow) {
-      this.ctx.shadowBlur = 15;
+      this.ctx.shadowBlur = isPlayer ? 20 : 15;
       this.ctx.shadowColor = this.theme.ballGlow;
     }
     
@@ -95,7 +95,8 @@ export class GameRenderer {
     // Add highlight for non-Atari themes
     if (this.theme.paddleHighlight) {
       this.ctx.fillStyle = this.theme.paddleHighlight;
-      this.ctx.fillRect(Math.floor(x), Math.floor(y), 2, height);
+      const highlightWidth = isPlayer ? 3 : 2;
+      this.ctx.fillRect(Math.floor(x), Math.floor(y), highlightWidth, height);
     }
   }
 

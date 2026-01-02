@@ -1200,7 +1200,7 @@ export function TournamentView(): HTMLElement {
     }));
 
     // Joined tournament
-    unsubscribers.push(wsClient.on('tournament:joined', (msg) => {
+    unsubscribers.push(wsClient.on('tournament:joined', (_msg) => {
       showToast('Joined tournament!', 'success');
       // Refresh bracket view
       if (selectedTournamentId) {
@@ -1209,7 +1209,7 @@ export function TournamentView(): HTMLElement {
     }));
 
     // Left tournament
-    unsubscribers.push(wsClient.on('tournament:left', (msg) => {
+    unsubscribers.push(wsClient.on('tournament:left', (_msg) => {
       showToast('Left tournament', 'info');
       showView('list');
     }));

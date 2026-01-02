@@ -1,4 +1,3 @@
-import { router } from '../router';
 import { authApi } from '../api/auth';
 import { storage } from '../utils/storage';
 import { showToast } from '../utils/toast';

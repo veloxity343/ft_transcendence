@@ -25,7 +25,7 @@ import { Footer } from './components/footer';
 import { PrivacyPolicyView } from './views/privacy';
 import { TermsOfServiceView } from './views/tos';
 import { errorOverlay } from './components/error-overlay';
-import { initChatOverlay, getChatOverlay } from './components/chat-overlay';
+import { initChatOverlay } from './components/chat-overlay';
 import { soundManager } from './utils/sound';
 import { SoundControls } from './components/sound-controls';
 import './utils/debug';

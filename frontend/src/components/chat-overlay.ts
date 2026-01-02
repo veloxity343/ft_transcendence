@@ -825,7 +825,7 @@ export class ChatOverlay {
 
     // Username clicks for profile
     this.container.querySelectorAll('.chat-message-username').forEach(elem => {
-      elem.addEventListener('click', (e) => {
+      elem.addEventListener('click', (_e) => {
         const userId = (elem as HTMLElement).dataset.userId;
         if (userId) {
           // Navigate to profile or show profile modal
@@ -946,7 +946,7 @@ export class ChatOverlay {
 
     // Handle direct game join (receiver side - bypasses game ID entry)
     this.unsubscribers.push(wsClient.on('chat:join-game-direct', (msg) => {
-      const { gameId, username } = msg.data;
+      const { username } = msg.data;
       showToast(`Joining ${username}'s game...`, 'success');
       // Navigate to game - the game-starting event will handle the rest
       router.navigateTo('/game');
@@ -1006,7 +1006,7 @@ export class ChatOverlay {
 
     // Friend request accepted
     this.unsubscribers.push(wsClient.on('friend:request-accepted', (msg) => {
-      const { userId, username } = msg.data;
+      const { username } = msg.data;
       showToast(`${username} accepted your friend request!`, 'success');
       
       this.addLocalMessage('global', {
@@ -1105,7 +1105,7 @@ export class ChatOverlay {
 
     // Invite received
     this.unsubscribers.push(wsClient.on('chat:invite-received', (msg) => {
-      const { fromUsername, type, id, gameId } = msg.data;
+      const { fromUsername, type } = msg.data;
       
       if (type === 'tournament') {
         showToast(`${fromUsername} invited you to a tournament!`, 'info');

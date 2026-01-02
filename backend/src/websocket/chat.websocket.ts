@@ -545,7 +545,7 @@ export async function setupChatWebSocket(
             }));
 
             // Open DM tab for target user and send notification + message
-            const roomId = getRoomId(userId, targetUser.id);
+            getRoomId(userId, targetUser.id);
             
             // Send notification in DM
             connectionManager.emitToUser(targetUser.id, 'friend:request-received', {
@@ -763,7 +763,7 @@ export async function setupChatWebSocket(
               
               // Check if user is already in a waiting private game
               if (currentGameId) {
-                const gameInfo = gameService?.getGameInfo(currentGameId);
+                gameService?.getGameInfo(currentGameId);
                 // If already in a game that's in progress or local, can't invite
                 const rooms = (gameService as any).rooms;
                 const room = rooms?.get(currentGameId);
@@ -977,7 +977,7 @@ export async function setupChatWebSocket(
 
             const roomId = `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             
-            const room = chatService.createRoom(roomId, type, name);
+            chatService.createRoom(roomId, type, name);
             chatService.joinRoom(userId, roomId, username);
 
             socket.send(JSON.stringify({
@@ -1027,7 +1027,7 @@ export async function setupChatWebSocket(
   };
 }
 
-// Helper function at the bottom of the file
+// Helper function
 function getRoomId(userId1: number, userId2: number): string {
   const [lower, higher] = [userId1, userId2].sort((a, b) => a - b);
   return `dm-${lower}-${higher}`;
