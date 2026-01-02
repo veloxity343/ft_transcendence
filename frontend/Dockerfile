@@ -28,6 +28,6 @@ RUN npm install
 #build
 RUN npm run build
 
-EXPOSE 5173
+EXPOSE 4173
 
-CMD ["npm", "run", "preview", "--", "--port", "5173", "--host"]
+CMD ["npm", "run", "preview", "--", "--port", "4173", "--host"]

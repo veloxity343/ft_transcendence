@@ -1,9 +1,18 @@
 // frontend/vite.config.ts
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vite'
 
 export default defineConfig({
   server: {
-    port: 5173,
-    host: true,
+    host: '0.0.0.0',
+    port: 4173,
   },
-});
+  preview: {
+    host: '0.0.0.0',
+    port: 4173,
+    strictPort: true,
+    allowedHosts: [
+      'localhost',
+      '.nip.io',
+    ]
+  }
+})
