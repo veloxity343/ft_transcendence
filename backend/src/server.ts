@@ -1,17 +1,17 @@
 /**
  * Main server entry point
- * Initializes and starts the Fastify server with configured plugins and routes
+ * Initializes and starts the fastify server with configured plugins and routes
  */
 import Fastify from 'fastify';
 import app from './app';
 import { config } from './config/config';
 
 /**
- * Starts the Fastify server
- * - Configures logging based on environment (verbose in dev, errors only in prod)
+ * Starts fastify server
+ * - Configures logging
  * - Sets up SSL if configured for production
  * - Registers all application plugins and routes
- * - Binds to all interfaces (0.0.0.0) to work in Docker containers
+ * - Binds to all interfaces (0.0.0.0) to work in docker containers
  */
 async function start() {
   const fastify = Fastify({
@@ -25,7 +25,7 @@ async function start() {
     ...(config.ssl && { https: config.ssl }),
   });
 
-  // Register our app
+  // Register app
   await fastify.register(app);
 
   try {

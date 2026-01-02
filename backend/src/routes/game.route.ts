@@ -1,15 +1,14 @@
 /**
  * Game Routes
  * HTTP endpoints for game-related operations
- * Most game interactions happen via WebSocket, these are for querying game state
+ * Most game interactions happen via websocket, routes querying game state
  */
 import { FastifyPluginAsync } from 'fastify';
 import { GameService } from '../services/game.service';
 import { authenticate, getUserId } from '../middleware/auth.middleware';
 
 const gameRoutes: FastifyPluginAsync = async (fastify) => {
-  // Get GameService instance - we'll need to pass it from the WebSocket handler
-  // For now, we'll create it here, but ideally it should be shared
+  // Get gameservice instance
   const gameService = (fastify as any).gameService as GameService;
 
   if (!gameService) {
@@ -60,7 +59,7 @@ const gameRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  // Get game statistics
+  // Get game stats
   fastify.get('/stats', {
     onRequest: [authenticate],
   }, async (request, reply) => {
@@ -173,7 +172,7 @@ const gameRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  // Get specific game details
+  // Get game details
   fastify.get('/:gameId', {
     onRequest: [authenticate],
   }, async (request, reply) => {
@@ -192,7 +191,7 @@ const gameRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      // Get player information
+      // Get player info
       const [player1, player2] = await Promise.all([
         fastify.prisma.user.findUnique({
           where: { id: game.player1 },

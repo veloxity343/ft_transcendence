@@ -67,7 +67,7 @@ export async function setupChatWebSocket(
   const gameService = (fastify as any).gameService;
   const tournamentService = (fastify as any).tournamentService;
 
-  // Track user chat states
+  // Track per-user chat state in-memory per process
   const userChatStates = new Map<number, UserChatState>();
 
   const getUserChatState = (userId: number): UserChatState => {
@@ -83,7 +83,7 @@ export async function setupChatWebSocket(
     return state;
   };
 
-  // Helper to get user by username
+  // Helper to get user by username for lookups
   const getUserByUsername = async (username: string) => {
     return prisma.user.findFirst({
       where: {
@@ -106,7 +106,7 @@ export async function setupChatWebSocket(
     return state?.dndEnabled || false;
   };
 
-  // Helper to check if whisper is allowed (not DND or in active list)
+  // Helper to check if whisper is allowed: respects DND unless sender already has active thread
   const canWhisper = (fromUserId: number, toUserId: number): boolean => {
     const targetState = userChatStates.get(toUserId);
     if (!targetState?.dndEnabled) return true;

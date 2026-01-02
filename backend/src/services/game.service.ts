@@ -51,7 +51,7 @@ export class GameService {
   private readonly BALL_ACCELERATION = 1.08;  // Speed increase per paddle hit
   private readonly PADDLE_MOMENTUM_MULTIPLIER = 0.4;  // How much paddle movement affects ball
   private readonly SPIN_INFLUENCE = 0.8;  // How much hitting off-center affects angle
-  private readonly BALL_SPEED_DECAY = 0.9995;  // Slight speed reduction per frame
+  private readonly BALL_SPEED_DECAY = 0.9995;  // Innate air resistance (multiplier per frame)
 
   // Reconnection timeout (30 seconds)
   private readonly RECONNECT_TIMEOUT = 30000;

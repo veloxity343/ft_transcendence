@@ -1,7 +1,6 @@
 /**
  * Main application module
- * Configures all Fastify plugins, services, routes, and WebSocket handlers
- * This is the heart of the application where all components are wired together
+ * Configures all fastify plugins, services, routes, and websocket handlers
  */
 import { join } from 'path';
 import AutoLoad, { AutoloadPluginOptions } from '@fastify/autoload';
@@ -27,9 +26,9 @@ const options: AppOptions = {};
 const app: FastifyPluginAsync<AppOptions> = async (fastify, opts): Promise<void> => {
   // ==================== CORS Configuration ====================
   // Allow cross-origin requests from the frontend for API access
-  // Credentials are enabled for JWT cookies/headers
+  // Credentials are enabled for jwt cookies/headers
   await fastify.register(cors, {
-    origin: true, // config.frontUrl,
+    origin: true, // config.fronturl,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -37,8 +36,8 @@ const app: FastifyPluginAsync<AppOptions> = async (fastify, opts): Promise<void>
   });
 
   // ==================== JWT Authentication ====================
-  // JWT tokens are used for stateless authentication
-  // Secret must be kept secure and rotated periodically in production
+  // Jwt tokens used for stateless authentication
+  // Secret must be kept secure and rotated in production
   await fastify.register(jwt, {
     secret: config.jwt.secret,
   });
@@ -53,7 +52,7 @@ const app: FastifyPluginAsync<AppOptions> = async (fastify, opts): Promise<void>
   });
 
   // ==================== Static File Serving ====================
-  // Serves uploaded files (avatars) at /uploads/ URL prefix
+  // Serves uploaded files (avatars) at /uploads/ url prefix
   await fastify.register(staticFiles, {
     root: join(__dirname, '..', config.uploadDir),
     prefix: '/uploads/',
@@ -63,16 +62,16 @@ const app: FastifyPluginAsync<AppOptions> = async (fastify, opts): Promise<void>
   await fastify.register(websocket);
 
   // ==================== Plugin Loading ====================
-  // Load plugins (including Prisma database connection)
+  // Load plugins
   await fastify.register(AutoLoad, {
     dir: join(__dirname, 'plugins'),
     options: opts,
   });
 
   // ==================== Service Initialization ====================
-  // Services are initialized here and decorated onto the Fastify instance
-  // This allows both HTTP routes and WebSocket handlers to access the same service instances
-  // Order matters: dependent services must be initialized after their dependencies
+  // Services are initialized here and decorated onto fastify instance
+  // Allows http routes & websocket handlers to access same service instances
+  // Dependent services initialized after their dependencies
   const connectionManager = new ConnectionManager();
   const userService = new UserService(fastify.prisma);
   const chatService = new ChatService(connectionManager);
@@ -103,15 +102,15 @@ const app: FastifyPluginAsync<AppOptions> = async (fastify, opts): Promise<void>
 
   fastify.log.info('All services initialized successfully');
 
-  // AutoLoad will automatically register all routes in the routes directory
-  // with their respective prefixes (defined by autoPrefix export)
+  // Autoload will automatically register all routes in routes directory
+  // with their prefixes
   await fastify.register(AutoLoad, {
     dir: join(__dirname, 'routes'),
     options: opts,
   });
 
   // ==================== SETUP WEBSOCKET ====================
-  // Setup WebSocket handlers (they will use the existing services)
+  // Setup websocket handlers
   await websocketHandler(fastify);
 
   // Error handler

@@ -1,19 +1,19 @@
 /**
  * WebSocket Events Handler
- * Main WebSocket connection handler and message router
- * Handles authentication, connection management, and routes messages to appropriate handlers
+ * Main websocket connection handler and message router
+ * Handles authentication, connection management, and routes to appropriate handlers
  * 
  * Connection Flow:
- * 1. Client connects with JWT token in query or header
- * 2. Token is verified
+ * 1. Client connects with jwt token in query or header
+ * 2. Token verified
  * 3. Connection is registered in ConnectionManager
  * 4. User auto-joins global chat
  * 5. Status is broadcast to all users
  * 
- * Message Routing:
- * - Game messages -> game.websocket handler
- * - Chat messages -> chat.websocket handler
- * - Tournament messages -> tournament.websocket handler
+ * Routing:
+ * - Game -> game.websocket handler
+ * - Chat -> chat.websocket handler
+ * - Tournament -> tournament.websocket handler
  */
 import { FastifyInstance } from 'fastify';
 import { ConnectionManager, UserStatus } from './connection.manager';
@@ -34,27 +34,27 @@ export async function websocketHandler(fastify: FastifyInstance) {
   const aiOpponentService = fastify.aiOpponentService;
   const userService = new UserService(fastify.prisma);
 
-  // Setup game WebSocket handlers
+  // Setup game websocket handlers
   const gameWebSocket = await setupGameWebSocket(
     fastify,
     gameService,
     aiOpponentService
   );
 
-  // Setup chat WebSocket handlers
+  // Setup chat websocket handlers
   const chatWebSocket = await setupChatWebSocket(
     fastify,
     chatService
   );
 
-  // Setup tournament WebSocket handlers
+  // Setup tournament websocket handlers
   const tournamentWebSocket = await setupTournamentWebSocket(
     fastify,
     tournamentService
   );
 
   fastify.get('/ws', { websocket: true }, (connection, request) => {
-    // The connection object IS the WebSocket
+    // The connection object is the websocket
     const ws = connection;
 
     // Extract token from query or headers
@@ -66,7 +66,7 @@ export async function websocketHandler(fastify: FastifyInstance) {
       return;
     }
 
-    // Verify JWT
+    // Verify jwt
     let userId: number;
     let userEmail: string;
     try {
@@ -78,7 +78,7 @@ export async function websocketHandler(fastify: FastifyInstance) {
       return;
     }
 
-    // Add connection immediately
+    // Add connection
     connectionManager.addConnection(userId, ws);
     fastify.log.info(`User ${userId} connected to WebSocket`);
 
@@ -92,7 +92,7 @@ export async function websocketHandler(fastify: FastifyInstance) {
       try {
         chatService.joinRoom(userId, 'global');
       } catch (error) {
-        // Already in room, that's fine
+        // already in room
       }
       return userInfo;
     }).catch(err => {
@@ -138,7 +138,7 @@ export async function websocketHandler(fastify: FastifyInstance) {
           return;
         }
 
-        // Handle other WebSocket events
+        // Handle other websocket events
         switch (message.event) {
           case 'update-status':
             connectionManager.setStatus(userId, message.data.status);
@@ -204,7 +204,7 @@ export async function websocketHandler(fastify: FastifyInstance) {
   });
 }
 
-// Extend Fastify types to include our services
+// Extend fastify types to include services
 declare module 'fastify' {
   interface FastifyInstance {
     connectionManager: ConnectionManager;

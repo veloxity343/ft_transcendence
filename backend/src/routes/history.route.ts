@@ -33,7 +33,7 @@ const historyRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * GET /history/matches/:userId
-   * Get match history for a specific user (public)
+   * Get match history for user
    */
   fastify.get('/matches/:userId', async (request, reply) => {
     const { userId } = request.params as { userId: string };
@@ -59,7 +59,7 @@ const historyRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * GET /history/match/:gameId
-   * Get details for a specific match
+   * Get match details
    */
   fastify.get('/match/:gameId', async (request, reply) => {
     const { gameId } = request.params as { gameId: string };
@@ -77,7 +77,7 @@ const historyRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * GET /history/tournaments
-   * Get current user's tournament history
+   * Get tournament history
    */
   fastify.get('/tournaments', {
     onRequest: [authenticate],
@@ -91,7 +91,7 @@ const historyRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * GET /history/tournaments/:userId
-   * Get tournament history for a specific user (public)
+   * Get tournament history for a specific user
    */
   fastify.get('/tournaments/:userId', async (request, reply) => {
     const { userId } = request.params as { userId: string };
@@ -109,7 +109,7 @@ const historyRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * GET /history/tournament/:tournamentId
-   * Get detailed tournament info including bracket
+   * Get tournament info including bracket
    */
   fastify.get('/tournament/:tournamentId', async (request, reply) => {
     const { tournamentId } = request.params as { tournamentId: string };
@@ -129,7 +129,7 @@ const historyRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * GET /history/stats
-   * Get current user's stats
+   * Get user stats
    */
   fastify.get('/stats', {
     onRequest: [authenticate],
@@ -146,7 +146,7 @@ const historyRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * GET /history/stats/:userId
-   * Get stats for a specific user (public)
+   * Get stats for a specific user
    */
   fastify.get('/stats/:userId', async (request, reply) => {
     const { userId } = request.params as { userId: string };

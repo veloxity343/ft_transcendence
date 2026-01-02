@@ -20,7 +20,7 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
     let dbStatus = 'unknown';
     
     try {
-      // Test database connection
+      // Test db connection
       await fastify.prisma.$queryRaw`SELECT 1`;
       dbStatus = 'connected';
     } catch (error) {

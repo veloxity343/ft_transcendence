@@ -1,14 +1,14 @@
 /**
  * JSON array helper utilities
- * These utilities manage arrays stored as JSON strings in the database
+ * These utilities manage arrays stored as json strings in the db
  * Used for user relationships (friends, blocks) and game history
  * All functions are defensive and return safe defaults on parse errors
  */
 
 /**
- * Parse a JSON string array, returning empty array if invalid
+ * Parse a json string array, returning empty array if invalid
  * Filters out non-number values for type safety
- * @param jsonString - JSON stringified array from database
+ * @param jsonString - Json stringified array from database
  * @returns Parsed array of numbers, or empty array if parsing fails
  */
 export function parseJsonArray(jsonString: string | null | undefined): number[] {
@@ -26,16 +26,16 @@ export function parseJsonArray(jsonString: string | null | undefined): number[] 
 }
 
 /**
- * Stringify an array to JSON string
+ * Stringify an array to json string
  */
 export function stringifyJsonArray(arr: number[]): string {
   return JSON.stringify(arr);
 }
 
 /**
- * Add an item to a JSON array string
+ * Add an item to a json array string
  * Ensures uniqueness - item is only added if not already present
- * @returns Updated JSON string with item added
+ * @returns Updated json string with item added
  */
 export function addToJsonArray(jsonString: string | null | undefined, item: number): string {
   const arr = parseJsonArray(jsonString);
@@ -46,7 +46,7 @@ export function addToJsonArray(jsonString: string | null | undefined, item: numb
 }
 
 /**
- * Remove an item from a JSON array string
+ * Remove an item from a json array string
  */
 export function removeFromJsonArray(jsonString: string | null | undefined, item: number): string {
   const arr = parseJsonArray(jsonString);
@@ -55,7 +55,7 @@ export function removeFromJsonArray(jsonString: string | null | undefined, item:
 }
 
 /**
- * Check if an item exists in a JSON array string
+ * Check if an item exists in a json array string
  */
 export function isInJsonArray(jsonString: string | null | undefined, item: number): boolean {
   const arr = parseJsonArray(jsonString);
@@ -63,7 +63,7 @@ export function isInJsonArray(jsonString: string | null | undefined, item: numbe
 }
 
 /**
- * Parse a generic JSON array (for game history, etc.)
+ * Parse a generic json array (for game history, etc.)
  * Unlike parseJsonArray, this preserves any type of array elements
  * @returns Parsed array of any type, or empty array if parsing fails
  */
@@ -82,8 +82,8 @@ export function parseGenericJsonArray<T>(jsonString: string | null | undefined):
 }
 
 /**
- * Add to generic JSON array
- * Optionally limits array size by removing oldest entries (FIFO)
+ * Add to generic json array
+ * Optionally limits array size by removing oldest entries (fifo)
  * Useful for limiting match history or activity logs
  */
 export function addToGenericJsonArray<T>(jsonString: string | null | undefined, item: T, maxLength?: number): string {

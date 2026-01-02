@@ -1,6 +1,6 @@
 /**
  * Authentication Routes
- * Handles user registration, login, logout, token refresh, and 2FA
+ * Handles user registration, login, logout, token refresh, and 2fa
  */
 import { FastifyPluginAsync } from 'fastify';
 import { AuthService } from '../services/auth.service';
@@ -14,7 +14,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   const authService = new AuthService(fastify.prisma);
   const twoFAService = new TwoFactorService(fastify.prisma);
 
-  // Sign Up
+  // Signup
   fastify.post('/signup', async (request, reply) => {
     const dto = await validateDto(SignUpDto, request.body, reply);
     if (!dto) return;
@@ -47,7 +47,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  // Sign In
+  // Signin
   fastify.post('/signin', async (request, reply) => {
     const dto = await validateDto(SignInDto, request.body, reply);
     if (!dto) return;
@@ -84,7 +84,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  // Sign Out
+  // Signout
   fastify.post('/signout', {
     onRequest: [authenticate],
   }, async (request, reply) => {
@@ -95,7 +95,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     reply.send({ message: 'Signed out successfully' });
   });
 
-  // Refresh Token
+  // Refresh token
   fastify.post('/refresh', async (request, reply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) {
@@ -129,7 +129,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  // Get Current User
+  // Get current user
   fastify.get('/me', {
     onRequest: [authenticate],
   }, async (request, reply) => {
@@ -149,7 +149,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     reply.send(safeUser);
   });
 
-  // 2FA Routes
+  // 2fa routes
   fastify.get('/2fa/generate', {
     onRequest: [authenticate],
   }, async (request, reply) => {

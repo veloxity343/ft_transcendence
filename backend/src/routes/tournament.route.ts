@@ -1,7 +1,6 @@
 /**
  * Tournament Routes
  * HTTP endpoints for tournament information and management
- * Tournament interactions (join, ready, etc.) happen via WebSocket
  */
 import { FastifyPluginAsync } from 'fastify';
 import { TournamentService } from '../services/tournament.service';
