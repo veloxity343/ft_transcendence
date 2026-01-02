@@ -5,12 +5,14 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: transcendence-backend
+    env_file:
+      - ./backend/.env
     environment:
       - DATABASE_URL=file:/app/data/transcendence.db
       - TRUST_PROXY=true
       - ENVIRONMENT=PRODUCTION
-      - FRONT_URL=https://localhost
-      - SITE_URL=https://localhost
+      - FRONT_URL=https://192.168.100.249
+      - SITE_URL=https://192.168.100.249
       - USE_SSL=true
       - SSL_DIR=/app/ssl
       - BACK_PORT=3000
@@ -50,8 +52,8 @@ services:
     env_file:
       - ./frontend/.env
     environment:
-      - VITE_API_URL=https://localhost/api
-      - VITE_WS_URL=wss://localhost/ws
+      - VITE_API_URL=https://192.168.100.249/api
+      - VITE_WS_URL=wss://192.168.100.249/ws
     networks:
       - transcendence-network
     expose:

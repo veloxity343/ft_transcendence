@@ -22,9 +22,6 @@ COPY tsconfig.json ./
 COPY prisma ./prisma
 COPY src ./src
 
-# please remove it once it's ready for production
-COPY test ./test
-
 # copy ssl certs. comment-out or remove it if really not required
 COPY ssl ./ssl
 

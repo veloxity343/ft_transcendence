@@ -12,6 +12,7 @@ RESET := \033[0m
 APP_NAME := ft_transcendence
 COMPOSE_FILE := docker-compose.yml
 LOG_FILE := logs/$(APP_NAME).log
+HOST_IP ?= 192.168.100.249
 
 # ============================================================================
 # HELP
@@ -97,7 +98,7 @@ ssl: create-dirs
 		openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 		  -keyout backend/ssl/key.pem \
 		  -out backend/ssl/cert.pem \
-		  -subj "/C=MY/ST=KL/L=KualaLumpur/O=42/CN=localhost" && \
+		  -subj "/C=MY/ST=KL/L=KualaLumpur/O=42/CN=$(HOST_IP)" && \
 		cp backend/ssl/*.pem nginx/ssl/ && \
 		echo "$(GREEN)✓ SSL certificates generated and copied to nginx/ssl$(RESET)"; \
 	else \
@@ -146,16 +147,16 @@ health:
 	@docker compose -f $(COMPOSE_FILE) ps
 	@echo ""
 	@echo "$(YELLOW)Testing API endpoint...$(RESET)"
-	@curl -sk https://localhost/api/health 2>/dev/null && echo "$(GREEN)✓ API healthy$(RESET)" || echo "$(RED)✗ API unreachable$(RESET)"
+	@curl -sk https://$(HOST_IP)/api/health 2>/dev/null && echo "$(GREEN)✓ API healthy$(RESET)" || echo "$(RED)✗ API unreachable$(RESET)"
 
 service-summary:
 	@echo ""
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(RESET)"
 	@echo "$(GREEN)$(APP_NAME) is running$(RESET)"
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(RESET)"
-	@echo "$(BLUE)Frontend:$(RESET)   https://localhost"
-	@echo "$(BLUE)Backend API:$(RESET) https://localhost/api"
-	@echo "$(BLUE)WebSocket:$(RESET)  wss://localhost/ws"
+	@echo "$(BLUE)Frontend:$(RESET)   https://$(HOST_IP)"
+	@echo "$(BLUE)Backend API:$(RESET) https://$(HOST_IP)/api"
+	@echo "$(BLUE)WebSocket:$(RESET)  wss://$(HOST_IP)/ws"
 	@echo ""
 	@echo "$(YELLOW)View logs:$(RESET)   make logs"
 	@echo "$(YELLOW)Check health:$(RESET) make health"
