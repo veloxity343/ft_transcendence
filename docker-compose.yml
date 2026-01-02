@@ -6,16 +6,46 @@ services:
       dockerfile: Dockerfile
     container_name: transcendence-backend
     env_file:
-      - ./backend/.env
+      - .env
     environment:
-      - DATABASE_URL=file:/app/data/transcendence.db
+      # Database
+      - DATABASE_URL=${DATABASE_URL}
+      
+      # Network
       - TRUST_PROXY=true
-      - ENVIRONMENT=PRODUCTION
-      - FRONT_URL=https://192.168.100.249
-      - SITE_URL=https://192.168.100.249
-      - USE_SSL=true
+      - ENVIRONMENT=${ENVIRONMENT}
+      - FRONT_URL=https://${HOST_IP}
+      - SITE_URL=https://${HOST_IP}
+      
+      # SSL
+      - USE_SSL=${USE_SSL}
       - SSL_DIR=/app/ssl
-      - BACK_PORT=3000
+      
+      # Ports
+      - BACK_PORT=${BACK_PORT}
+      
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      - ACCESS_TOKEN_EXPIRATION=${ACCESS_TOKEN_EXPIRATION}
+      - REFRESH_TOKEN_EXPIRATION=${REFRESH_TOKEN_EXPIRATION}
+      
+      # OAuth - 42
+      - FORTYTWO_ID=${FORTYTWO_ID}
+      - FORTYTWO_SECRET=${FORTYTWO_SECRET}
+      - FORTYTWO_CALLBACK=https://${HOST_IP}/api/auth/42/callback
+      
+      # OAuth - Google
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_CALLBACK_URL=https://${HOST_IP}/api/oauth/google/callback
+      
+      # 2FA
+      - MY_2FA_APP_NAME=${MY_2FA_APP_NAME}
+      
+      # Upload
+      - UPLOAD_DIR=${UPLOAD_DIR}
+      - DEFAULT_AVATAR=${DEFAULT_AVATAR}
+      
     volumes:
       - ./backend/data:/app/data
       - ./backend/uploads:/app/uploads
@@ -25,7 +55,7 @@ services:
     networks:
       - transcendence-network
     expose:
-      - "3000"
+      - "${BACK_PORT}"
     restart: unless-stopped
 
   init-db:
@@ -34,9 +64,9 @@ services:
       dockerfile: Dockerfile
     container_name: transcendence-init-db
     env_file:
-      - ./backend/.env
+      - .env
     environment:
-      - DATABASE_URL=file:/app/data/transcendence.db
+      - DATABASE_URL=${DATABASE_URL}
     volumes:
       - ./backend/data:/app/data
     command: npx prisma migrate deploy
@@ -50,14 +80,14 @@ services:
       dockerfile: Dockerfile
     container_name: transcendence-frontend
     env_file:
-      - ./frontend/.env
+      - .env
     environment:
-      - VITE_API_URL=https://192.168.100.249/api
-      - VITE_WS_URL=wss://192.168.100.249/ws
+      - VITE_API_URL=https://${HOST_IP}/api
+      - VITE_WS_URL=wss://${HOST_IP}/ws
     networks:
       - transcendence-network
     expose:
-      - "5173"
+      - "${FRONT_PORT}"
     restart: unless-stopped
 
   # SSL
@@ -79,5 +109,3 @@ services:
 networks:
   transcendence-network:
     driver: bridge
-
-# Note: No volumes section needed - SQLite file is in bind mount

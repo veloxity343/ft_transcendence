@@ -17,7 +17,6 @@ COPY tsconfig.json ./
 # 	rm -rf /var/lib/apt/lists/* && \
 # 	npm ci
 
-
 #copy source code
 COPY prisma ./prisma
 COPY src ./src

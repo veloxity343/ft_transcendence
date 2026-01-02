@@ -2,7 +2,7 @@
         db-migrate db-reset db-seed test lint format check-env prod-up \
         prod-build prod-down prod-logs backup restore health
 
-# colors for output
+# Colors for output
 GREEN := \033[0;32m
 YELLOW := \033[0;33m
 RED := \033[0;31m
@@ -12,7 +12,13 @@ RESET := \033[0m
 APP_NAME := ft_transcendence
 COMPOSE_FILE := docker-compose.yml
 LOG_FILE := logs/$(APP_NAME).log
-HOST_IP ?= 192.168.100.249
+
+# Load environment variables from .env if it exists
+-include .env
+export
+
+# Default to localhost if HOST_IP not set
+HOST_IP ?= localhost
 
 # ============================================================================
 # HELP
@@ -67,23 +73,22 @@ help:
 setup: check-env create-dirs
 	@echo "$(GREEN)✓ Project setup complete$(RESET)"
 	@echo "$(YELLOW)Next steps:$(RESET)"
-	@echo "  1. Review .env files in backend/ and frontend/"
+	@echo "  1. Edit .env file and set your configuration (HOST_IP, OAuth credentials, etc.)"
 	@echo "  2. Run 'make ssl' to generate SSL certificates"
 	@echo "  3. Run 'make up' to start services"
 
 check-env:
 	@echo "$(YELLOW)Checking environment files...$(RESET)"
-	@if [ ! -f backend/.env ]; then \
-		cp backend/env.example backend/.env; \
-		echo "$(GREEN)✓ Created backend/.env from template$(RESET)"; \
+	@if [ ! -f .env ]; then \
+		cp env.example .env; \
+		echo "$(GREEN)✓ Created .env from template$(RESET)"; \
+		echo "$(YELLOW)⚠️  Please edit .env and configure:$(RESET)"; \
+		echo "    - HOST_IP (your VM's IP address)"; \
+		echo "    - JWT_SECRET (generate a random secret)"; \
+		echo "    - FORTYTWO_ID and FORTYTWO_SECRET (from 42 intra)"; \
+		echo "    - GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET (from Google Cloud)"; \
 	else \
-		echo "$(GREEN)✓ backend/.env exists$(RESET)"; \
-	fi
-	@if [ ! -f frontend/.env ]; then \
-		cp frontend/env.example frontend/.env; \
-		echo "$(GREEN)✓ Created frontend/.env from template$(RESET)"; \
-	else \
-		echo "$(GREEN)✓ frontend/.env exists$(RESET)"; \
+		echo "$(GREEN)✓ .env exists$(RESET)"; \
 	fi
 
 create-dirs:
@@ -93,16 +98,18 @@ create-dirs:
 	@echo "$(GREEN)✓ Directories created$(RESET)"
 
 ssl: create-dirs
-	@echo "$(YELLOW)Generating self-signed SSL certificates...$(RESET)"
+	@echo "$(YELLOW)Generating self-signed SSL certificates for $(HOST_IP)...$(RESET)"
 	@if [ ! -f backend/ssl/cert.pem ] || [ ! -f backend/ssl/key.pem ]; then \
 		openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 		  -keyout backend/ssl/key.pem \
 		  -out backend/ssl/cert.pem \
 		  -subj "/C=MY/ST=KL/L=KualaLumpur/O=42/CN=$(HOST_IP)" && \
 		cp backend/ssl/*.pem nginx/ssl/ && \
-		echo "$(GREEN)✓ SSL certificates generated and copied to nginx/ssl$(RESET)"; \
+		echo "$(GREEN)✓ SSL certificates generated for $(HOST_IP)$(RESET)"; \
 	else \
-		echo "$(GREEN)✓ SSL certificates already exist$(RESET)"; \
+		echo "$(YELLOW)SSL certificates exist. To regenerate, delete them first:$(RESET)"; \
+		echo "  rm backend/ssl/*.pem nginx/ssl/*.pem"; \
+		echo "  make ssl"; \
 	fi
 
 # ============================================================================

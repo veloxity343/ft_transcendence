@@ -19,7 +19,6 @@ COPY tailwind.config.js ./
 # 	rm -rf /var/lib/apt/lists/* && \
 # 	npm ci
 
-
 # copy source code
 COPY index.html ./
 COPY public ./public
