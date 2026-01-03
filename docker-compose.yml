@@ -51,12 +51,19 @@ services:
       - ./backend/uploads:/app/uploads
       - ./backend/ssl:/app/ssl
     depends_on:
-      - init-db
+      init-db:
+        condition: service_completed_successfully
     networks:
       - transcendence-network
     expose:
       - "${BACK_PORT}"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "const https=require('https');https.get('https://localhost:3000/health',{rejectUnauthorized:false},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
 
   init-db:
     build:
@@ -92,6 +99,12 @@ services:
     expose:
       - "${FRONT_PORT}"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "const http=require('http');http.get('http://localhost:4173',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
   # SSL
   nginx:
@@ -103,8 +116,10 @@ services:
       - "80:80"     # HTTP
       - "443:443"   # HTTPS
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
     networks:
       - transcendence-network
     restart: unless-stopped
@@ -112,3 +127,4 @@ services:
 networks:
   transcendence-network:
     driver: bridge
+
