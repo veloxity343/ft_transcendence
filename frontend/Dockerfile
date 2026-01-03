@@ -11,6 +11,7 @@ COPY package*json ./
 COPY tsconfig.json ./
 COPY postcss.config.js ./
 COPY tailwind.config.js ./
+COPY vite.config.js ./
 
 #install and update required dependencies. uncomment the commented in case this container does not work
 # RUN apt-get update && \
@@ -25,9 +26,15 @@ COPY public ./public
 COPY src ./src
 
 RUN npm install
+ARG VITE_API_URL
+ARG VITE_WS_URL
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_WS_URL=$VITE_WS_URL
 #build
 RUN npm run build
 
 EXPOSE 4173
 
-CMD ["npm", "run", "preview", "--", "--port", "4173", "--host"]
+RUN npm install -g serve
+CMD ["serve", "-s", "dist", "-l", "4173", "--no-clipboard"]
+

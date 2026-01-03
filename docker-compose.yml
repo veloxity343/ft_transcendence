@@ -78,6 +78,9 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=https://${HOST_IP}/api
+        - VITE_WS_URL=wss://${HOST_IP}/ws
     container_name: transcendence-frontend
     env_file:
       - .env

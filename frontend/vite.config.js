@@ -3,16 +3,12 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   server: {
-    host: '0.0.0.0',
+    host: true,
     port: 4173,
   },
   preview: {
-    host: '0.0.0.0',
+    host: true,
     port: 4173,
     strictPort: true,
-    allowedHosts: [
-      'localhost',
-      '.nip.io',
-    ]
   }
 })
