@@ -56,21 +56,21 @@ Run `make help` to see all available commands
 ### Getting Started
 
 1. **Clone the repository**
-```bash
+   ```bash
    git clone git@github.com:veloxity343/ft_transcendence.git
    cd ft_transcendence
-```
+   ```
 
 2. **Run initial setup**
-```bash
+   ```bash
    make setup
-```
+   ```
    This creates the required directories and generates a `.env` file from the template.
 
 3. **Configure your environment**
    
    Open `.env` and set the required values:
-```bash
+   ```bash
    # Your domain or IP address
    HOST_IP=your.domain.com
    
@@ -81,34 +81,35 @@ Run `make help` to see all available commands
    # Get these from https://console.cloud.google.com/apis/credentials
    GOOGLE_CLIENT_ID=your-client-id
    GOOGLE_CLIENT_SECRET=your-client-secret
-```
+   ```
 
 4. **Generate SSL certificates**
-```bash
+   ```bash
    make ssl
-```
+   ```
 
 <details>
 <summary><strong>For local development</strong></summary>
 
 ### Development
 
-Frontend:
+   **Frontend:**
 
-``` bash
-cd frontend
-npm install
-npm run dev
-```
+   ``` bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
 
-Backend:
+   **Backend:**
 
-``` bash
-cd backend
-npm install
-npx prisma migrate dev
-npm run dev
-```
+   ``` bash
+   cd backend
+   npm install
+   npx prisma migrate dev
+   npm run dev
+   ```
+
 </details>
 
 ### Production
@@ -119,15 +120,15 @@ npm run dev
 #### Requires sudo
 
 5. **Enable privileged port binding (run once)**
-```bash
+   ```bash
    echo 'net.ipv4.ip_unprivileged_port_start=80' | sudo tee -a /etc/sysctl.conf
    sudo sysctl -p
-```
+   ```
 
 6. **Start services**
-```bash
+   ```bash
    make up
-```
+   ```
 
 7. **Access at** `https://your.domain.com`
 
@@ -137,37 +138,37 @@ npm run dev
 
 5. **Update `docker-compose.yml`**
 
-Ports:   
-```yaml
+   **Ports:**   
+   ```yaml
    ports:
      - "8080:80"
      - "8443:443"
-```
+   ```
    
-   Backend environment:
-```yaml
+   **Backend environment:**
+   ```yaml
    - FRONT_URL=https://${HOST_IP}:8443
    - SITE_URL=https://${HOST_IP}:8443
    - FORTYTWO_CALLBACK=https://${HOST_IP}:8443/api/auth/42/callback
    - GOOGLE_CALLBACK_URL=https://${HOST_IP}:8443/api/oauth/google/callback
-```
+   ```
    
    Frontend build args:
-```yaml
+   ```yaml
    args:
      - VITE_API_URL=https://${HOST_IP}:8443/api
      - VITE_WS_URL=wss://${HOST_IP}:8443/ws
-```
+   ```
 
 6. **Update `nginx/nginx.conf`**
-```nginx
+   ```nginx
    return 301 https://$host:8443$request_uri;
-```
+   ```
 
 7. **Start services**
-```bash
+   ```bash
    make up
-```
+   ```
 
 8. **Access at** `https://yourdomain.com:8443`
 
