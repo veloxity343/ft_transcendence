@@ -43,38 +43,55 @@ authentication, and container orchestration.
 
 ### Pre-requisites
 
--   Docker & Docker compose
--   Node.js LTS
--   npm
--   Required .env files
+-   Docker & Docker Compose
+-   Node.js LTS (for local development)
+-   npm (for local development)
 
-### Installation
+### Quick Commands
 
-``` bash
-git clone git@github.com:veloxity343/ft_transcendence.git
-cd ft_transcendence
-docker compose up --build
+This project uses a [Makefile](./Makefile) as the main task runner for testing and production.
+
+Run `make help` to see all available commands
+
+### Getting Started
+
+1. **Clone the repository**
+```bash
+   git clone git@github.com:veloxity343/ft_transcendence.git
+   cd ft_transcendence
 ```
 
-Then visit `http://localhost:4173`.
+2. **Run initial setup**
+```bash
+   make setup
+```
+   This creates the required directories and generates a `.env` file from the template.
 
-### Production
+3. **Configure your environment**
+   
+   Open `.env` and set the required values:
+```bash
+   # Your domain or IP address
+   HOST_IP=your.domain.com
+   
+   # Generate a secure JWT secret
+   JWT_SECRET=$(openssl rand -base64 64)
+   
+   # Google OAuth credentials
+   # Get these from https://console.cloud.google.com/apis/credentials
+   GOOGLE_CLIENT_ID=your-client-id
+   GOOGLE_CLIENT_SECRET=your-client-secret
+```
+
+4. **Generate SSL certificates**
+```bash
+   make ssl
+```
 
 <details>
-<summary><strong>View development details</strong></summary>
+<summary><strong>For local development</strong></summary>
 
 ### Development
-
-```
-mkdir -p backend/ssl nginx/ssl
-
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout backend/ssl/key.pem \
-  -out backend/ssl/cert.pem \
-  -subj "/C=MY/ST=KL/L=KualaLumpur/O=42/CN=localhost"
-
-cp backend/ssl/*.pem nginx/ssl/
-```
 
 Frontend:
 
@@ -93,6 +110,73 @@ npx prisma migrate dev
 npm run dev
 ```
 </details>
+
+### Production
+
+#### Option A: Standard Ports (80/443) — Requires sudo
+
+5. **Enable privileged port binding (run once)**
+```bash
+   echo 'net.ipv4.ip_unprivileged_port_start=80' | sudo tee -a /etc/sysctl.conf
+   sudo sysctl -p
+```
+
+6. **Start services**
+```bash
+   make up
+```
+
+7. **Access at** `https://your.domain.com`
+
+#### Option B: High Ports (8080/8443) — No sudo required
+
+Use this if you don't have sudo access (e.g., 42 campus machines).
+
+5. **Update `docker-compose.yml` nginx ports, add `:8443` to all URLs in `docker-compose.yml` & URI redirect in nginx/nginx.conf**
+   
+   Change:
+```yaml
+   ports:
+     - "80:80"
+     - "443:443"
+```
+   To:
+```yaml
+   ports:
+     - "8080:80"
+     - "8443:443"
+```
+   
+   Backend environment:
+```yaml
+   - FRONT_URL=https://${HOST_IP}:8443
+   - SITE_URL=https://${HOST_IP}:8443
+   - FORTYTWO_CALLBACK=https://${HOST_IP}:8443/api/auth/42/callback
+   - GOOGLE_CALLBACK_URL=https://${HOST_IP}:8443/api/oauth/google/callback
+```
+   
+   Frontend build args:
+```yaml
+   args:
+     - VITE_API_URL=https://${HOST_IP}:8443/api
+     - VITE_WS_URL=wss://${HOST_IP}:8443/ws
+```
+   
+   Change:
+```nginx
+   return 301 https://$host$request_uri;
+```
+   To:
+```nginx
+   return 301 https://$host:8443$request_uri;
+```
+
+6. **Start services**
+```bash
+   make up
+```
+
+7. **Access at** `https://yourdomain.com:8443`
 
 ## Resources
 

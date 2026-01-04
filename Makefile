@@ -1,8 +1,8 @@
-.PHONY: help setup ssl build up down restart logs clean clean-all rebuild \
-        db-migrate db-reset db-seed test lint format check-env prod-up \
-        prod-build prod-down prod-logs backup restore health
+.PHONY: help setup ssl build up down restart logs clean nuke rebuild \
+        no-cache db-migrate db-reset db-seed test lint format check-env \
+        prod-up prod-build prod-down prod-logs backup restore health
 
-# Colors for output
+# Colors
 GREEN := \033[0;32m
 YELLOW := \033[0;33m
 RED := \033[0;31m
@@ -13,7 +13,7 @@ APP_NAME := ft_transcendence
 COMPOSE_FILE := docker-compose.yml
 LOG_FILE := logs/$(APP_NAME).log
 
-# Load environment variables from .env if it exists
+# Load environment variables
 -include .env
 export
 
@@ -61,8 +61,9 @@ help:
 	@echo "  make restore        Restore from backup"
 	@echo "  make check-env      Validate required environment variables"
 	@echo "  make clean          Remove stopped containers & dangling images"
-	@echo "  make clean-all      Remove all Docker resources (⚠️  destructive)"
+	@echo "  make nuke           Remove all Docker resources (⚠️  destructive)"
 	@echo "  make rebuild        Full rebuild (clean + build + up)"
+	@echo "  no-cache            Rebuild all images from scratch (no cache)"
 	@echo ""
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(RESET)"
 
@@ -116,7 +117,7 @@ ssl: create-dirs
 # DOCKER OPERATIONS
 # ============================================================================
 
-build:
+build: ssl
 	@echo "$(YELLOW)Building Docker images...$(RESET)"
 	@docker compose -f $(COMPOSE_FILE) build
 	@echo "$(GREEN)✓ Build complete$(RESET)"
@@ -162,8 +163,8 @@ service-summary:
 	@echo "$(GREEN)$(APP_NAME) is running$(RESET)"
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(RESET)"
 	@echo "$(BLUE)Frontend:$(RESET)   https://$(HOST_IP)"
-	@echo "$(BLUE)Backend API:$(RESET) https://$(HOST_IP)/api"
-	@echo "$(BLUE)WebSocket:$(RESET)  wss://$(HOST_IP)/ws"
+	@echo "$(BLUE)Backend API:$(RESET) https://$(HOST_IP):8443/api"
+	@echo "$(BLUE)WebSocket:$(RESET)  wss://$(HOST_IP):8443/ws"
 	@echo ""
 	@echo "$(YELLOW)View logs:$(RESET)   make logs"
 	@echo "$(YELLOW)Check health:$(RESET) make health"
@@ -272,7 +273,7 @@ clean:
 	@docker system prune -f
 	@echo "$(GREEN)✓ Cleanup complete$(RESET)"
 
-clean-all: down
+nuke: down
 	@echo "$(RED)⚠️  This will remove ALL Docker resources including images and volumes$(RESET)"
 	@read -p "Continue? (y/N) " -r; \
 	if [ "$$REPLY" = "y" ]; then \
@@ -283,6 +284,12 @@ clean-all: down
 	fi
 
 rebuild: clean build up
+	@echo "$(GREEN)✓ Full rebuild complete$(RESET)"
+
+no-cache: clean
+	@echo "$(YELLOW)Rebuilding from scratch...$(RESET)"
+	@docker compose -f $(COMPOSE_FILE) build --no-cache
+	@$(MAKE) --no-print-directory up
 	@echo "$(GREEN)✓ Full rebuild complete$(RESET)"
 
 # ============================================================================
