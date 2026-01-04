@@ -14,8 +14,8 @@ services:
       # Network
       - TRUST_PROXY=true
       - ENVIRONMENT=${ENVIRONMENT}
-      - FRONT_URL=https://${HOST_IP}
-      - SITE_URL=https://${HOST_IP}
+      - FRONT_URL=https://${HOST_IP}:8443
+      - SITE_URL=https://${HOST_IP}:8443
       
       # SSL
       - USE_SSL=${USE_SSL}
@@ -32,12 +32,12 @@ services:
       # OAuth - 42
       - FORTYTWO_ID=${FORTYTWO_ID}
       - FORTYTWO_SECRET=${FORTYTWO_SECRET}
-      - FORTYTWO_CALLBACK=https://${HOST_IP}/api/auth/42/callback
+      - FORTYTWO_CALLBACK=https://${HOST_IP}:8443/api/auth/42/callback
       
       # OAuth - Google
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - GOOGLE_CALLBACK_URL=https://${HOST_IP}/api/oauth/google/callback
+      - GOOGLE_CALLBACK_URL=https://${HOST_IP}:8443/api/oauth/google/callback
       
       # 2FA
       - MY_2FA_APP_NAME=${MY_2FA_APP_NAME}
@@ -86,8 +86,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=https://${HOST_IP}/api
-        - VITE_WS_URL=wss://${HOST_IP}/ws
+        - VITE_API_URL=https://${HOST_IP}:8443/api
+        - VITE_WS_URL=wss://${HOST_IP}:8443/ws
     container_name: transcendence-frontend
     env_file:
       - .env
@@ -113,8 +113,8 @@ services:
       dockerfile: Dockerfile
     container_name: transcendence-nginx
     ports:
-      - "80:80"     # HTTP
-      - "443:443"   # HTTPS
+      - "8080:80"     # HTTP
+      - "8443:443"   # HTTPS
     depends_on:
       backend:
         condition: service_healthy
