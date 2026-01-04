@@ -113,7 +113,10 @@ npm run dev
 
 ### Production
 
-#### Option A: Standard Ports (80/443) — Requires sudo
+<details>
+<summary><strong>Standard ports (80/443)</strong></summary>
+
+#### Requires sudo
 
 5. **Enable privileged port binding (run once)**
 ```bash
@@ -128,19 +131,13 @@ npm run dev
 
 7. **Access at** `https://your.domain.com`
 
-#### Option B: High Ports (8080/8443) — No sudo required
+</details>
 
-Use this if you don't have sudo access (e.g., 42 campus machines).
+#### High Ports (8080/8443) — For 42 Machines (no sudo required)
 
-5. **Update `docker-compose.yml` nginx ports, add `:8443` to all URLs in `docker-compose.yml` & URI redirect in nginx/nginx.conf**
-   
-   Change:
-```yaml
-   ports:
-     - "80:80"
-     - "443:443"
-```
-   To:
+5. **Update `docker-compose.yml`**
+
+Ports:   
 ```yaml
    ports:
      - "8080:80"
@@ -161,22 +158,18 @@ Use this if you don't have sudo access (e.g., 42 campus machines).
      - VITE_API_URL=https://${HOST_IP}:8443/api
      - VITE_WS_URL=wss://${HOST_IP}:8443/ws
 ```
-   
-   Change:
-```nginx
-   return 301 https://$host$request_uri;
-```
-   To:
+
+6. **Update `nginx/nginx.conf`**
 ```nginx
    return 301 https://$host:8443$request_uri;
 ```
 
-6. **Start services**
+7. **Start services**
 ```bash
    make up
 ```
 
-7. **Access at** `https://yourdomain.com:8443`
+8. **Access at** `https://yourdomain.com:8443`
 
 ## Resources
 
@@ -189,18 +182,6 @@ Use this if you don't have sudo access (e.g., 42 campus machines).
 -   [Vite](https://vite.dev/guide/)
 -   [Tailwind](https://tailwindcss.com/docs/installation/using-vite)
 -   [Docker](https://docs.docker.com/manuals/)
-
-### AI Usage & Disclosure Statement
-
-> [!IMPORTANT]  
-> As per the 42 curriculum rules regarding AI, AI tools were strictly limited to the following approved tasks:
-> - Debugging assistance - understanding and breaking down error messages  
-> - Documentation refinement and clarification
-> - Researching patterns and best practices
-> - Providing refactoring suggestions for readability
->
-> **AI was not used for writing code, generating solutions, or implementing any project features.**  
-> All architectural decisions, code, and implementations were developed and validated entirely by the team.
 
 ## Technical Stack
 
@@ -296,6 +277,18 @@ Use this if you don't have sudo access (e.g., 42 campus machines).
 
 -   Known issues (to be added)
 -   Future improvements (to be added)
+
+### AI Usage & Disclosure Statement
+
+> [!IMPORTANT]  
+> As per the 42 curriculum rules regarding AI, AI tools were strictly limited to the following approved tasks:
+> - Debugging assistance - understanding and breaking down error messages  
+> - Documentation refinement and clarification
+> - Researching patterns and best practices
+> - Providing refactoring suggestions for readability
+>
+> **AI was not used for writing code, generating solutions, or implementing any project features.**  
+> All architectural decisions, code, and implementations were developed and validated entirely by the team.
 
 ## License
 
