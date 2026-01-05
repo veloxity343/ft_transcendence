@@ -72,10 +72,11 @@ Run `make help` to see all available commands
    Open `.env` and set the required values:
    ```bash
    # Your domain or IP address
-   HOST_IP=your.domain.com
+   HOST_IP=yourdomain.com
    
    # Generate a secure JWT secret
-   JWT_SECRET=$(openssl rand -base64 64)
+   $(openssl rand -base64 64)
+   JWT_SECRET=your-jwt-secret
    
    # Google OAuth credentials
    # Get these from https://console.cloud.google.com/apis/credentials
@@ -93,20 +94,21 @@ Run `make help` to see all available commands
 
 ### Development
 
+   **Backend:**
+
+   ``` bash
+   cd backend
+   ln -s ../.env .env
+   npm install
+   npx prisma migrate dev
+   npm run dev
+   ```
+
    **Frontend:**
 
    ``` bash
    cd frontend
    npm install
-   npm run dev
-   ```
-
-   **Backend:**
-
-   ``` bash
-   cd backend
-   npm install
-   npx prisma migrate dev
    npm run dev
    ```
 
@@ -119,22 +121,53 @@ Run `make help` to see all available commands
 
 #### Requires sudo
 
-5. **Enable privileged port binding (run once)**
+5. **Update `docker-compose.yml`**
+
+   **Ports:**   
+   ```yaml
+   ports:
+     - "80:80"
+     - "443:443"
+   ```
+   
+   **Backend environment:**
+   ```yaml
+   - FRONT_URL=https://${HOST_IP}
+   - SITE_URL=https://${HOST_IP}
+   - FORTYTWO_CALLBACK=https://${HOST_IP}/api/auth/42/callback
+   - GOOGLE_CALLBACK_URL=https://${HOST_IP}/api/oauth/google/callback
+   ```
+   
+   **Frontend build args:**
+   ```yaml
+   args:
+     - VITE_API_URL=https://${HOST_IP}/api
+     - VITE_WS_URL=wss://${HOST_IP}/ws
+   ```
+
+6. **Update `nginx/nginx.conf`**
+   ```nginx
+   return 301 https://$host$request_uri;
+   ```
+
+7. **Enable privileged port binding (run once)**
    ```bash
    echo 'net.ipv4.ip_unprivileged_port_start=80' | sudo tee -a /etc/sysctl.conf
    sudo sysctl -p
    ```
 
-6. **Start services**
+8. **Start services**
    ```bash
    make up
    ```
 
-7. **Access at** `https://your.domain.com`
+9. **Access at** `https://yourdomain.com`
 
 </details>
 
-#### High Ports (8080/8443) — For 42 Machines (no sudo required)
+#### High ports (8080/8443) — No sudo required
+
+For 42 machines by default
 
 5. **Update `docker-compose.yml`**
 
@@ -153,7 +186,7 @@ Run `make help` to see all available commands
    - GOOGLE_CALLBACK_URL=https://${HOST_IP}:8443/api/oauth/google/callback
    ```
    
-   Frontend build args:
+   **Frontend build args:**
    ```yaml
    args:
      - VITE_API_URL=https://${HOST_IP}:8443/api
