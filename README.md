@@ -94,23 +94,32 @@ Run `make help` to see all available commands
 
 ### Development
 
-   **Backend:**
+5. **Backend:**
 
    ``` bash
    cd backend
-   ln -s ../.env .env
+   ```
+   ``` bash
+   # Local development requires a local db path
+   cp ../.env .env
+   # Update in backend/.env
+   DATABASE_URL=file:./data/transcendence.db
+   ```
+   ``` bash
    npm install
    npx prisma migrate dev
    npm run dev
    ```
 
-   **Frontend:**
+6. **Frontend:**
 
    ``` bash
    cd frontend
    npm install
    npm run dev
    ```
+
+7. **Access at** `https://localhost:4173/`
 
 </details>
 
@@ -270,17 +279,31 @@ For 42 machines by default
 
 ### Major (2 pts)
 
--   Real-time multiplayer
--   OAuth authentication
--   Containerised architecture
--   AI Player
+-   Real-time features (WebSockets)
+-   Chat, profile and friends system
+-   Public API
+-   User management & authentication
+-   AI opponent
+-   Web-based game (Pong)
+-   Remote play
+-   Multiplayer
 
 ### Minor (1 pt)
 
--   Chat
--   Profiles
--   Notifications
--   Match history
+-   Backend framework (Fastify)
+-   ORM for database (Prisma)
+-   Notifications (toast system)
+-   SSR
+-   Custom design system
+-   Multiple browsers supported (web standard compliance)
+-   Game statistics & match history
+-   OAuth (Google)
+-   2FA
+-   Analytics & insights dashboard
+-   Advanced chat features (command interface)
+-   Tournament system
+
+### Total: 28 points
 
 ## Team Information & Contributions
 
@@ -314,9 +337,9 @@ For 42 machines by default
 
 ### AI Usage & Disclosure Statement
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > As per the 42 curriculum rules regarding AI, AI tools were strictly limited to the following approved tasks:
-> - Debugging assistance - understanding and breaking down error messages  
+> - Debugging assistance - understanding and breaking down error messages
 > - Documentation refinement and clarification
 > - Researching patterns and best practices
 > - Providing refactoring suggestions for readability
