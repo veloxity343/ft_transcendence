@@ -71,7 +71,7 @@ Run `make help` to see all available commands
    
    Open `.env` and set the required values:
    ```bash
-   # Your domain or IP address
+   # Your domain or IP address (localhost for development)
    HOST_IP=yourdomain.com
    
    # Generate a secure JWT secret
