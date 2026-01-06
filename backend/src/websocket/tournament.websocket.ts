@@ -32,6 +32,7 @@ export async function setupTournamentWebSocket(
       try {
         switch (message.event) {
           case 'tournament:create': {
+            // Create a new tournament (online or local). Local mode uses provided player names.
             const { name, maxPlayers, bracketType, isLocal, localPlayerNames } = message.data as CreateTournamentMessage & {
               isLocal?: boolean;
               localPlayerNames?: string[];
@@ -85,6 +86,7 @@ export async function setupTournamentWebSocket(
           }
 
           case 'tournament:join': {
+            // Player joins tournament lobby; service enforces capacity and duplicates
             const { tournamentId } = message.data as TournamentIdMessage;
 
             if (!tournamentId) {
@@ -108,6 +110,7 @@ export async function setupTournamentWebSocket(
           }
 
           case 'tournament:leave': {
+            // Player leaves registration or drops before start
             const { tournamentId } = message.data as TournamentIdMessage;
 
             if (!tournamentId) {
@@ -131,6 +134,7 @@ export async function setupTournamentWebSocket(
           }
 
           case 'tournament:start': {
+            // Tournament creator starts bracket generation; broadcasts start to participants
             const { tournamentId } = message.data as TournamentIdMessage;
 
             if (!tournamentId) {
@@ -151,6 +155,7 @@ export async function setupTournamentWebSocket(
           }
 
           case 'tournament:start-local-match': {
+            // Start a specific local match (hotseat mode) without networked players
             const { tournamentId, matchId } = message.data as { tournamentId: number; matchId: string };
 
             if (!tournamentId || !matchId) {
@@ -184,6 +189,7 @@ export async function setupTournamentWebSocket(
 
           // ==================== READY FOR MATCH ====================
           case 'tournament:ready': {
+            // Player signals readiness; match begins when both are ready
             const { tournamentId, matchId } = message.data as ReadyForMatchMessage;
 
             if (!tournamentId || !matchId) {
@@ -217,6 +223,7 @@ export async function setupTournamentWebSocket(
           }
 
           case 'tournament:get': {
+            // Fetch tournament state (from cache or DB) for late joiners or refreshes
             const { tournamentId } = message.data as TournamentIdMessage;
 
             if (!tournamentId) {
@@ -244,6 +251,7 @@ export async function setupTournamentWebSocket(
           }
 
           case 'tournament:get-bracket': {
+            // Fetch bracket view data; tailored by user for permissions/visibility
             const { tournamentId } = message.data as TournamentIdMessage;
 
             if (!tournamentId) {
@@ -275,6 +283,7 @@ export async function setupTournamentWebSocket(
           }
 
           case 'tournament:list-active': {
+            // Lightweight list of active tournaments for lobby browsing
             try {
               const tournaments = tournamentService.getActiveTournaments();
 
@@ -304,6 +313,7 @@ export async function setupTournamentWebSocket(
           }
 
           case 'tournament:my-tournaments': {
+            // User-specific list of tournaments they own or joined
             try {
               const tournaments = tournamentService.getUserTournaments(userId);
 
@@ -332,6 +342,7 @@ export async function setupTournamentWebSocket(
           }
 
           case 'tournament:cancel': {
+            // Creator cancels tournament; service validates permissions
             const { tournamentId } = message.data as TournamentIdMessage;
 
             if (!tournamentId) {

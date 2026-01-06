@@ -10,7 +10,6 @@ import {
   UpdateUsernameDto, 
   UpdateEmailDto, 
   UpdatePasswordDto,
-  UserRelationshipDto 
 } from '../dto/user.dto';
 import { validateDto } from '../utils/validation';
 import { authenticate, getUserId } from '../middleware/auth.middleware';

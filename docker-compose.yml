@@ -5,38 +5,75 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: transcendence-backend
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=file:/app/data/transcendence.db
+      # Database
+      - DATABASE_URL=${DATABASE_URL}
+      
+      # Network
       - TRUST_PROXY=true
-      - ENVIRONMENT=PRODUCTION
-      - FRONT_URL=https://localhost
-      - SITE_URL=https://localhost
+      - ENVIRONMENT=${ENVIRONMENT}
+      - FRONT_URL=https://${HOST_IP}:8443
+      - SITE_URL=https://${HOST_IP}:8443
+      
+      # SSL
+      - USE_SSL=${USE_SSL}
+      - SSL_DIR=/app/ssl
+      
+      # Ports
+      - BACK_PORT=${BACK_PORT}
+      
+      # JWT
       - JWT_SECRET=${JWT_SECRET}
+      - ACCESS_TOKEN_EXPIRATION=${ACCESS_TOKEN_EXPIRATION}
+      - REFRESH_TOKEN_EXPIRATION=${REFRESH_TOKEN_EXPIRATION}
+      
+      # OAuth - 42
       - FORTYTWO_ID=${FORTYTWO_ID}
       - FORTYTWO_SECRET=${FORTYTWO_SECRET}
-      - FORTYTWO_CALLBACK=${FORTYTWO_CALLBACK}
-      - USE_SSL=true
-      - SSL_DIR=/app/ssl
-      - BACK_PORT=3000
+      - FORTYTWO_CALLBACK=https://${HOST_IP}:8443/api/auth/42/callback
+      
+      # OAuth - Google
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_CALLBACK_URL=https://${HOST_IP}:8443/api/oauth/google/callback
+      
+      # 2FA
+      - MY_2FA_APP_NAME=${MY_2FA_APP_NAME}
+      
+      # Upload
+      - UPLOAD_DIR=${UPLOAD_DIR}
+      - DEFAULT_AVATAR=${DEFAULT_AVATAR}
+      
     volumes:
       - ./backend/data:/app/data
       - ./backend/uploads:/app/uploads
       - ./backend/ssl:/app/ssl
     depends_on:
-      - init-db
+      init-db:
+        condition: service_completed_successfully
     networks:
       - transcendence-network
     expose:
-      - "3000"
+      - "${BACK_PORT}"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "const https=require('https');https.get('https://localhost:3000/health',{rejectUnauthorized:false},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
 
   init-db:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: transcendence-init-db
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=file:/app/data/transcendence.db
+      - DATABASE_URL=${DATABASE_URL}
     volumes:
       - ./backend/data:/app/data
     command: npx prisma migrate deploy
@@ -48,15 +85,26 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=https://${HOST_IP}:8443/api
+        - VITE_WS_URL=wss://${HOST_IP}:8443/ws
     container_name: transcendence-frontend
+    env_file:
+      - .env
     environment:
-      - VITE_API_URL=https://localhost/api
-      - VITE_WS_URL=wss://localhost/ws
+      - VITE_API_URL=https://${HOST_IP}/api
+      - VITE_WS_URL=wss://${HOST_IP}/ws
     networks:
       - transcendence-network
     expose:
-      - "5173"
+      - "${FRONT_PORT}"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "const http=require('http');http.get('http://localhost:4173',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
   # SSL
   nginx:
@@ -65,11 +113,13 @@ services:
       dockerfile: Dockerfile
     container_name: transcendence-nginx
     ports:
-      - "80:80"     # HTTP
-      - "443:443"   # HTTPS
+      - "8080:80"     # HTTP
+      - "8443:443"   # HTTPS
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
     networks:
       - transcendence-network
     restart: unless-stopped
@@ -78,4 +128,3 @@ networks:
   transcendence-network:
     driver: bridge
 
-# Note: No volumes section needed - SQLite file is in bind mount

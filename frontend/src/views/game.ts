@@ -25,8 +25,19 @@ async function waitForConnection(timeout = 5000): Promise<boolean> {
     return true;
   }
   
-  const connected = await wsClient.connect();
-  return connected;
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => {
+      resolve(false); // conncection timeout
+    }, timeout);
+    
+    wsClient.connect().then(connected => {
+      clearTimeout(timeoutId);
+      resolve(connected);
+    }).catch(() => {
+      clearTimeout(timeoutId);
+      resolve(false);
+    });
+  });
 }
 
 export function GameView(): HTMLElement {
@@ -937,7 +948,7 @@ export function GameView(): HTMLElement {
     }));
 
     // Handle move acknowledgment
-    unsubscribers.push(wsClient.on('game:move-ack', (msg) => {
+    unsubscribers.push(wsClient.on('game:move-ack', (_msg) => {
       // Silent acknowledgment
     }));
 

@@ -918,11 +918,10 @@ export class TournamentService {
     if (!tournament) return;
 
     // For local tournaments, determine winner by player number
-    let actualWinnerId = winnerId;
     if (tournament.isLocal && winnerPlayerNumber !== undefined) {
       const match = tournament.matches.find(m => m.matchId === matchId);
       if (match) {
-        actualWinnerId = winnerPlayerNumber === 1 ? match.player1Id! : match.player2Id!;
+        winnerId = winnerPlayerNumber === 1 ? match.player1Id! : match.player2Id!;
       }
     }
 

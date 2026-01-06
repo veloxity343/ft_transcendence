@@ -1,6 +1,6 @@
 /**
- * WebSocket Connection Manager
- * Manages all active WebSocket connections and user presence status
+ * Websocket Connection Manager
+ * Manages all active websocket connections and user presence status
  * Provides event system for broadcasting and targeted messaging
  */
 import { WebSocket } from '@fastify/websocket';
@@ -12,7 +12,7 @@ export enum UserStatus {
   IN_GAME = 'in_game',
 }
 
-/** Active WebSocket connection with metadata */
+/** Active websocket connection with metadata */
 interface Connection {
   userId: number;
   socket: WebSocket;
@@ -21,9 +21,9 @@ interface Connection {
 }
 
 /**
- * Manages WebSocket connections and user presence
+ * Manages websocket connections and user presence
  * Ensures single connection per user (new connection replaces old)
- * Provides event system for internal communication between services
+ * Provides event system for internal comms between services
  */
 export class ConnectionManager {
   private connections = new Map<number, Connection>();
@@ -31,7 +31,7 @@ export class ConnectionManager {
   private eventHandlers = new Map<string, Set<Function>>();
 
   /**
-   * Add or replace user's WebSocket connection
+   * Add or replace user's websocket connection
    * Old connection is automatically closed when user reconnects
    */
   addConnection(userId: number, socket: WebSocket) {
@@ -116,7 +116,7 @@ export class ConnectionManager {
 
   /**
    * Broadcast event to all connected users
-   * Also triggers internal event handlers for cross-service communication
+   * Also triggers internal event handlers for cross-service comms
    */
   broadcast(event: string, data: any): void {
     const message = JSON.stringify({ event, data });

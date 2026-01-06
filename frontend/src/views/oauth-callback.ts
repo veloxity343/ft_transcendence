@@ -1,8 +1,6 @@
-import { router } from '../router';
 import { authApi } from '../api/auth';
 import { oauthApi } from '../api/oauth';
 import { storage } from '../utils/storage';
-import { showToast } from '../utils/toast';
 
 export function OAuthCallbackView(): HTMLElement {
   const container = document.createElement('div');

@@ -9,7 +9,7 @@ export async function setupGameWebSocket(
   aiOpponentService: AIOpponentService,
 ) {
 
-  // Helper to emit to user
+  // Helper to emit to a specific user using the connection manager (avoids coupling to current socket)
   const emitToUser = (userId: number, event: string, data: any) => {
     const socket = gameService['connectionManager'].getSocket(userId);
     if (socket && socket.readyState === socket.OPEN) {
@@ -22,6 +22,7 @@ export async function setupGameWebSocket(
       try {
         switch (message.event) {
           case 'game:join-matchmaking': {
+            // Player enters global matchmaking queue; response includes assigned side and gameId when matched
             try {
               const playerInfo = await gameService.joinMatchmaking(userId);
               socket.send(JSON.stringify({
@@ -38,6 +39,7 @@ export async function setupGameWebSocket(
           }
 
           case 'game:create-ai': {
+            // Spin up a single-player game versus AI with optional difficulty
             try {
               const { difficulty } = message.data || {};
               
@@ -67,6 +69,7 @@ export async function setupGameWebSocket(
           }
 
           case 'game:create-private': {
+            // Create a private lobby and return gameId so invitations can target it
             try {
               const playerInfo = await gameService.createPrivateGame(userId);
               socket.send(JSON.stringify({
@@ -83,6 +86,7 @@ export async function setupGameWebSocket(
           }
 
           case 'game:join-private': {
+            // Join an existing private game via gameId sent by inviter
             try {
               if (!message.data || typeof message.data.gameId !== 'number') {
                 throw new Error('Invalid gameId');
@@ -107,6 +111,7 @@ export async function setupGameWebSocket(
           }
 
           case 'game:create-local': {
+            // Create a hotseat/local game; no remote sockets involved
             try {
                 const { player1Name, player2Name } = message.data || {};
                 
@@ -130,6 +135,7 @@ export async function setupGameWebSocket(
           }
 
           case 'game:send-invitation': {
+            // Create private game then push a WS invitation to another user via connection manager
             try {
               if (!message.data || typeof message.data.targetUserId !== 'number') {
                 throw new Error('Invalid targetUserId');
@@ -165,6 +171,7 @@ export async function setupGameWebSocket(
           }
 
           case 'game:move': {
+            // Player input for paddle movement; kept minimal to reduce bandwidth
             try {
               if (!message.data || 
                   typeof message.data.gameId !== 'number' ||
@@ -194,6 +201,7 @@ export async function setupGameWebSocket(
           }
 
           case 'game:spectate': {
+            // Allow observers to watch an in-progress game snapshot
             try {
               if (!message.data || typeof message.data.gameId !== 'number') {
                 throw new Error('Invalid gameId');
@@ -220,6 +228,7 @@ export async function setupGameWebSocket(
           }
 
           case 'game:get-active': {
+            // Query list of active public games for lobby view
             try {
               const activeGames = gameService.getActiveGames();
               socket.send(JSON.stringify({
@@ -236,6 +245,7 @@ export async function setupGameWebSocket(
           }
 
           case 'game:leave': {
+            // Leave current game gracefully; service handles reconnect tokens when applicable
             try {
               gameService.leaveGame(userId);
               // Note: The service will send 'game:left-with-reconnect' for in-progress games
@@ -280,6 +290,7 @@ export async function setupGameWebSocket(
 
           // ==================== REJOIN ====================
           case 'game:rejoin': {
+            // Attempt to resume an in-progress game after disconnect within grace period
             try {
               const { gameId } = message.data || {};
               
@@ -320,6 +331,7 @@ export async function setupGameWebSocket(
 
           // ==================== NEW: CHECK RECONNECTABLE ====================
           case 'game:check-reconnectable': {
+            // Check if there's a pending reconnect token without actually rejoining
             try {
               const reconnectable = gameService.getReconnectableGame(userId);
               
@@ -338,7 +350,7 @@ export async function setupGameWebSocket(
 
           case 'game:get-active-state': {
             // Check if user is currently in a game and return full state
-            // This allows the game view to restore state when navigating from tournament
+            // Used to restore game view after navigation
             try {
               const gameId = gameService.getUserGameId(userId);
               

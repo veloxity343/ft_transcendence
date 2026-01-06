@@ -3,18 +3,13 @@ import { showToast } from '../utils/toast';
 import { API_BASE_URL } from '../constants';
 import { wsClient } from '../websocket/client';
 import { userApi } from '../api/user';
-import { authApi } from '../api/auth';
 import { httpClient } from '../api/client';
 import {
   historyApi,
-  formatDuration,
   formatDate,
   getEloChangeDisplay,
-  getMatchTypeDisplay,
   getRankColor,
-  getRankTitle,
   type MatchHistoryEntry,
-  type PlayerStats,
 } from '../api/history';
 
 export function ProfileView(): HTMLElement {

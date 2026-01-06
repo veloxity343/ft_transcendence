@@ -716,11 +716,12 @@ export class MatchHistoryService {
    * Update leaderboard ranks for all players
    */
   async updateLeaderboardRanks(): Promise<void> {
+    const aiUserId = await this.getAIUserId();
     // Get all users sorted by ELO
     const users = await this.prisma.user.findMany({
       where: {
         gamesPlayed: { gt: 0 },  // Only rank players who have played
-        email: { not: 'ai@transcendence.local' },
+        id: aiUserId ? { not: aiUserId } : undefined,
       },
       orderBy: {
         score: 'desc',

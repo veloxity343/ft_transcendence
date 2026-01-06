@@ -1,5 +1,4 @@
 import { storage } from '../utils/storage';
-import { showToast } from '../utils/toast';
 import { API_BASE_URL } from '../constants';
 import {
   historyApi,
@@ -12,7 +11,6 @@ import {
   getRankTitle,
   type MatchHistoryEntry,
   type TournamentHistoryEntry,
-  type PlayerStats,
 } from '../api/history';
 
 export function HistoryView(): HTMLElement {

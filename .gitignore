@@ -1,69 +1,65 @@
-# Node.js / npm
+# Dependencies
 node_modules/
+jspm_packages/
+
+# Logs
+logs/
+*.log
+*.log.*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
-.pnpm-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.out
+*.err
 
-# TypeScript
+# Runtime data
+pids/
+*.pid
+*.pid.lock
+*.seed
+.npm
+
+# Build outputs
 dist/
+dist-ssr/
 build/
+build/Release
 out/
 *.tsbuildinfo
+lib-cov/
 
 # Environment / Secrets
 .env
 .env.*
 !.env.example
+*.local
 
 # Database
 *.db
 *.sqlite
 *.sqlite3
 
-# Logs
-logs/
-*.log
-*.log.*
-*.out
-*.err
+# Testing & Coverage
+coverage/
+.nyc_output/
 
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-Icon?
-._*
-.Spotlight-V100
-.Trashes
+# Profiling & Performance
+profile-*
+*clinic*
+*flamegraph*
+0x/
+.grunt/
+.lock-wscript
+.node_repl_history
 
-# Windows
-ehthumbs.db
-Thumbs.db
+# Generated code
+backend/src/generated/prisma
+examples/typescript-server.js
+test/types/index.js
 
-# VS Code
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-
-# IDEs
-.idea/
-*.swp
-*.swo
-*.bak
-*.tmp
-
-# Docker
-.dockerignore
-
-# Coverage
-/coverage
-/.nyc_output
-
-# Uploads (if you add file uploads later)
+# Uploads & Media
 /uploads/
 /image_dir/
 
@@ -75,9 +71,47 @@ Thumbs.db
 *.pfx
 *.p12
 *.der
-
-# Nginx SSL files
 ssl/
 certs/
 certificates/
 keys/
+
+# Docker
+.dockerignore
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+*.stackdump
+
+# Linux
+*~
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*code-workspace
+
+# IDEs
+.idea/
+*.swp
+*.swo
+*.sw?
+*.bak
+*.tmp
+*.suo
+*.ntvs*
+*.njsproj
+*.sln

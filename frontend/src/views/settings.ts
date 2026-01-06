@@ -1,4 +1,3 @@
-import { router } from '../router';
 import { authApi } from '../api/auth';
 import { twoFactorApi } from '../api/twofa';
 import { storage } from '../utils/storage';

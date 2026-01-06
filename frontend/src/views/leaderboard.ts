@@ -3,14 +3,8 @@ import { userApi } from '../api/user';
 import { API_BASE_URL } from '../constants';
 import {
   historyApi,
-  formatDuration,
-  formatDate,
-  getEloChangeDisplay,
-  getMatchTypeDisplay,
   getRankColor,
   getRankTitle,
-  type MatchHistoryEntry,
-  type PlayerStats,
 } from '../api/history';
 
 // SVG Icons
@@ -56,13 +50,6 @@ function getRankIcon(rank: number): string {
   if (rank === 2) return '🥈';
   if (rank === 3) return '🥉';
   return `#${rank}`;
-}
-
-function getRankMedalColor(rank: number): string {
-  if (rank === 1) return '#FFD700'; // Gold
-  if (rank === 2) return '#C0C0C0'; // Silver
-  if (rank === 3) return '#CD7F32'; // Bronze
-  return 'transparent';
 }
 
 function getPositionColor(rank: number): string {

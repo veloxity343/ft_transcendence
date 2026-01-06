@@ -42,9 +42,9 @@ const useSSL = process.env.USE_SSL === 'true' || process.env.ENVIRONMENT === 'PR
 export const config = {
   environment: process.env.ENVIRONMENT || 'DEVELOPMENT',
   port: parseInt(process.env.BACK_PORT || '3000', 10),
-  frontUrl: process.env.FRONT_URL || 'http://localhost:5173',
+  frontUrl: process.env.FRONT_URL || 'http://localhost:4173',
   siteUrl: process.env.SITE_URL || 'https://localhost',
-  frontPort: process.env.FRONT_PORT || '5173',
+  frontPort: process.env.FRONT_PORT || '4173',
 
   trustProxy: process.env.TRUST_PROXY === 'true',
   

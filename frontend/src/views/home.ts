@@ -2,7 +2,7 @@ import { router } from '../router';
 import { authApi } from '../api/auth';
 import { storage } from '../utils/storage';
 import { userApi } from '../api/user';
-import { historyApi, formatDate, getEloChangeDisplay, getRankColor, getRankTitle } from '../api/history';
+import { historyApi, getRankColor } from '../api/history';
 import { API_BASE_URL } from '../constants';
 import { wsClient } from '../websocket/client';
 import { showToast } from '../utils/toast';

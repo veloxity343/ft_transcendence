@@ -119,11 +119,7 @@ export function isStrongPassword(password: string): { valid: boolean; message?: 
     return { valid: false, message: 'Password must be less than 128 characters' };
   }
 
-  // Optional: Add more password requirements
-  // const hasUpperCase = /[A-Z]/.test(password);
-  // const hasLowerCase = /[a-z]/.test(password);
-  // const hasNumbers = /\d/.test(password);
-  // const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+  // TODO: frontend enforce more complex ruleset
 
   return { valid: true };
 }

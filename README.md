@@ -43,56 +43,176 @@ authentication, and container orchestration.
 
 ### Pre-requisites
 
--   Docker & Docker compose
--   Node.js LTS
--   npm
--   Required .env files
+-   Docker & Docker Compose
+-   Node.js LTS (for local development)
+-   npm (for local development)
 
-### Installation
+### Quick Commands
 
-``` bash
-git clone git@github.com:veloxity343/ft_transcendence.git
-cd ft_transcendence
-docker compose up --build
-```
+This project uses a [Makefile](./Makefile) as the main task runner for testing and production.
 
-Then visit `http://localhost:5173`.
+Run `make help` to see all available commands
+
+### Getting Started
+
+1. **Clone the repository**
+   ```bash
+   git clone git@github.com:veloxity343/ft_transcendence.git
+   cd ft_transcendence
+   ```
+
+2. **Run initial setup**
+   ```bash
+   make setup
+   ```
+   This creates the required directories and generates a `.env` file from the template.
+
+3. **Configure your environment**
+   
+   Open `.env` and set the required values:
+   ```bash
+   # Your domain or IP address
+   HOST_IP=yourdomain.com
+   
+   # Generate a secure JWT secret
+   $(openssl rand -base64 64)
+   JWT_SECRET=your-jwt-secret
+   
+   # Google OAuth credentials
+   # Get these from https://console.cloud.google.com/apis/credentials
+   GOOGLE_CLIENT_ID=your-client-id
+   GOOGLE_CLIENT_SECRET=your-client-secret
+   ```
+
+4. **Generate SSL certificates**
+   ```bash
+   make ssl
+   ```
+
+<details>
+<summary><strong>For local development</strong></summary>
+
+### Development
+
+5. **Backend:**
+
+   ``` bash
+   cd backend
+   ```
+   ``` bash
+   # Local development requires a local db path
+   cp ../.env .env
+   # Update in backend/.env
+   DATABASE_URL=file:./data/transcendence.db
+   ```
+   ``` bash
+   npm install
+   npx prisma migrate dev
+   npm run dev
+   ```
+
+6. **Frontend:**
+
+   ``` bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+7. **Access at** `https://localhost:4173/`
+
+</details>
 
 ### Production
 
 <details>
-<summary><strong>View development details</strong></summary>
+<summary><strong>Standard ports (80/443)</strong></summary>
 
-### Development
+#### Requires sudo
 
-```
-mkdir -p backend/ssl nginx/ssl
+5. **Update `docker-compose.yml`**
 
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout backend/ssl/key.pem \
-  -out backend/ssl/cert.pem \
-  -subj "/C=MY/ST=KL/L=KualaLumpur/O=42/CN=localhost"
+   **Ports:**   
+   ```yaml
+   ports:
+     - "80:80"
+     - "443:443"
+   ```
+   
+   **Backend environment:**
+   ```yaml
+   - FRONT_URL=https://${HOST_IP}
+   - SITE_URL=https://${HOST_IP}
+   - FORTYTWO_CALLBACK=https://${HOST_IP}/api/auth/42/callback
+   - GOOGLE_CALLBACK_URL=https://${HOST_IP}/api/oauth/google/callback
+   ```
+   
+   **Frontend build args:**
+   ```yaml
+   args:
+     - VITE_API_URL=https://${HOST_IP}/api
+     - VITE_WS_URL=wss://${HOST_IP}/ws
+   ```
 
-cp backend/ssl/*.pem nginx/ssl/
-```
+6. **Update `nginx/nginx.conf`**
+   ```nginx
+   return 301 https://$host$request_uri;
+   ```
 
-Frontend:
+7. **Enable privileged port binding (run once)**
+   ```bash
+   echo 'net.ipv4.ip_unprivileged_port_start=80' | sudo tee -a /etc/sysctl.conf
+   sudo sysctl -p
+   ```
 
-``` bash
-cd frontend
-npm install
-npm run dev
-```
+8. **Start services**
+   ```bash
+   make up
+   ```
 
-Backend:
+9. **Access at** `https://yourdomain.com`
 
-``` bash
-cd backend
-npm install
-npx prisma migrate dev
-npm run dev
-```
 </details>
+
+#### High ports (8080/8443) — No sudo required
+
+For 42 machines by default
+
+5. **Update `docker-compose.yml`**
+
+   **Ports:**   
+   ```yaml
+   ports:
+     - "8080:80"
+     - "8443:443"
+   ```
+   
+   **Backend environment:**
+   ```yaml
+   - FRONT_URL=https://${HOST_IP}:8443
+   - SITE_URL=https://${HOST_IP}:8443
+   - FORTYTWO_CALLBACK=https://${HOST_IP}:8443/api/auth/42/callback
+   - GOOGLE_CALLBACK_URL=https://${HOST_IP}:8443/api/oauth/google/callback
+   ```
+   
+   **Frontend build args:**
+   ```yaml
+   args:
+     - VITE_API_URL=https://${HOST_IP}:8443/api
+     - VITE_WS_URL=wss://${HOST_IP}:8443/ws
+   ```
+
+6. **Update `nginx/nginx.conf`**
+   ```nginx
+   return 301 https://$host:8443$request_uri;
+   ```
+
+7. **Start services**
+   ```bash
+   make up
+   ```
+
+8. **Access at** `https://yourdomain.com:8443`
 
 ## Resources
 
@@ -105,18 +225,6 @@ npm run dev
 -   [Vite](https://vite.dev/guide/)
 -   [Tailwind](https://tailwindcss.com/docs/installation/using-vite)
 -   [Docker](https://docs.docker.com/manuals/)
-
-### AI Usage & Disclosure Statement
-
-> [!IMPORTANT]  
-> As per the 42 curriculum rules regarding AI, AI tools were strictly limited to the following approved tasks:
-> - Debugging assistance - understanding and breaking down error messages  
-> - Documentation refinement and clarification
-> - Researching patterns and best practices
-> - Providing refactoring suggestions for readability
->
-> **AI was not used for writing code, generating solutions, or implementing any project features.**  
-> All architectural decisions, code, and implementations were developed and validated entirely by the team.
 
 ## Technical Stack
 
@@ -171,17 +279,31 @@ npm run dev
 
 ### Major (2 pts)
 
--   Real-time multiplayer
--   OAuth authentication
--   Containerised architecture
--   AI Player
+-   Real-time features (WebSockets)
+-   Chat, profile and friends system
+-   Public API
+-   User management & authentication
+-   AI opponent
+-   Web-based game (Pong)
+-   Remote play
+-   Multiplayer
 
 ### Minor (1 pt)
 
--   Chat
--   Profiles
--   Notifications
--   Match history
+-   Backend framework (Fastify)
+-   ORM for database (Prisma)
+-   Notifications (toast system)
+-   SSR
+-   Custom design system
+-   Multiple browsers supported (web standard compliance)
+-   Game statistics & match history
+-   OAuth (Google)
+-   2FA
+-   Analytics & insights dashboard
+-   Advanced chat features (command interface)
+-   Tournament system
+
+### Total: 28 points
 
 ## Team Information & Contributions
 
@@ -212,6 +334,18 @@ npm run dev
 
 -   Known issues (to be added)
 -   Future improvements (to be added)
+
+### AI Usage & Disclosure Statement
+
+> [!IMPORTANT]
+> As per the 42 curriculum rules regarding AI, AI tools were strictly limited to the following approved tasks:
+> - Debugging assistance - understanding and breaking down error messages
+> - Documentation refinement and clarification
+> - Researching patterns and best practices
+> - Providing refactoring suggestions for readability
+>
+> **AI was not used for writing code, generating solutions, or implementing any project features.**  
+> All architectural decisions, code, and implementations were developed and validated entirely by the team.
 
 ## License
 

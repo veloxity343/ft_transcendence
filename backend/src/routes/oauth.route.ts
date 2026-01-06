@@ -1,7 +1,6 @@
 /**
  * OAuth Routes
  * Handles OAuth 2.0 authentication flow with external providers
- * Supports Google OAuth
  */
 import { FastifyPluginAsync } from 'fastify';
 import { OAuthService } from '../services/oauth.service';
@@ -25,7 +24,7 @@ const oauthRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * GET /oauth/google/callback
-   * Handle the OAuth callback from Google
+   * Handle the oauth callback from Google
    */
   fastify.get('/google/callback', async (request, reply) => {
     const { code, error } = request.query as { code?: string; error?: string };
@@ -41,14 +40,14 @@ const oauthRoutes: FastifyPluginAsync = async (fastify) => {
     try {
         const { user, isNewUser } = await oauthService.handleGoogleCallback(code);
 
-        // Check if user has 2FA enabled
+        // Check if user has 2fa enabled
         if (user.twoFA) {
         return reply.redirect(
             `${config.frontUrl}/login?requires2FA=true&username=${encodeURIComponent(user.username)}`
         );
         }
 
-        // Generate JWT tokens
+        // Generate jwt tokens
         const accessToken = fastify.jwt.sign(
         { sub: user.id, email: user.email, is2FA: false },
         { expiresIn: config.jwt.accessExpiration }
@@ -62,7 +61,7 @@ const oauthRoutes: FastifyPluginAsync = async (fastify) => {
         // Store refresh token hash
         await authService.updateRefreshToken(user.id, refreshToken);
 
-        // Build redirect URL with tokens as query params
+        // Build redirect url with tokens as query params
         const params = new URLSearchParams({
         access_token: accessToken,
         refresh_token: refreshToken,
@@ -84,7 +83,7 @@ const oauthRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * GET /oauth/google/url
-   * Get the Google OAuth URL (for SPA flow)
+   * Get the Google oauth url
    */
   fastify.get('/google/url', async (request, reply) => {
     const authUrl = oauthService.getGoogleAuthUrl();
@@ -95,14 +94,14 @@ const oauthRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * GET /oauth/status
-   * Check if OAuth providers are configured
+   * Check if oauth providers are configured
    */
   fastify.get('/status', async (request, reply) => {
     return reply.send({
       google: {
         enabled: !!(config.google.clientId && config.google.clientSecret),
       },
-      // Add other OAuth providers here as needed
+      // Add other oauth providers here (for expansion)
     });
   });
 };

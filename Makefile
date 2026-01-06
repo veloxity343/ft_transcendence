@@ -1,8 +1,8 @@
-.PHONY: help setup ssl build up down restart logs clean clean-all rebuild \
-        db-migrate db-reset db-seed test lint format check-env prod-up \
-        prod-build prod-down prod-logs backup restore health
+.PHONY: help setup ssl build up down restart logs clean nuke rebuild \
+        no-cache db-migrate db-reset db-seed test lint format check-env \
+        prod-up prod-build prod-down prod-logs backup restore health
 
-# colors for output
+# Colors
 GREEN := \033[0;32m
 YELLOW := \033[0;33m
 RED := \033[0;31m
@@ -12,6 +12,13 @@ RESET := \033[0m
 APP_NAME := ft_transcendence
 COMPOSE_FILE := docker-compose.yml
 LOG_FILE := logs/$(APP_NAME).log
+
+# Load environment variables
+-include .env
+export
+
+# Default to localhost if HOST_IP not set
+HOST_IP ?= localhost
 
 # ============================================================================
 # HELP
@@ -54,8 +61,9 @@ help:
 	@echo "  make restore        Restore from backup"
 	@echo "  make check-env      Validate required environment variables"
 	@echo "  make clean          Remove stopped containers & dangling images"
-	@echo "  make clean-all      Remove all Docker resources (⚠️  destructive)"
+	@echo "  make nuke           Remove all Docker resources (⚠️  destructive)"
 	@echo "  make rebuild        Full rebuild (clean + build + up)"
+	@echo "  no-cache            Rebuild all images from scratch (no cache)"
 	@echo ""
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(RESET)"
 
@@ -66,23 +74,22 @@ help:
 setup: check-env create-dirs
 	@echo "$(GREEN)✓ Project setup complete$(RESET)"
 	@echo "$(YELLOW)Next steps:$(RESET)"
-	@echo "  1. Review .env files in backend/ and frontend/"
+	@echo "  1. Edit .env file and set your configuration (HOST_IP, OAuth credentials, etc.)"
 	@echo "  2. Run 'make ssl' to generate SSL certificates"
 	@echo "  3. Run 'make up' to start services"
 
 check-env:
 	@echo "$(YELLOW)Checking environment files...$(RESET)"
-	@if [ ! -f backend/.env ]; then \
-		cp backend/env.example backend/.env; \
-		echo "$(GREEN)✓ Created backend/.env from template$(RESET)"; \
+	@if [ ! -f .env ]; then \
+		cp env.example .env; \
+		echo "$(GREEN)✓ Created .env from template$(RESET)"; \
+		echo "$(YELLOW)⚠️  Please edit .env and configure:$(RESET)"; \
+		echo "    - HOST_IP (your VM's IP address)"; \
+		echo "    - JWT_SECRET (generate a random secret)"; \
+		echo "    - FORTYTWO_ID and FORTYTWO_SECRET (from 42 intra)"; \
+		echo "    - GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET (from Google Cloud)"; \
 	else \
-		echo "$(GREEN)✓ backend/.env exists$(RESET)"; \
-	fi
-	@if [ ! -f frontend/.env ]; then \
-		cp frontend/env.example frontend/.env; \
-		echo "$(GREEN)✓ Created frontend/.env from template$(RESET)"; \
-	else \
-		echo "$(GREEN)✓ frontend/.env exists$(RESET)"; \
+		echo "$(GREEN)✓ .env exists$(RESET)"; \
 	fi
 
 create-dirs:
@@ -92,23 +99,25 @@ create-dirs:
 	@echo "$(GREEN)✓ Directories created$(RESET)"
 
 ssl: create-dirs
-	@echo "$(YELLOW)Generating self-signed SSL certificates...$(RESET)"
+	@echo "$(YELLOW)Generating self-signed SSL certificates for $(HOST_IP)...$(RESET)"
 	@if [ ! -f backend/ssl/cert.pem ] || [ ! -f backend/ssl/key.pem ]; then \
 		openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 		  -keyout backend/ssl/key.pem \
 		  -out backend/ssl/cert.pem \
-		  -subj "/C=MY/ST=KL/L=KualaLumpur/O=42/CN=localhost" && \
+		  -subj "/C=MY/ST=KL/L=KualaLumpur/O=42/CN=$(HOST_IP)" && \
 		cp backend/ssl/*.pem nginx/ssl/ && \
-		echo "$(GREEN)✓ SSL certificates generated and copied to nginx/ssl$(RESET)"; \
+		echo "$(GREEN)✓ SSL certificates generated for $(HOST_IP)$(RESET)"; \
 	else \
-		echo "$(GREEN)✓ SSL certificates already exist$(RESET)"; \
+		echo "$(YELLOW)SSL certificates exist. To regenerate, delete them first:$(RESET)"; \
+		echo "  rm backend/ssl/*.pem nginx/ssl/*.pem"; \
+		echo "  make ssl"; \
 	fi
 
 # ============================================================================
 # DOCKER OPERATIONS
 # ============================================================================
 
-build:
+build: ssl
 	@echo "$(YELLOW)Building Docker images...$(RESET)"
 	@docker compose -f $(COMPOSE_FILE) build
 	@echo "$(GREEN)✓ Build complete$(RESET)"
@@ -146,16 +155,16 @@ health:
 	@docker compose -f $(COMPOSE_FILE) ps
 	@echo ""
 	@echo "$(YELLOW)Testing API endpoint...$(RESET)"
-	@curl -sk https://localhost/api/health 2>/dev/null && echo "$(GREEN)✓ API healthy$(RESET)" || echo "$(RED)✗ API unreachable$(RESET)"
+	@curl -sk https://$(HOST_IP)/api/health 2>/dev/null && echo "$(GREEN)✓ API healthy$(RESET)" || echo "$(RED)✗ API unreachable$(RESET)"
 
 service-summary:
 	@echo ""
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(RESET)"
 	@echo "$(GREEN)$(APP_NAME) is running$(RESET)"
 	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(RESET)"
-	@echo "$(BLUE)Frontend:$(RESET)   https://localhost"
-	@echo "$(BLUE)Backend API:$(RESET) https://localhost/api"
-	@echo "$(BLUE)WebSocket:$(RESET)  wss://localhost/ws"
+	@echo "$(BLUE)Frontend:$(RESET)   https://$(HOST_IP)"
+	@echo "$(BLUE)Backend API:$(RESET) https://$(HOST_IP):8443/api"
+	@echo "$(BLUE)WebSocket:$(RESET)  wss://$(HOST_IP):8443/ws"
 	@echo ""
 	@echo "$(YELLOW)View logs:$(RESET)   make logs"
 	@echo "$(YELLOW)Check health:$(RESET) make health"
@@ -264,7 +273,7 @@ clean:
 	@docker system prune -f
 	@echo "$(GREEN)✓ Cleanup complete$(RESET)"
 
-clean-all: down
+nuke: down
 	@echo "$(RED)⚠️  This will remove ALL Docker resources including images and volumes$(RESET)"
 	@read -p "Continue? (y/N) " -r; \
 	if [ "$$REPLY" = "y" ]; then \
@@ -275,6 +284,12 @@ clean-all: down
 	fi
 
 rebuild: clean build up
+	@echo "$(GREEN)✓ Full rebuild complete$(RESET)"
+
+no-cache: clean
+	@echo "$(YELLOW)Rebuilding from scratch...$(RESET)"
+	@docker compose -f $(COMPOSE_FILE) build --no-cache
+	@$(MAKE) --no-print-directory up
 	@echo "$(GREEN)✓ Full rebuild complete$(RESET)"
 
 # ============================================================================

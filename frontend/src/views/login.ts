@@ -1,10 +1,9 @@
-import { router } from '../router';
 import { authApi } from '../api/auth';
 import { oauthApi } from '../api/oauth';
 import { twoFactorApi } from '../api/twofa';
 import { validators } from '../utils/validators';
 import { showToast } from '../utils/toast';
-import { SUCCESS_MESSAGES, API_BASE_URL } from '../constants';
+import { SUCCESS_MESSAGES } from '../constants';
 
 export function LoginView(): HTMLElement {
   const container = document.createElement('div');
