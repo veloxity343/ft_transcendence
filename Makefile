@@ -68,7 +68,81 @@ help:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(RESET)"
 
 # ============================================================================
-# SETUP & CONFIGURATION
+# DEVELOPMENT SETUP
+# ============================================================================
+
+dev-setup:
+	@echo "$(YELLOW)Generating local development configs from root .env...$(RESET)"
+	@if [ ! -f .env ]; then \
+		echo "$(RED)✗ .env not found!$(RESET)"; \
+		echo "$(YELLOW)  Run 'make setup' first to create .env from template$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(YELLOW)→ Extracting DEV_* variables...$(RESET)"
+	@mkdir -p backend/ssl frontend
+	@echo "# ============================================================================" > backend/.env
+	@echo "# Backend - Local Development" >> backend/.env
+	@echo "# Auto-generated from root .env by 'make local-setup'" >> backend/.env
+	@echo "# To update: Edit root .env and run 'make local-setup' again" >> backend/.env
+	@echo "# ============================================================================" >> backend/.env
+	@echo "" >> backend/.env
+	@grep "^DEV_" .env | sed 's/^DEV_//' >> backend/.env
+	@echo "" >> backend/.env
+	@echo "# Shared credentials (from root .env)" >> backend/.env
+	@grep -E "^(JWT_SECRET|ACCESS_TOKEN_EXPIRATION|REFRESH_TOKEN_EXPIRATION|FORTYTWO_ID|FORTYTWO_SECRET|GOOGLE_CLIENT_ID|GOOGLE_CLIENT_SECRET|MY_2FA_APP_NAME|DEFAULT_AVATAR)=" .env >> backend/.env
+	@echo "$(GREEN)✓ Generated backend/.env$(RESET)"
+	@echo "# ============================================================================" > frontend/.env
+	@echo "# Frontend - Local Development" >> frontend/.env
+	@echo "# Auto-generated from root .env by 'make local-setup'" >> frontend/.env
+	@echo "# ============================================================================" >> frontend/.env
+	@echo "" >> frontend/.env
+	@echo "VITE_API_URL=https://localhost:3000" >> frontend/.env
+	@echo "VITE_WS_URL=wss://localhost:3000/ws" >> frontend/.env
+	@echo "VITE_APP_NAME=Transcendence" >> frontend/.env
+	@echo "VITE_APP_VERSION=1.0.0" >> frontend/.env
+	@echo "$(GREEN)✓ Generated frontend/.env$(RESET)"
+	@if [ ! -f backend/ssl/cert.pem ]; then \
+		echo "$(YELLOW)→ Generating SSL certificates for localhost...$(RESET)"; \
+		openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+			-keyout backend/ssl/key.pem \
+			-out backend/ssl/cert.pem \
+			-subj "/C=MY/ST=KL/L=KL/O=42/CN=localhost" 2>/dev/null && \
+		echo "$(GREEN)✓ SSL certificates generated$(RESET)"; \
+	else \
+		echo "$(GREEN)✓ SSL certificates exist$(RESET)"; \
+	fi
+	@if [ -f frontend/vite.config.js ]; then \
+		echo "$(YELLOW)→ Configuring Vite dev server port...$(RESET)"; \
+		sed -i.bak 's/port: 4173/port: 5173/g' frontend/vite.config.js && \
+		rm -f frontend/vite.config.js.bak && \
+		echo "$(GREEN)✓ Vite configured for port 5173$(RESET)"; \
+	fi
+	@echo ""
+	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(RESET)"
+	@echo "$(GREEN)Local development ready!$(RESET)"
+	@echo "$(GREEN)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(RESET)"
+	@echo "$(YELLOW)Start development servers:$(RESET)"
+	@echo "  $(BLUE)Terminal 1:$(RESET) cd backend && npm run dev"
+	@echo "  $(BLUE)Terminal 2:$(RESET) cd frontend && npm run dev"
+	@echo ""
+	@echo "$(YELLOW)Access at:$(RESET) http://localhost:5173"
+	@echo ""
+
+dev-clean:
+	@echo "$(YELLOW)Removing generated local configs...$(RESET)"
+	@rm -f backend/.env frontend/.env
+	@if [ -f frontend/vite.config.js ]; then \
+		echo "$(YELLOW)Restoring Vite production port...$(RESET)"; \
+		sed -i.bak 's/port: 5173/port: 4173/g' frontend/vite.config.js && \
+		rm -f frontend/vite.config.js.bak && \
+		echo "$(GREEN)✓ Vite restored to port 4173$(RESET)"; \
+	fi
+	@echo "$(GREEN)✓ Cleaned$(RESET)"
+	@echo "$(YELLOW)Run 'make local-setup' to regenerate$(RESET)"
+
+
+# ============================================================================
+# PRODUCTION SETUP
 # ============================================================================
 
 setup: check-env create-dirs
