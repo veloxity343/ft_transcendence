@@ -297,7 +297,7 @@ For 42 machines by default
 **Key Features**:
 - ELO rating system with K-factor adjustment based on experience
 - Tournament bracket generation (single elimination)
-- OAuth integration (Google, 42 School support)
+- OAuth integration (Google)
 - 2FA with TOTP secrets
 
 ## Features
