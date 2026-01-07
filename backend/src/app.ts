@@ -28,7 +28,7 @@ const app: FastifyPluginAsync<AppOptions> = async (fastify, opts): Promise<void>
   // Allow cross-origin requests from the frontend for API access
   // Credentials are enabled for jwt cookies/headers
   await fastify.register(cors, {
-    origin: true, // config.fronturl,
+    origin: config.frontUrl,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],

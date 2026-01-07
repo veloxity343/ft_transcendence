@@ -95,24 +95,27 @@ Run `make help` to see all available commands. Reconfigure rules as necessary.
 
 ### Development
 
-5. **Backend:**
+5. Setup local environment for development
+   ```bash
+   make dev-setup
+   ```
+   This generates the required local `.env` files in backend/ and frontend/ directories.
+   Open 2 terminals for development.
+
+6. **Backend:**
+   
+   In Terminal 1:
 
    ``` bash
    cd backend
-   ```
-   ``` bash
-   # Local development requires a local db path
-   cp ../.env .env
-   # Update in backend/.env
-   DATABASE_URL=file:./data/transcendence.db
-   ```
-   ``` bash
    npm install
    npx prisma migrate dev
    npm run dev
    ```
 
-6. **Frontend:**
+7. **Frontend:**
+
+   In Terminal 2:
 
    ``` bash
    cd frontend
@@ -120,7 +123,7 @@ Run `make help` to see all available commands. Reconfigure rules as necessary.
    npm run dev
    ```
 
-7. **Access at** `https://localhost:4173/`
+8. **Access at** `https://localhost:5173/`
 
 </details>
 
