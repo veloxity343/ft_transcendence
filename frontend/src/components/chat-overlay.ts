@@ -217,6 +217,13 @@ export class ChatOverlay {
   }
 
   private render(): void {
+    // Preserve input value before re-rendering
+    const input = this.container.querySelector('#chatInput') as HTMLInputElement;
+    const preservedValue = input?.value || '';
+    const preservedSelectionStart = input?.selectionStart || 0;
+    const preservedSelectionEnd = input?.selectionEnd || 0;
+    const hadFocus = input && document.activeElement === input;
+
     const activeTab = this.state.tabs.find(t => t.id === this.state.activeTabId);
     const totalUnread = this.state.tabs.reduce((sum, tab) => sum + tab.unreadCount, 0);
 
@@ -708,6 +715,16 @@ export class ChatOverlay {
     // Re-attach event listeners after render
     this.attachDOMListeners();
 
+    // Restore input value and focus after re-render
+    if (this.state.isExpanded && preservedValue) {
+      const newInput = this.container.querySelector('#chatInput') as HTMLInputElement;
+      if (newInput) {
+        newInput.value = preservedValue;
+        newInput.setSelectionRange(preservedSelectionStart, preservedSelectionEnd);
+        if (hadFocus) newInput.focus();
+      }
+    }
+    
     // Scroll to bottom if expanded
     if (this.state.isExpanded) {
       this.scrollToBottom();
@@ -1694,3 +1711,4 @@ export function initChatOverlay(): ChatOverlay {
 export function getChatOverlay(): ChatOverlay | null {
   return chatOverlayInstance;
 }
+
