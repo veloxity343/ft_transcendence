@@ -43,7 +43,8 @@ authentication, and container orchestration.
 
 ### Pre-requisites
 
--   Docker & Docker Compose
+-   Docker & Docker Compose — we use the [Docker Engine](https://docs.docker.com/engine/install/)
+ from Docker’s official upstream apt sources.list (note ```docker compose``` / ```docker-compose``` commands differ depending on the installation source)
 -   Node.js LTS (for local development)
 -   npm (for local development)
 
@@ -51,7 +52,7 @@ authentication, and container orchestration.
 
 This project uses a [Makefile](./Makefile) as the main task runner for testing and production.
 
-Run `make help` to see all available commands
+Run `make help` to see all available commands. Reconfigure rules as necessary.
 
 ### Getting Started
 
@@ -216,94 +217,134 @@ For 42 machines by default
 
 ## Resources
 
-### References
+### Backend References
 
--   [WebSockets](https://websockets.readthedocs.io/en/stable/)
--   [Fastify](https://fastify.dev/docs/latest/)
--   [SQLite](https://sqlite.org/docs.html)
--   [Prisma](https://www.prisma.io/docs)
--   [Vite](https://vite.dev/guide/)
--   [Tailwind](https://tailwindcss.com/docs/installation/using-vite)
--   [Docker](https://docs.docker.com/manuals/)
+-   [Fastify](https://fastify.dev/docs/latest/) - High-performance web framework
+-   [Prisma](https://www.prisma.io/docs) - Next-generation ORM
+-   [WebSockets](https://github.com/fastify/fastify-websocket) - Real-time bidirectional communication
+-   [SQLite](https://sqlite.org/docs.html) - Lightweight embedded database
+-   [Argon2](https://github.com/ranisalt/node-argon2) - Password hashing algorithm
+-   [otplib](https://github.com/yeojz/otplib) - TOTP two-factor authentication
+-   [class-validator](https://github.com/typestack/class-validator) - DTO validation
+
+### Frontend References
+
+-   [Vite](https://vite.dev/guide/) - Build tool and dev server
+-   [Tailwind](https://tailwindcss.com/docs/installation/using-vite) - Utility-first CSS framework
+
+### Infrastructure
+
+-   [Docker](https://docs.docker.com/manuals/) - Containerisation platform
+-   [Nginx](https://nginx.org/en/docs/) - Reverse proxy and web server
 
 ## Technical Stack
 
 ### Frontend
 
--   Vite
--   TailwindCSS
--   WebSockets
--   OAuth 2.0
+-   **Build Tool**: Vite (ES modules, HMR)
+-   **Styling**: TailwindCSS (utility-first CSS)
+-   **Real-time**: WebSocket client (game state, chat, presence)
+-   **Authentication**: OAuth 2.0 (Google), JWT tokens
 
 ### Backend
 
--   Fastify
--   REST & WebSocket APIs
--   Validation, JWT, guards
+-   **Framework**: Fastify (high-performance, low-overhead)
+-   **APIs**: RESTful HTTP + WebSocket (real-time events)
+-   **Authentication**: 
+    -   JWT (access + refresh tokens)
+    -   Argon2 (password hashing)
+    -   TOTP/2FA (otplib)
+    -   OAuth 2.0 (Google)
+-   **Validation**: class-validator (DTO validation)
+-   **Real-time**: @fastify/websocket (connection management)
+-   **File Upload**: @fastify/multipart (avatars)
 
 ### Database
 
--   SQLite
--   Prisma ORM
+-   **Engine**: SQLite (embedded, file-based)
+-   **ORM**: Prisma (type-safe queries, migrations)
+-   **Schema**: Relational with JSON fields for arrays
 
-### Other
+### Game Engine
 
--   Docker / Docker Compose
--   JWT
--   Reverse proxy (if used)
+-   **Physics**: Custom 100 FPS game loop
+-   **AI**: Predictive ball trajectory with difficulty scaling
+-   **Networking**: WebSocket state synchronisation
+-   **Persistence**: Match history, ELO ratings, statistics
+
+### Infrastructure
+
+-   **Containerisation**: Docker + Docker Compose
+-   **Orchestration**: Multi-container setup (backend, frontend, nginx)
+-   **Reverse Proxy**: Nginx (SSL termination, routing)
+-   **Security**: HTTPS/WSS, JWT, rate limiting
 
 ## Database Schema
 
-| Table                | Purpose                                                                    | Key Relationships                                                                                                   | Notes / Constraints               |
-| -------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| **User**             | Stores accounts, OAuth, 2FA, game stats, and social links                  | `User → Tournament` (creator), `User → TournamentPlayer` (participant)                                              | `email` & `username` unique       |
-| **Game**             | Records matches between players with scores, duration, timestamps          | Optional `Game → Tournament`                                                                                        | Can exist outside tournaments     |
-| **Tournament**       | Represents tournaments with config, status, players, matches, and games    | `Tournament → TournamentPlayer`, `Tournament → TournamentMatch`, `Tournament → Game`, `Tournament → User` (creator) | Tracks winner, rounds, and status |
-| **TournamentPlayer** | Tracks tournament participants, seed, elimination round, and snapshot info | `TournamentPlayer → Tournament`, `TournamentPlayer → User`                                                          | `[tournamentId, userId]` unique   |
-| **TournamentMatch**  | Represents matches in tournament bracket, participants, status, result     | `TournamentMatch → Tournament`, optional `TournamentMatch → Game`                                                   | `[tournamentId, matchId]` unique  |
+| Table                | Purpose                                                                    | Key Relationships                                                                                                   | Notes / Constraints                                    |
+| -------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **User**             | Stores accounts, OAuth, 2FA, game stats, and social links                  | `User → Tournament` (creator), `User → TournamentPlayer` (participant)                                              | `email` & `username` unique; ELO score default 1200    |
+| **Game**             | Records matches between players with scores, duration, timestamps          | Optional `Game → Tournament`                                                                                        | Can exist outside tournaments; stores game type        |
+| **Tournament**       | Represents tournaments with config, status, players, matches, and games    | `Tournament → TournamentPlayer`, `Tournament → TournamentMatch`, `Tournament → Game`, `Tournament → User` (creator) | Tracks winner, rounds, status; supports local mode     |
+| **TournamentPlayer** | Tracks tournament participants, seed, elimination round, and snapshot info | `TournamentPlayer → Tournament`, `TournamentPlayer → User`                                                          | `[tournamentId, userId]` unique; supports virtual players |
+| **TournamentMatch**  | Represents matches in tournament bracket, participants, status, result     | `TournamentMatch → Tournament`, optional `TournamentMatch → Game`                                                   | `[tournamentId, matchId]` unique; tracks ready state   |
+
+**JSON Fields** (stored as strings in SQLite):
+- `User.friends`, `User.adding`, `User.added` - Friend system state
+- `User.blocks`, `User.blocking`, `User.blocked` - Block system state  
+- `User.gameHistory` - Array of game IDs (last 100 matches)
+
+**Key Features**:
+- ELO rating system with K-factor adjustment based on experience
+- Tournament bracket generation (single elimination)
+- OAuth integration (Google, 42 School support)
+- 2FA with TOTP secrets
 
 ## Features
 
-| Feature           | Description                 | Member                 |
-|-------------------|-----------------------------|------------------------|
-| Authentication    | OAuth, login                | rcheong                |
-| Profiles          | User info, status           | nbinnazl               |
-| Chat              | Real-time communication     | rcheong + nbinnazl     |
-| AI Player         | Algorithmic gameplay        | rcheong                |
-| Game              | Real-time gameplay          | rcheong                |
-| Friends           | Add/remove, presence        | rcheong + nbinnazl     |
-| Containerisation  | Docker infrastructure       | hetan                  |
-| Deployment        | Networking & infrastructure | hetan                  |
+| Feature              | Description                                      | Implementation Details                              | Member         |
+|----------------------|--------------------------------------------------|-----------------------------------------------------|----------------|
+| Authentication       | JWT, OAuth, 2FA                                  | Argon2 hashing, refresh tokens, TOTP              | rcheong        |
+| Profiles             | User info, stats, avatars                        | File uploads, ELO rankings, match history          | nbinnazl       |
+| Chat                 | Real-time communication                          | Global, DM, whispers, ignore, DND mode             | rcheong + nbinnazl |
+| AI Opponent          | Algorithmic gameplay                             | 3 difficulty levels, predictive trajectory         | rcheong        |
+| Game Engine          | Real-time Pong gameplay                          | 100 FPS physics, reconnection, forfeit support     | rcheong        |
+| ELO System           | Skill-based matchmaking                          | K-factor scaling, tournament multipliers           | rcheong        |
+| Match History        | Statistics and replays                           | Win/loss tracking, detailed game records           | rcheong + nbinnazl |
+| Friends              | Social connections                               | Pending requests, mutual acceptance                | rcheong + nbinnazl |
+| Tournaments          | Bracket competitions                             | Online and local modes, ready system               | rcheong        |
+| Leaderboard          | Global rankings                                  | ELO-based, rank titles and colors                  | rcheong + nbinnazl |
+| Containerisation     | Docker infrastructure                            | Multi-container orchestration, health checks       | hetan          |
+| Deployment           | Production networking                            | Nginx reverse proxy, SSL/TLS, port mapping         | hetan          |
 
 ## Modules
 
 ### Major (2 pts)
 
--   Real-time features (WebSockets)
--   Chat, profile and friends system
--   Public API
--   User management & authentication
--   AI opponent
--   Web-based game (Pong)
--   Remote play
--   Multiplayer
+-   **Real-time features (WebSockets)** - Connection management, presence tracking, event broadcasting
+-   **Chat system** - Global chat, private messages, whispers, ignore/block, do-not-disturb mode
+-   **Public API** - RESTful HTTP endpoints for user, game, tournament, history data
+-   **User management & authentication** - User profiles, friend requests, mutual acceptance, blocking, JWT (access + refresh), Argon2, 2FA/TOTP, OAuth
+-   **AI opponent** - Predictive trajectory algorithm, 3 difficulty levels, adaptive behaviour
+-   **Web-based game (Pong)** - Custom physics engine, 100 FPS game loop, collision detection
+-   **Remote play** - Real-time state synchronisation, reconnection support, forfeit handling
+-   **Multiplayer** - Matchmaking queue, private games, local play
 
 ### Minor (1 pt)
 
--   Backend framework (Fastify)
--   ORM for database (Prisma)
--   Notifications (toast system)
--   SSR
--   Custom design system
--   Multiple browsers supported (web standard compliance)
--   Game statistics & match history
--   OAuth (Google)
--   2FA
--   Analytics & insights dashboard
--   Advanced chat features (command interface)
--   Tournament system
+-   **Backend framework (Fastify)** - High-performance async server with plugin architecture
+-   **ORM for database (Prisma)** - Type-safe queries, automated migrations, relation loading
+-   **Notifications (toast system)** - Non-blocking UI notifications for game events, friend requests, errors
+-   **Custom design system** - Retro-styled UI components, consistent theming
+-   **Multiple browsers** - Web standards compliance, responsive design
+-   **Game statistics & match history** - Win/loss records, ELO tracking, leaderboard rankings
+-   **OAuth** - OAuth 2.0 authorisation flow, account linking
+-   **2FA** - TOTP with QR code generation, authenticator app support
+-   **Analytics dashboard** - User stats, match history, performance metrics
+-   **Advanced chat features** - Command interface, rich messaging
+-   **Tournament system** - Bracket generation, ready system, local and online modes, match progression
 
-### Total: 28 points
+### Total: 27 points
 
 ## Team Information & Contributions
 
