@@ -123,7 +123,11 @@ Run `make help` to see all available commands. Reconfigure rules as necessary.
    npm run dev
    ```
 
-8. **Access at** `https://localhost:5173/`
+8. **Accept SSL certificates**
+
+   Visit `https://localhost:3000` and accept the security warning (self-signed cert).
+
+9. **Access at** `https://localhost:5173/`
 
 </details>
 
