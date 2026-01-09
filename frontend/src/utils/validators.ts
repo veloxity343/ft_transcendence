@@ -163,6 +163,12 @@ export function sanitizeHTML(html: string): string {
   return div.innerHTML;
 }
 
+export function escapeHtml(text: string): string {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 // Format date
 export function formatDate(dateString: string): string {
   const date = new Date(dateString);

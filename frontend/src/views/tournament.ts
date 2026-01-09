@@ -3,6 +3,7 @@ import { router } from '../router';
 import { showToast } from '../utils/toast';
 import { storage } from '../utils/storage';
 import { GAME_THEMES } from '../game/themes';
+import { escapeHtml } from '../utils/validators';
 
 // SVG Icons
 const icons = {
@@ -1404,12 +1405,6 @@ export function TournamentView(): HTMLElement {
   };
 
   // Helper functions
-  const escapeHtml = (text: string): string => {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  };
-
   const nextPowerOfTwo = (n: number): number => {
     let power = 1;
     while (power < n) {

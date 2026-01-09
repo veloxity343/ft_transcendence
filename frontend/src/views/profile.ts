@@ -1,6 +1,7 @@
 import { storage } from '../utils/storage';
 import { showToast } from '../utils/toast';
 import { API_BASE_URL } from '../constants';
+import { getAvatarUrl } from '../utils/avatar';
 import { wsClient } from '../websocket/client';
 import { userApi } from '../api/user';
 import { httpClient } from '../api/client';
@@ -651,16 +652,6 @@ export function ProfileView(): HTMLElement {
         </div>
       </div>
     `;
-  }
-
-  function getAvatarUrl(avatar?: string): string {
-    if (!avatar || avatar === 'default-avatar.png') {
-      return '';
-    }
-    if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
-      return avatar;
-    }
-    return `${API_BASE_URL}/uploads/${avatar}`;
   }
 
   function formatPlayTime(seconds: number): string {

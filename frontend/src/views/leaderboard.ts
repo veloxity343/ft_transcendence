@@ -1,6 +1,6 @@
 import { storage } from '../utils/storage';
 import { userApi } from '../api/user';
-import { API_BASE_URL } from '../constants';
+import { getAvatarUrl, getAvatarFallback } from '../utils/avatar';
 import {
   historyApi,
   getRankColor,
@@ -29,21 +29,6 @@ const icons = {
     <path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"></path>
   </svg>`,
 };
-
-function getAvatarUrl(avatar?: string): string {
-  if (!avatar || avatar === 'default-avatar.png') {
-    return '';
-  }
-  if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
-    return avatar;
-  }
-  return `${API_BASE_URL}/uploads/${avatar}`;
-}
-
-function getAvatarFallback(username: string): string {
-  const initial = username?.[0]?.toUpperCase() || '?';
-  return `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%231a1a2e%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2250%22 font-size=%2240%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22 fill=%22%234A7CC9%22>${initial}</text></svg>`;
-}
 
 function getRankIcon(rank: number): string {
   if (rank === 1) return '🥇';
