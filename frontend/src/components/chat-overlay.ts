@@ -2,15 +2,8 @@ import { wsClient } from '../websocket/client';
 import { storage } from '../utils/storage';
 import { showToast } from '../utils/toast';
 import { router } from '../router';
-import { API_BASE_URL } from '../constants';
-
-function getAvatarUrl(avatar?: string): string {
-  if (!avatar) return '';
-  if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
-    return avatar;
-  }
-  return `${API_BASE_URL}/uploads/${avatar}`;
-}
+import { getAvatarUrl } from '../utils/avatar';
+import { escapeHtml } from '../utils/validators';
 
 // SVG Icons
 const icons = {
@@ -677,7 +670,7 @@ export class ChatOverlay {
             ${this.state.tabs.map(tab => `
               <div class="chat-tab ${tab.id === this.state.activeTabId ? 'active' : ''}" data-tab-id="${tab.id}">
                 ${tab.type === 'global' ? icons.global : tab.type === 'tournament' ? icons.tournament : icons.whisper}
-                <span>${this.escapeHtml(tab.name)}</span>
+                <span>${escapeHtml(tab.name)}</span>
                 ${tab.unreadCount > 0 ? `<span class="chat-tab-badge">${tab.unreadCount}</span>` : ''}
                 ${tab.type !== 'global' ? `<button class="chat-tab-close" data-close-tab="${tab.id}">${icons.close}</button>` : ''}
               </div>
@@ -737,7 +730,7 @@ export class ChatOverlay {
     if (msg.type === 'system') {
       return `
         <div class="chat-message system">
-          <div class="chat-message-content">${this.escapeHtml(msg.message)}</div>
+          <div class="chat-message-content">${escapeHtml(msg.message)}</div>
         </div>
       `;
     }
@@ -745,7 +738,7 @@ export class ChatOverlay {
     if (msg.type === 'error') {
       return `
         <div class="chat-message error">
-          <div class="chat-message-content">${this.escapeHtml(msg.message)}</div>
+          <div class="chat-message-content">${escapeHtml(msg.message)}</div>
         </div>
       `;
     }
@@ -769,10 +762,10 @@ export class ChatOverlay {
       <div class="chat-message ${msg.isWhisper ? 'whisper' : ''}">
         <div class="chat-message-header">
           <div class="chat-message-avatar">${avatarContent}</div>
-          <span class="chat-message-username ${isMe ? 'me' : ''}" data-user-id="${msg.userId}">${this.escapeHtml(msg.username)}</span>
+          <span class="chat-message-username ${isMe ? 'me' : ''}" data-user-id="${msg.userId}">${escapeHtml(msg.username)}</span>
           <span class="chat-message-time">${timeStr}</span>
         </div>
-        <div class="chat-message-content">${this.escapeHtml(msg.message)}</div>
+        <div class="chat-message-content">${escapeHtml(msg.message)}</div>
       </div>
     `;
   }
@@ -1677,12 +1670,6 @@ export class ChatOverlay {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
       }
     }, 10);
-  }
-
-  private escapeHtml(text: string): string {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
   }
 
   // Public method to open a whisper from external code

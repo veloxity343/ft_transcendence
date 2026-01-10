@@ -268,18 +268,28 @@ export function getPlacementSuffix(placement: number): string {
   return `${placement}th`;
 }
 
-/**
- * Get rank color based on ELO
- */
+const rankColorCache = new Map<number, string>();
+
 export function getRankColor(elo: number): string {
-  if (elo >= 2400) return '#FFD700'; // Gold - Grandmaster
-  if (elo >= 2200) return '#E5E4E2'; // Platinum - Master
-  if (elo >= 2000) return '#C0C0C0'; // Silver - Expert
-  if (elo >= 1800) return '#CD7F32'; // Bronze - Class A
-  if (elo >= 1600) return '#4CAF50'; // Green - Class B
-  if (elo >= 1400) return '#2196F3'; // Blue - Class C
-  if (elo >= 1200) return '#9E9E9E'; // Gray - Class D
-  return '#795548'; // Brown - Beginner
+  // Round to tier boundaries for cache efficiency
+  const tier = Math.floor(elo / 200) * 200;
+  
+  if (rankColorCache.has(tier)) {
+    return rankColorCache.get(tier)!;
+  }
+  
+  let color: string;
+  if (elo >= 2400) color = '#FFD700'; // Gold - Grandmaster
+  else if (elo >= 2200) color = '#E5E4E2'; // Platinum - Master
+  else if (elo >= 2000) color = '#C0C0C0'; // Silver - Expert
+  else if (elo >= 1800) color = '#CD7F32'; // Bronze - Class A
+  else if (elo >= 1600) color = '#4CAF50'; // Green - Class B
+  else if (elo >= 1400) color = '#2196F3'; // Blue - Class C
+  else if (elo >= 1200) color = '#9E9E9E'; // Gray - Class D
+  else color = '#795548'; // Brown - Beginner
+  
+  rankColorCache.set(tier, color);
+  return color;
 }
 
 /**

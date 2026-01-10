@@ -1,5 +1,5 @@
 import { storage } from '../utils/storage';
-import { API_BASE_URL } from '../constants';
+import { getAvatarUrl } from '../utils/avatar';
 import {
   historyApi,
   formatDuration,
@@ -622,16 +622,6 @@ export function HistoryView(): HTMLElement {
     } else {
       loadMoreSection.classList.add('hidden');
     }
-  }
-
-  function getAvatarUrl(avatar?: string): string {
-    if (!avatar || avatar === 'default-avatar.png') {
-      return '';
-    }
-    if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
-      return avatar;
-    }
-    return `${API_BASE_URL}/uploads/${avatar}`;
   }
 
   return container;

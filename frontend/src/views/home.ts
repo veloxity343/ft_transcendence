@@ -3,7 +3,7 @@ import { authApi } from '../api/auth';
 import { storage } from '../utils/storage';
 import { userApi } from '../api/user';
 import { historyApi, getRankColor } from '../api/history';
-import { API_BASE_URL } from '../constants';
+import { getAvatarUrl, getAvatarFallback } from '../utils/avatar';
 import { wsClient } from '../websocket/client';
 import { showToast } from '../utils/toast';
 
@@ -59,21 +59,6 @@ const icons = {
     <line x1="5" y1="12" x2="19" y2="12"></line>
   </svg>`,
 };
-
-function getAvatarUrl(avatar?: string): string {
-  if (!avatar || avatar === 'default-avatar.png') {
-    return '';
-  }
-  if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
-    return avatar;
-  }
-  return `${API_BASE_URL}/uploads/${avatar}`;
-}
-
-function getAvatarFallback(username: string): string {
-  const initial = username?.[0]?.toUpperCase() || '?';
-  return `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%231a1a2e%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2250%22 font-size=%2240%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22 fill=%22%234A7CC9%22>${initial}</text></svg>`;
-}
 
 export function HomeView(): HTMLElement {
   const container = document.createElement('div');
