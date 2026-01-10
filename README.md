@@ -380,15 +380,86 @@ For 42 machines by default
 
 ## Additional Information
 
--   Known issues (to be added)
--   Future improvements (to be added)
+## Additional Information
+
+### Known Issues
+
+#### Game & Performance
+- **WebSocket reconnection** - Rapid disconnect/reconnect sequences may rarely cause temporary game state desync
+- **High-latency gameplay** - Players with >200ms latency may experience slight paddle position lag
+- **ELO system** - Semi-implemented but scrapped due to time; hope to implement properly in future
+
+#### Social Features
+- **Online status accuracy** - Brief delay (5-10s) in updating online/offline status after disconnect
+- **Block functionality** - Blocked users can still see your profile and stats
+
+#### Chat & Communication
+- **Do-not-disturb mode** - DND status not clearly visible to other users
+
+#### Tournaments
+- **Late joiners** - No mechanism to fill empty slots if a player drops before tournament starts
+
+### Future Improvements
+
+#### UI & UX Customisation
+- **Theme system** - Light/dark mode toggle, customisable color schemes, theme options
+- **Game customisation** - User-configurable - paddle size, ball speed, game length
+- **Accessibility** - Keyboard-only navigation, screen reader support, high-contrast mode
+- **Language support** - Internationalisation (i18n) for multi-language support
+- **User preferences** - Persistent settings for notification preferences, chat visibility, auto-ready
+
+#### Game Modes & Features
+- **Power-ups** - Collectible power-ups
+- **Game variants** - 4-player Pong, circular Pong, obstacle mode, time-based scoring
+- **Spectator mode** - Watch live games with real-time commentary and score tracking
+- **Replay system** - Save and replay matches with playback controls (pause, rewind, fast-forward)
+- **Achievements system** - Unlock badges for milestones (100 wins, 10-game win streak, tournament victory)
+
+#### Social & User Management
+- **Friends enhancements** - Activity feed showing friends' recent games and achievements
+- **Profile improvements**
+  - Custom profile banners and themes
+  - Bio/description field with rich text formatting
+  - Recent activity timeline (matches, friend adds, tournament entries)
+  - Profile badges and achievement showcase
+  - Statistics graphs (ELO over time, win rate trends, performance by opponent)
+
+#### Chat Tools
+- **Channel management** - custom channels (attempted but scrapped due to time)
+- **Enhanced features**
+  - File sharing (images, replays, documents)
+  - @mentions with notifications
+  - Message read receipts
+  - Typing indicators
+  - Autocomplete
+- **Moderation tools**
+  - Report system
+  - Auto-moderation filters (profanity, spam detection)
+  - Moderator dashboard for managing reports
+
+#### Analytics & Insights
+- **Better metrics and statistics**
+  - Actually implement ELO system properly
+  - Heatmaps showing where ball is hit most often
+  - Win rate by time of day, opponent ELO, game mode
+  - Performance trends (last 10/50/100 games)
+  - Head-to-head records against specific opponents
+  - Average rally length, paddle accuracy metrics
+
+#### Performance Enhancements
+- **Infrastructure**
+  - Redis caching for frequently accessed data (leaderboard, user profiles)
+  - Rate limiting per endpoint to prevent abuse
+  - Database replication for high availability
+  - Monitoring and alerting (error tracking, performance metrics)
+  - Automated backups and recovery
 
 ### AI Usage & Disclosure Statement
 
 > [!IMPORTANT]
 > As per the 42 curriculum rules regarding AI, AI tools were strictly limited to the following approved tasks:
-> - Debugging assistance - understanding and breaking down error messages
-> - Documentation refinement and clarification
+> - Debugging assistance - understanding and breaking down unfamiliar error messages
+> - Documentation refinement and clarification - language checking
 > - Researching patterns and best practices
 > - Providing refactoring suggestions for readability
 >
