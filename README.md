@@ -380,8 +380,6 @@ For 42 machines by default
 
 ## Additional Information
 
-## Additional Information
-
 ### Known Issues
 
 #### Game & Performance
